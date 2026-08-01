@@ -4,11 +4,12 @@
 
 import { initializeApp } from 'firebase/app';
 import { 
-  getFirestore, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  collection, 
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  deleteDoc,
+  collection,
   onSnapshot,
   query,
   orderBy
@@ -75,6 +76,29 @@ export class FirebaseManager {
     return onSnapshot(col, (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
     });
+  }
+
+  /**
+   * Save a type schema to Firestore (the write side of subscribeSchemas). The doc id is
+   * the type, so a save replaces that type's overlay for every client. No-op when unconfigured.
+   */
+  async saveSchema(type, schema) {
+    if (!this.db) return;
+    const docRef = doc(this.db, 'codex_schemas', type);
+    await setDoc(docRef, {
+      ...schema,
+      type,
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  /**
+   * Delete a type's schema overlay from Firestore, so it falls back to the bundled seed.
+   * Backs "Reset to default". No-op when unconfigured.
+   */
+  async deleteSchema(type) {
+    if (!this.db) return;
+    await deleteDoc(doc(this.db, 'codex_schemas', type));
   }
 
   /**

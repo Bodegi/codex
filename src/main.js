@@ -8,7 +8,29 @@ import { FirebaseManager } from './utils/firebase.js';
 import { DiscordAuth } from './utils/discordAuth.js';
 
 import { renderForm as renderSchemaForm } from './schema/formRenderer.js';
-import { getSchema, setOverlaySchema } from './schema/schemaStore.js';
+import {
+  getSchema,
+  setOverlaySchema,
+  listTypes,
+  hydrateOverlayFromStorage,
+  saveSchemaLocal,
+  resetSchema,
+} from './schema/schemaStore.js';
+import { validateSchema } from './schema/schemaValidate.js';
+import {
+  renderSchemaEditor,
+  attachSchemaEditor,
+  deriveKey,
+  allFieldKeys,
+  addField,
+  removeField,
+  updateField,
+  moveField,
+  addSection,
+  removeSection,
+  renameSection,
+  moveSection,
+} from './components/schemaEditor.js';
 import { renderMatrixView } from './components/matrixView.js';
 import { renderAtlasView, initAtlasCanvas } from './components/atlasView.js';
 import { renderAuthGateway } from './components/authGateway.js';
@@ -37,7 +59,11 @@ const state = {
   fbManager: null,
   discordAuth: null,
   activeDocUnsubscribe: null,
-  liveDocId: null
+  liveDocId: null,
+  // Types tab (schema editor) working state
+  editingType: 'civilization',
+  workingSchema: null,
+  editorErrors: []
 };
 
 // Initialize Firebase & Discord Auth Manager
@@ -57,6 +83,9 @@ function subscribeSchemaOverlay() {
     if (BUILDER_TABS.includes(state.currentTab)) renderFormWithoutResubscribe();
   });
 }
+// Local schema edits (from the Types tab) survive a reload via localStorage; a Firestore
+// subscription then wins per-type when configured. Hydrate before the first render.
+hydrateOverlayFromStorage();
 subscribeSchemaOverlay();
 
 // Cross-entry lookup for reference fields. Resolves against seed entries — the fixed
@@ -233,6 +262,9 @@ function switchTab(tabKey) {
       updateRenderedPreview(formatInline('The World Atlas is interactive — drop waypoints, draw roads, and outline territories directly on the map. Changes sync to the cloud automatically.'));
       updateRawJson('');
       break;
+    case 'types':
+      enterTypesTab();
+      break;
   }
 }
 
@@ -260,6 +292,149 @@ function renderPresets(tabKey) {
     });
     presetButtonsContainer.appendChild(btn);
   });
+}
+
+// ── Types tab: in-app schema editor ────────────────────────────────────────
+// The editor holds a deep-cloned working schema. Structural edits rebuild the editor
+// DOM; text edits don't (to keep input focus). Every change re-renders the live preview
+// through the in-memory overlay. Nothing persists until Save; Reset returns to seed.
+
+// A representative entry to render the type's read-view preview against.
+function sampleForType(type) {
+  const list = SEED_BY_TYPE[type] || [];
+  return list.length ? list[0] : {};
+}
+
+function enterTypesTab() {
+  setEditingType(state.editingType || 'civilization');
+}
+
+function setEditingType(type) {
+  state.editingType = type;
+  state.editorErrors = [];
+  state.workingSchema = structuredClone(getSchema(type));
+  renderTypesEditor();
+}
+
+// Rebuild the structured editor (after a structural change) and refresh the preview.
+function renderTypesEditor() {
+  formContainer.innerHTML = renderSchemaEditor(state.workingSchema, {
+    types: listTypes(),
+    editingType: state.editingType,
+    errors: state.editorErrors,
+  });
+  attachSchemaEditor(formContainer.querySelector('.schema-editor'), handleSchemaIntent);
+  refreshWorkingPreview();
+}
+
+// Push the working schema into the overlay and refresh both preview panes. Does NOT
+// rebuild the editor DOM — safe to call from text-input handlers without losing focus.
+function refreshWorkingPreview() {
+  setOverlaySchema(state.editingType, state.workingSchema);
+  updateRenderedPreview(renderEntryHTML(state.editingType, sampleForType(state.editingType), renderCtx));
+  updateRawJson(JSON.stringify(state.workingSchema, null, 2));
+}
+
+// Translate an editor intent into a working-schema transform. Structural actions rebuild
+// the editor; text/checkbox edits only refresh the preview.
+function handleSchemaIntent(intent) {
+  const s = state.workingSchema;
+  switch (intent.action) {
+    case 'pick-type':
+      return setEditingType(intent.type);
+    case 'save':
+      return saveWorkingSchema();
+    case 'reset':
+      return resetWorkingSchema();
+    case 'add-section':
+      state.workingSchema = addSection(s, 'New Section');
+      return renderTypesEditor();
+    case 'remove-section':
+      state.workingSchema = removeSection(s, intent.si);
+      return renderTypesEditor();
+    case 'move-section':
+      state.workingSchema = moveSection(s, intent.si, intent.delta);
+      return renderTypesEditor();
+    case 'rename-section':
+      state.workingSchema = renameSection(s, intent.si, intent.title);
+      return refreshWorkingPreview();
+    case 'add-field': {
+      const key = deriveKey('New Field', allFieldKeys(s));
+      state.workingSchema = addField(s, intent.si, { key, label: 'New Field', kind: 'text' });
+      return renderTypesEditor();
+    }
+    case 'remove-field':
+      state.workingSchema = removeField(s, intent.si, intent.fi);
+      return renderTypesEditor();
+    case 'move-field':
+      state.workingSchema = moveField(s, intent.si, intent.fi, intent.delta);
+      return renderTypesEditor();
+    case 'change-kind':
+      // Kind toggles which conditional controls show — rebuild the editor.
+      state.workingSchema = updateField(s, intent.si, intent.fi, { kind: intent.kind });
+      return renderTypesEditor();
+    case 'edit-field':
+      state.workingSchema = updateField(s, intent.si, intent.fi, intent.patch);
+      return refreshWorkingPreview();
+    default:
+      return undefined;
+  }
+}
+
+function saveWorkingSchema() {
+  const result = validateSchema(state.workingSchema);
+  if (!result.ok) {
+    state.editorErrors = result.errors;
+    renderTypesEditor();
+    return;
+  }
+  state.editorErrors = [];
+  saveSchemaLocal(state.editingType, state.workingSchema); // overlay + localStorage
+  if (state.fbManager && state.fbManager.isConfigured()) {
+    state.fbManager
+      .saveSchema(state.editingType, state.workingSchema)
+      .catch((err) => showToast('Firebase save error: ' + err.message));
+  }
+  renderTypesEditor();
+  showToast(`Saved “${state.editingType}” type`);
+}
+
+function resetWorkingSchema() {
+  resetSchema(state.editingType); // overlay -> seed + drop localStorage entry
+  if (state.fbManager && state.fbManager.isConfigured()) {
+    state.fbManager.deleteSchema(state.editingType).catch((err) => showToast('Firebase reset error: ' + err.message));
+  }
+  state.editorErrors = [];
+  state.workingSchema = structuredClone(getSchema(state.editingType)); // now the seed
+  renderTypesEditor();
+  showToast(`Reset “${state.editingType}” to default`);
+}
+
+// Apply a live edit from the Raw JSON pane to the working schema (the Advanced escape
+// hatch). Rebuilds the structured editor but leaves the textarea as typed.
+function applySchemaRawJsonEdit() {
+  let parsed;
+  try {
+    parsed = JSON.parse(previewRawTextarea.value);
+  } catch (err) {
+    setJsonError(err.message);
+    return;
+  }
+  if (!parsed || !Array.isArray(parsed.sections)) {
+    setJsonError('A schema needs a "sections" array.');
+    return;
+  }
+  clearJsonError();
+
+  state.workingSchema = parsed;
+  formContainer.innerHTML = renderSchemaEditor(state.workingSchema, {
+    types: listTypes(),
+    editingType: state.editingType,
+    errors: state.editorErrors,
+  });
+  attachSchemaEditor(formContainer.querySelector('.schema-editor'), handleSchemaIntent);
+  setOverlaySchema(state.editingType, state.workingSchema);
+  updateRenderedPreview(renderEntryHTML(state.editingType, sampleForType(state.editingType), renderCtx));
 }
 
 // Realtime Firestore Doc Subscription
@@ -387,8 +562,8 @@ function loadEntry(type, id) {
 }
 
 function updateRawJson(jsonText) {
-  // Only single-entry builder tabs are editable
-  previewRawTextarea.readOnly = !BUILDER_TABS.includes(state.currentTab);
+  // Single-entry builder tabs edit an entry; the Types tab edits a schema — both editable.
+  previewRawTextarea.readOnly = !(BUILDER_TABS.includes(state.currentTab) || state.currentTab === 'types');
   // Never overwrite the textarea while the user is actively typing in it
   if (document.activeElement === previewRawTextarea) return;
   previewRawTextarea.value = jsonText;
@@ -404,6 +579,7 @@ function autoSaveToFirebase() {
 
 // Apply a live edit from the Raw JSON editor back into form state
 function applyRawJsonEdit() {
+  if (state.currentTab === 'types') return applySchemaRawJsonEdit();
   if (!BUILDER_TABS.includes(state.currentTab)) return;
 
   let parsed;
@@ -436,6 +612,15 @@ function clearJsonError() {
 // Raw JSON editor — live-apply on valid input, resync the form on blur
 previewRawTextarea.addEventListener('input', applyRawJsonEdit);
 previewRawTextarea.addEventListener('change', () => {
+  if (state.currentTab === 'types') {
+    try {
+      JSON.parse(previewRawTextarea.value);
+    } catch {
+      return; // leave the invalid text and error visible for the user to fix
+    }
+    renderTypesEditor(); // rebuild editor + normalize the schema JSON
+    return;
+  }
   if (!BUILDER_TABS.includes(state.currentTab)) return;
   try {
     JSON.parse(previewRawTextarea.value);
