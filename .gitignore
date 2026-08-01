@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Secrets — never commit tokens, keys, or local config
+.env
+.env.*
+*.token
+token.txt
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

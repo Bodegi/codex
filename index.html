@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ATM10 Design Codex Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/styles/main.css">
+</head>
+<body class="bg-dark text-light">
+  <div id="app" class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="logo-icon">⛏️</div>
+        <div>
+          <h1 class="brand-title">ATM10 Codex Studio</h1>
+          <span class="brand-subtitle">World Design Engine & Interactive Atlas</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav id="app-nav" class="app-nav">
+        <button class="nav-btn active" data-tab="civilization">
+          <span class="icon">🏰</span> Civilizations
+        </button>
+        <button class="nav-btn" data-tab="mod">
+          <span class="icon">⚙️</span> Mods
+        </button>
+        <button class="nav-btn" data-tab="region">
+          <span class="icon">⛰️</span> Regions
+        </button>
+        <button class="nav-btn" data-tab="decision">
+          <span class="icon">📜</span> Decision Log
+        </button>
+        <button class="nav-btn" data-tab="matrix">
+          <span class="icon">🕸️</span> World Matrix
+        </button>
+        <button class="nav-btn" data-tab="atlas">
+          <span class="icon">🗺️</span> World Atlas
+        </button>
+      </nav>
+
+      <!-- Global Actions & User Auth Badge -->
+      <div class="header-actions">
+        <div id="user-profile-badge" class="user-badge-container">
+          <button id="btn-discord-login" class="btn btn-discord">
+            <span>💬</span> Login with Discord
+          </button>
+        </div>
+
+        <button id="btn-firebase-settings" class="btn btn-secondary" title="Configure Firebase Real-time Cloud Sync">
+          <span>🔥</span> Firebase Sync
+        </button>
+        <button id="btn-open-file" class="btn btn-secondary" title="Open Markdown File">
+          <span>📂</span> Open File
+        </button>
+        <button id="btn-save-disk" class="btn btn-primary" title="Save Markdown to Cloud DB or Disk">
+          <span>💾</span> Save File
+        </button>
+      </div>
+    </header>
+
+    <!-- Private Auth Gateway Container (Shown if logged out/unauthorized) -->
+    <div id="gateway-container" class="hidden"></div>
+
+    <!-- Main Workspace (Shown when authenticated) -->
+    <main id="main-workspace" class="app-workspace">
+      <!-- Left Panel: Form & Presets Editor -->
+      <section class="editor-panel glass-card">
+        <!-- Preset Selector Bar -->
+        <div class="preset-bar">
+          <span class="preset-label">Quick Presets:</span>
+          <div id="preset-buttons" class="preset-chips">
+            <!-- Dynamically populated per tab -->
+          </div>
+        </div>
+
+        <!-- Dynamic Form Container -->
+        <div id="form-container" class="form-scrollable">
+          <!-- Active Form rendered here -->
+        </div>
+      </section>
+
+      <!-- Right Panel: Live Preview & Matrix View -->
+      <section class="preview-panel glass-card">
+        <div class="preview-header">
+          <div class="preview-mode-switch">
+            <button class="preview-tab-btn active" data-view="rendered">Visual Preview</button>
+            <button class="preview-tab-btn" data-view="raw">Raw JSON</button>
+          </div>
+          <div id="active-file-indicator" class="compliance-badge is-local">
+            <span class="idle-dot"></span> Local only
+          </div>
+        </div>
+
+        <!-- Rendered HTML / Raw Markdown Container -->
+        <div id="preview-content-rendered" class="preview-content markdown-body">
+          <!-- Rendered HTML Markdown preview -->
+        </div>
+        <div id="preview-content-raw" class="preview-content raw-body hidden">
+          <textarea id="raw-json-textarea" spellcheck="false"></textarea>
+          <div id="json-error" class="json-error hidden"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Firebase Config Dialog Modal -->
+    <dialog id="firebase-dialog" class="gh-dialog-card">
+      <div class="dialog-header">
+        <h2>🔥 Firebase Cloud Database & Real-time Sync Setup</h2>
+        <button id="btn-close-fb-dialog" class="close-btn">&times;</button>
+      </div>
+      <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">
+        Connect your free Firebase Firestore database so you and your 2 collaborators see real-time updates instantly across all screens!
+      </p>
+      <form id="firebase-form">
+        <div class="form-group" style="margin-bottom:10px;">
+          <label>API Key</label>
+          <input type="text" id="fb-apiKey" class="form-control" placeholder="AIzaSy...">
+        </div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label>Auth Domain</label>
+          <input type="text" id="fb-authDomain" class="form-control" placeholder="atm10-codex.firebaseapp.com">
+        </div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label>Project ID</label>
+          <input type="text" id="fb-projectId" class="form-control" placeholder="atm10-codex">
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label>Discord Client ID (for Discord OAuth Login)</label>
+          <input type="text" id="fb-discordClientId" class="form-control" placeholder="123456789012345678">
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label>Allowed Discord User IDs (Comma-separated)</label>
+          <input type="text" id="fb-allowedDiscordIds" class="form-control" placeholder="12345678, 87654321, 11223344">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="submit" class="btn btn-primary">Connect Firebase & Discord Auth</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Hidden File Input for fallback -->
+    <input type="file" id="fallback-file-input" accept=".json" style="display:none">
+
+    <!-- Notification Toast -->
+    <div id="toast-container" class="toast-container"></div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
