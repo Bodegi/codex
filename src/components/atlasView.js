@@ -87,9 +87,10 @@ export function renderAtlasView() {
 }
 
 /**
- * Initialize Interactive Canvas Controls (Pan, Zoom, Polygon Territory Drawing, Polyline Rails, Interactive Pins)
+ * Initialize Interactive Canvas Controls (Pan, Zoom, Polygon Territory Drawing, Polyline Rails, Interactive Pins).
+ * `codexScope` is the current codex's Firestore scope (saveMapData / subscribeToMapData), or null in local-only mode.
  */
-export function initAtlasCanvas(firebaseManager) {
+export function initAtlasCanvas(codexScope) {
   const canvas = document.getElementById('atlas-canvas');
   const bgImg = document.getElementById('atlas-bg-img');
   const mapSelect = document.getElementById('atlas-map-select');
@@ -259,14 +260,14 @@ export function initAtlasCanvas(firebaseManager) {
 
   // Save State to Firebase if configured
   function saveMapStateToFirebase() {
-    if (firebaseManager && firebaseManager.isConfigured()) {
-      firebaseManager.saveMapData({ waypoints, roads, territories, mapImageId: mapSelect?.value || '' });
+    if (codexScope && codexScope.isConfigured()) {
+      codexScope.saveMapData({ waypoints, roads, territories, mapImageId: mapSelect?.value || '' });
     }
   }
 
   // Subscribe to Realtime Map Updates
-  if (firebaseManager && firebaseManager.isConfigured()) {
-    firebaseManager.subscribeToMapData((data) => {
+  if (codexScope && codexScope.isConfigured()) {
+    codexScope.subscribeToMapData((data) => {
       if (data) {
         waypoints = data.waypoints || [];
         roads = data.roads || [];

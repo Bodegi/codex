@@ -3,6 +3,7 @@
  */
 
 import { seedCivilizations, seedMods, seedRegions, seedDecisionLogs } from './data/seedData.js';
+import { seedAtm10Codex, ATM10_CODEX_ID } from './data/seedCodex.js';
 import { renderEntryHTML, formatInline } from './utils/entryRenderer.js';
 import { FirebaseManager } from './utils/firebase.js';
 import { AuthManager } from './utils/authManager.js';
@@ -48,6 +49,9 @@ let lastFocusedProseField = null;
 // Tabs that represent a single editable JSON entry
 const BUILDER_TABS = ['civilization', 'mod', 'region', 'decision'];
 
+// localStorage key persisting the active codex across reloads.
+const CURRENT_CODEX_KEY = 'codex_current_id';
+
 // Application State
 const state = {
   currentTab: 'civilization',
@@ -55,6 +59,9 @@ const state = {
   formData: { ...seedCivilizations[0] },
   fileHandle: null,
   currentFileName: null,
+  // The active codex. Phase 1 has a single codex and no switcher, but every Firestore access is
+  // scoped from day one so Phase 3 only has to add the picker.
+  currentCodexId: localStorage.getItem(CURRENT_CODEX_KEY) || ATM10_CODEX_ID,
   firebaseConfig: resolveFirebaseConfig(appConfig.firebase, localStorage.getItem('codex_firebase_override')),
   fbManager: null,
   authManager: null,
@@ -73,13 +80,43 @@ if (state.firebaseConfig) {
   state.authManager = new AuthManager(state.fbManager.app, appConfig.auth.allowlist);
 }
 
+// The active codex's Firestore scope (entries / schemas / atlas under codices/${id}/…), or null in
+// local-only mode. Every Firestore read/write goes through this so nothing is hardwired to one codex.
+function codexScope() {
+  return state.fbManager ? state.fbManager.codex(state.currentCodexId) : null;
+}
+
+// Phase-1 content migration: an idempotent, console-invokable seed. Run it once while signed in as
+// the super-admin — `window.seedAtm10Codex()` — to write the bundled ATM10 content into
+// codices/atm10/…. Becomes an "Initialize codex" admin-tab button in Phase 2.
+window.seedAtm10Codex = async () => {
+  const uid = state.authManager?.currentUser?.uid;
+  if (!uid) {
+    showToast('Sign in as the super-admin before seeding.');
+    return;
+  }
+  try {
+    const result = await seedAtm10Codex(state.fbManager, uid);
+    const msg = result.seeded
+      ? `Seeded atm10 — ${result.counts.entries} entries, ${result.counts.schemas} schemas`
+      : `Seed skipped — ${result.counts.reason}`;
+    showToast(msg);
+    console.log('[seedAtm10Codex]', result);
+    return result;
+  } catch (err) {
+    showToast('Seed error: ' + err.message);
+    console.error('[seedAtm10Codex]', err);
+  }
+};
+
 // Overlay any Firestore-authored schemas on top of the bundled seed schemas. Seed is
 // the offline source of truth; this only adds/overrides when a project is configured.
 let schemaUnsubscribe = null;
 function subscribeSchemaOverlay() {
   if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
-  if (!(state.fbManager && state.fbManager.isConfigured())) return;
-  schemaUnsubscribe = state.fbManager.subscribeSchemas((schemas) => {
+  const scope = codexScope();
+  if (!(scope && scope.isConfigured())) return;
+  schemaUnsubscribe = scope.subscribeSchemas((schemas) => {
     schemas.forEach((s) => { if (s && s.type) setOverlaySchema(s.type, s); });
     if (BUILDER_TABS.includes(state.currentTab)) renderFormWithoutResubscribe();
   });
@@ -252,7 +289,7 @@ function switchTab(tabKey) {
       break;
     case 'atlas':
       formContainer.innerHTML = renderAtlasView();
-      initAtlasCanvas(state.fbManager);
+      initAtlasCanvas(codexScope());
       updateRenderedPreview(formatInline('The World Atlas is interactive — drop waypoints, draw roads, and outline territories directly on the map. Changes sync to the cloud automatically.'));
       updateRawJson('');
       break;
@@ -384,8 +421,9 @@ function saveWorkingSchema() {
   }
   state.editorErrors = [];
   saveSchemaLocal(state.editingType, state.workingSchema); // overlay + localStorage
-  if (state.fbManager && state.fbManager.isConfigured()) {
-    state.fbManager
+  const scope = codexScope();
+  if (scope && scope.isConfigured()) {
+    scope
       .saveSchema(state.editingType, state.workingSchema)
       .catch((err) => showToast('Firebase save error: ' + err.message));
   }
@@ -395,8 +433,9 @@ function saveWorkingSchema() {
 
 function resetWorkingSchema() {
   resetSchema(state.editingType); // overlay -> seed + drop localStorage entry
-  if (state.fbManager && state.fbManager.isConfigured()) {
-    state.fbManager.deleteSchema(state.editingType).catch((err) => showToast('Firebase reset error: ' + err.message));
+  const scope = codexScope();
+  if (scope && scope.isConfigured()) {
+    scope.deleteSchema(state.editingType).catch((err) => showToast('Firebase reset error: ' + err.message));
   }
   state.editorErrors = [];
   state.workingSchema = structuredClone(getSchema(state.editingType)); // now the seed
@@ -439,9 +478,10 @@ function subscribeToLiveFirestoreDoc(type, id) {
   }
   state.liveDocId = null;
 
-  if (state.fbManager && state.fbManager.isConfigured() && id) {
+  const scope = codexScope();
+  if (scope && scope.isConfigured() && id) {
     state.liveDocId = id;
-    state.activeDocUnsubscribe = state.fbManager.subscribeToDoc(type, id, (remoteData) => {
+    state.activeDocUnsubscribe = scope.subscribeToDoc(type, id, (remoteData) => {
       if (remoteData) {
         state.formData = { ...state.formData, ...remoteData };
         renderFormWithoutResubscribe();
@@ -566,8 +606,9 @@ function updateRawJson(jsonText) {
 
 // Persist the current entry to Firebase — shared by the form and JSON editors
 function autoSaveToFirebase() {
-  if (state.fbManager && state.fbManager.isConfigured()) {
-    state.fbManager.saveDoc(state.currentTab, state.formData.id || 'draft', state.formData);
+  const scope = codexScope();
+  if (scope && scope.isConfigured()) {
+    scope.saveDoc(state.currentTab, state.formData.id || 'draft', state.formData);
   }
 }
 
@@ -698,9 +739,10 @@ document.getElementById('btn-save-disk').addEventListener('click', async () => {
   const jsonPayload = currentEntryJson();
 
   // Save to Firebase Firestore
-  if (state.fbManager && state.fbManager.isConfigured()) {
+  const scope = codexScope();
+  if (scope && scope.isConfigured()) {
     try {
-      await state.fbManager.saveDoc(state.currentTab, state.formData.id || 'entry', state.formData);
+      await scope.saveDoc(state.currentTab, state.formData.id || 'entry', state.formData);
       showToast('🔥 Saved entry to Firebase Cloud DB!');
     } catch (err) {
       showToast('Firebase save error: ' + err.message);
