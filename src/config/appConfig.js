@@ -22,7 +22,7 @@ export const appConfig = {
   // handshake). `allowlist` gates the UI by email; empty = any Google account may sign in. Durable
   // per-user / per-codex enforcement moves to Firestore rules + a `users` collection (HANDOFF.md).
   auth: {
-    allowlist: [],
+    allowlist: ['bodegigaming@gmail.com'],
   },
 };
 
