@@ -26,7 +26,6 @@
   --accent-purple: #8b5cf6;
   --accent-crimson: #ef4444;
   --accent-copper: #d97706;
-  --accent-discord: #5865F2;
 
   /* Typography */
   --font-heading: 'Cinzel', serif;
@@ -157,7 +156,7 @@ body {
   box-shadow: var(--shadow-glow);
 }
 
-/* Header Actions & Discord Badge */
+/* Header Actions & User Badge */
 .header-actions {
   display: flex;
   align-items: center;
@@ -173,8 +172,8 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(88, 101, 242, 0.15);
-  border: 1px solid var(--accent-discord);
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid var(--accent-gold);
   padding: 4px 12px 4px 6px;
   border-radius: 20px;
   font-size: 12px;
@@ -223,16 +222,6 @@ body {
 .btn-secondary:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: var(--text-muted);
-}
-
-.btn-discord {
-  background: var(--accent-discord);
-  color: #fff;
-  box-shadow: 0 4px 14px rgba(88, 101, 242, 0.3);
-}
-
-.btn-discord:hover {
-  background: #4752C4;
 }
 
 .btn-sm {

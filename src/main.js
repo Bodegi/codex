@@ -5,7 +5,7 @@
 import { seedCivilizations, seedMods, seedRegions, seedDecisionLogs } from './data/seedData.js';
 import { renderEntryHTML, formatInline } from './utils/entryRenderer.js';
 import { FirebaseManager } from './utils/firebase.js';
-import { DiscordAuth } from './utils/discordAuth.js';
+import { AuthManager } from './utils/authManager.js';
 import { appConfig, resolveFirebaseConfig } from './config/appConfig.js';
 
 import { renderForm as renderSchemaForm } from './schema/formRenderer.js';
@@ -56,9 +56,8 @@ const state = {
   fileHandle: null,
   currentFileName: null,
   firebaseConfig: resolveFirebaseConfig(appConfig.firebase, localStorage.getItem('codex_firebase_override')),
-  discordClientId: appConfig.discord.clientId || '',
   fbManager: null,
-  discordAuth: null,
+  authManager: null,
   activeDocUnsubscribe: null,
   liveDocId: null,
   // Types tab (schema editor) working state
@@ -67,11 +66,12 @@ const state = {
   editorErrors: []
 };
 
-// Initialize Firebase & Discord Auth Manager
+// Initialize Firebase + Google Auth. Auth needs an initialized Firebase app, so the auth manager
+// only exists when Firebase is configured; local-only mode runs unauthenticated (no login wall).
 if (state.firebaseConfig) {
   state.fbManager = new FirebaseManager(state.firebaseConfig);
+  state.authManager = new AuthManager(state.fbManager.app, appConfig.auth.allowlist);
 }
-state.discordAuth = new DiscordAuth(state.discordClientId);
 
 // Overlay any Firestore-authored schemas on top of the bundled seed schemas. Seed is
 // the offline source of truth; this only adds/overrides when a project is configured.
@@ -126,68 +126,69 @@ const userProfileBadge = document.getElementById('user-profile-badge');
 const gatewayContainer = document.getElementById('gateway-container');
 const mainWorkspace = document.getElementById('main-workspace');
 
-// Check OAuth callback token from URL
-async function initAuth() {
-  await state.discordAuth.handleCallback();
+// Wire the Google-auth session to the UI. onChange fires with the restored session on boot and on
+// every sign-in / sign-out; local-only mode has no auth manager, so we just render the open workspace.
+function initAuth() {
+  // Render the initial state synchronously — with auth present but no resolved session yet, this
+  // defaults to locked (gateway shown), avoiding a flash of the workspace before onChange fires.
   renderUserBadge();
   checkAuthAndRenderState();
+  if (state.authManager) {
+    state.authManager.onChange(() => {
+      renderUserBadge();
+      checkAuthAndRenderState();
+    });
+  }
 }
 
 // Render User Avatar Profile Badge
 function renderUserBadge() {
-  const user = state.discordAuth.currentUser;
+  if (!state.authManager) {
+    userProfileBadge.innerHTML = '';
+    return;
+  }
+  const user = state.authManager.currentUser;
   if (user && user.isAuthorized) {
     userProfileBadge.innerHTML = `
-      <div class="user-badge" title="Logged in as ${user.username}">
+      <div class="user-badge" title="Signed in as ${user.username}">
         <img src="${user.avatar}" class="user-avatar" alt="${user.username}">
         <span>${user.globalName || user.username}</span>
         <button id="btn-logout" class="btn btn-secondary btn-sm" style="margin-left:4px; padding:2px 6px;">Sign Out</button>
       </div>
     `;
     document.getElementById('btn-logout')?.addEventListener('click', () => {
-      state.discordAuth.logout();
-      renderUserBadge();
-      checkAuthAndRenderState();
-      showToast('Signed out of Discord');
+      state.authManager.logout().catch((err) => showToast(err.message));
     });
   } else {
     userProfileBadge.innerHTML = `
-      <button id="btn-discord-login" class="btn btn-discord">
-        <span>💬</span> Login with Discord
+      <button id="btn-google-login" class="btn btn-secondary">
+        <span>🔑</span> Sign in with Google
       </button>
     `;
-    document.getElementById('btn-discord-login')?.addEventListener('click', () => {
-      try {
-        state.discordAuth.login();
-      } catch (err) {
-        showToast(err.message);
-      }
+    document.getElementById('btn-google-login')?.addEventListener('click', () => {
+      state.authManager.login().catch((err) => showToast(err.message));
     });
   }
 }
 
-// Private Workspace Auth Enforcement
+// Private Workspace Auth Enforcement. The wall engages whenever auth is available (Firebase
+// configured); an unresolved or unauthorized session keeps the workspace hidden behind the gateway.
 function checkAuthAndRenderState() {
-  const isAuth = state.discordAuth.isAuthenticated();
+  const gated = !!state.authManager;
+  const isAuth = state.authManager ? state.authManager.isAuthenticated() : true;
 
-  if (!isAuth && state.discordClientId) {
+  if (gated && !isAuth) {
     // Show private gateway overlay
     mainWorkspace.classList.add('hidden');
     gatewayContainer.classList.remove('hidden');
-    gatewayContainer.innerHTML = renderAuthGateway(state.discordAuth);
+    gatewayContainer.innerHTML = renderAuthGateway(state.authManager.currentUser);
 
     document.getElementById('gateway-login-btn')?.addEventListener('click', () => {
-      try {
-        state.discordAuth.login();
-      } catch (err) {
-        showToast(err.message);
-      }
+      state.authManager.login().catch((err) => showToast(err.message));
     });
 
     document.getElementById('gateway-logout-btn')?.addEventListener('click', () => {
-      state.discordAuth.logout();
-      renderUserBadge();
-      checkAuthAndRenderState();
+      state.authManager.logout().catch((err) => showToast(err.message));
     });
   } else {
     // Show main workspace

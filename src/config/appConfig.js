@@ -18,11 +18,10 @@ export const appConfig = {
     authDomain: 'codex-80902.firebaseapp.com',
     projectId: 'codex-80902',
   },
-  // Path A (soft login wall): baked at build time — populated once the Discord app is registered.
-  // client ID is public and bootstraps OAuth; the allowlist stays here until the Path B migration
-  // moves it into Firestore `users`/`permissions` collections.
-  discord: {
-    clientId: null,
+  // Google sign-in via Firebase Auth — no OAuth client ID needed (Firebase `authDomain` handles the
+  // handshake). `allowlist` gates the UI by email; empty = any Google account may sign in. Durable
+  // per-user / per-codex enforcement moves to Firestore rules + a `users` collection (HANDOFF.md).
+  auth: {
     allowlist: [],
   },
 };
