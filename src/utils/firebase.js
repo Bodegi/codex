@@ -65,6 +65,19 @@ export class FirebaseManager {
   }
 
   /**
+   * Subscribe to real-time updates for the type schemas. The callback receives the
+   * full array of schema docs on every change; an unconfigured manager is a no-op.
+   * Schema *writes* are the job of the (future) in-app schema editor.
+   */
+  subscribeSchemas(callback) {
+    if (!this.db) return () => {};
+    const col = collection(this.db, 'codex_schemas');
+    return onSnapshot(col, (snapshot) => {
+      callback(snapshot.docs.map((d) => d.data()));
+    });
+  }
+
+  /**
    * Subscribe to real-time updates for the Interactive World Map vector data
    */
   subscribeToMapData(callback) {

@@ -7,15 +7,14 @@ import { renderEntryHTML, formatInline } from './utils/entryRenderer.js';
 import { FirebaseManager } from './utils/firebase.js';
 import { DiscordAuth } from './utils/discordAuth.js';
 
-import { renderCivilizationForm } from './components/civilizationBuilder.js';
-import { renderModForm } from './components/modBuilder.js';
-import { renderRegionForm } from './components/regionBuilder.js';
-import { renderDecisionLogForm } from './components/decisionLogBuilder.js';
+import { renderForm as renderSchemaForm } from './schema/formRenderer.js';
+import { getSchema, setOverlaySchema } from './schema/schemaStore.js';
 import { renderMatrixView } from './components/matrixView.js';
 import { renderAtlasView, initAtlasCanvas } from './components/atlasView.js';
 import { renderAuthGateway } from './components/authGateway.js';
-import { attachMediaControls } from './components/mediaControls.js';
+import { renderMediaControls, attachMediaControls } from './components/mediaControls.js';
 import { renderCarousel, initCarousel } from './components/carousel.js';
+import { resolve as resolvePoolImage } from './utils/imagePool.js';
 
 // Tabs whose entries support imagery (hero / carousel / inline)
 const MEDIA_TABS = ['civilization', 'mod', 'region'];
@@ -46,6 +45,42 @@ if (state.firebaseConfig) {
   state.fbManager = new FirebaseManager(state.firebaseConfig);
 }
 state.discordAuth = new DiscordAuth(state.discordClientId);
+
+// Overlay any Firestore-authored schemas on top of the bundled seed schemas. Seed is
+// the offline source of truth; this only adds/overrides when a project is configured.
+let schemaUnsubscribe = null;
+function subscribeSchemaOverlay() {
+  if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
+  if (!(state.fbManager && state.fbManager.isConfigured())) return;
+  schemaUnsubscribe = state.fbManager.subscribeSchemas((schemas) => {
+    schemas.forEach((s) => { if (s && s.type) setOverlaySchema(s.type, s); });
+    if (BUILDER_TABS.includes(state.currentTab)) renderFormWithoutResubscribe();
+  });
+}
+subscribeSchemaOverlay();
+
+// Cross-entry lookup for reference fields. Resolves against seed entries — the fixed
+// set of pages that exist in phase 1; a live Firestore index can extend this later.
+const SEED_BY_TYPE = {
+  civilization: seedCivilizations,
+  mod: seedMods,
+  region: seedRegions,
+  decision: seedDecisionLogs,
+};
+const entryLabel = (e) => e.name || e.title || e.id;
+const entriesOfType = (type) => (SEED_BY_TYPE[type] || []).map((e) => ({ id: e.id, label: entryLabel(e) }));
+const findSeedEntry = (type, id) => (SEED_BY_TYPE[type] || []).find((e) => e.id === id) || null;
+
+// Edge adapter handed to the schema renderers: the image/reference resolution they
+// must not import directly (keeps them build-tool-free and unit-testable).
+const renderCtx = {
+  resolveImage: (id) => resolvePoolImage(id),
+  listEntries: (type) => entriesOfType(type),
+  resolveRef: (type, id) => {
+    const entry = findSeedEntry(type, id);
+    return entry ? { label: entryLabel(entry), exists: true } : { label: id, exists: false };
+  },
+};
 
 // DOM References
 const formContainer = document.getElementById('form-container');
@@ -257,36 +292,32 @@ function renderForm() {
 function renderFormWithoutResubscribe() {
   lastFocusedProseField = null;
 
-  if (state.currentTab === 'civilization') {
-    formContainer.innerHTML = renderCivilizationForm(state.formData);
-  } else if (state.currentTab === 'mod') {
-    formContainer.innerHTML = renderModForm(state.formData);
-  } else if (state.currentTab === 'region') {
-    formContainer.innerHTML = renderRegionForm(state.formData);
-  } else if (state.currentTab === 'decision') {
-    formContainer.innerHTML = renderDecisionLogForm(state.formData);
-  }
+  const mediaBlock = MEDIA_TABS.includes(state.currentTab) ? renderMediaControls(state.formData) : '';
+  formContainer.innerHTML = renderSchemaForm(getSchema(state.currentTab), state.formData, renderCtx) + mediaBlock;
 
   attachFormInputListeners();
   wireMediaForCurrentForm();
   refreshBuilderPreview();
 }
 
-// Attach Input Listeners & Auto-Sync to Firebase
+// Attach Input Listeners & Auto-Sync to Firebase. Schema fields carry data-field-key
+// (+ data-field-kind); media buttons carry neither and are wired separately.
 function attachFormInputListeners() {
-  const inputs = formContainer.querySelectorAll('input, textarea, select');
-  inputs.forEach(input => {
+  formContainer.querySelectorAll('[data-field-key]').forEach((input) => {
     input.addEventListener('input', (e) => {
-      const fieldId = e.target.id;
-      const key = fieldId.replace(/^(civ|mod|region|adr)-/, '');
-      state.formData[key] = e.target.value;
+      const el = e.target;
+      const key = el.dataset.fieldKey;
+      state.formData[key] =
+        el.dataset.fieldKind === 'list'
+          ? el.value.split('\n').map((s) => s.trim()).filter(Boolean)
+          : el.value;
       refreshBuilderPreview();
       autoSaveToFirebase();
     });
   });
 
   // Track the last-focused prose field for inline-image insertion
-  formContainer.querySelectorAll('textarea').forEach((ta) => {
+  formContainer.querySelectorAll('textarea[data-field-kind="prose"]').forEach((ta) => {
     ta.addEventListener('focus', () => { lastFocusedProseField = ta; });
   });
 }
@@ -319,7 +350,7 @@ function entryHasContent() {
 
 // Entry HTML + carousel composed after it (carousel is never part of the entry body)
 function currentPreviewHTML() {
-  return renderEntryHTML(state.currentTab, state.formData) + renderCarousel(state.formData.gallery);
+  return renderEntryHTML(state.currentTab, state.formData, renderCtx) + renderCarousel(state.formData.gallery);
 }
 
 // Re-render the current builder entry & refresh both preview panels
@@ -331,6 +362,28 @@ function refreshBuilderPreview() {
 
 function updateRenderedPreview(html) {
   previewRendered.innerHTML = html;
+}
+
+// Reference links in the reading view navigate to the target entry.
+previewRendered.addEventListener('click', (e) => {
+  const link = e.target.closest('[data-ref-type]');
+  if (!link) return;
+  e.preventDefault();
+  loadEntry(link.dataset.refType, link.dataset.refId);
+});
+
+function loadEntry(type, id) {
+  const entry = findSeedEntry(type, id);
+  if (!entry) {
+    showToast('Entry not found');
+    return;
+  }
+  state.formData = { ...entry };
+  state.fileHandle = null;
+  state.currentFileName = null;
+  setActiveTab(type);
+  renderForm();
+  showToast(`Opened ${entryLabel(entry)}`);
 }
 
 function updateRawJson(jsonText) {
@@ -553,6 +606,7 @@ fbForm.addEventListener('submit', (e) => {
     state.firebaseConfig = config;
     state.fbManager = new FirebaseManager(config);
     subscribeToLiveFirestoreDoc(state.currentTab, state.formData.id);
+    subscribeSchemaOverlay();
     showToast('🔥 Firebase DB & Real-time Sync Connected!');
   }
 

@@ -42,7 +42,7 @@ export function renderMediaControls(data) {
 
   return `
     <div class="form-section">
-      <div class="section-header">🖼️ Imagery</div>
+      <div class="section-header">Imagery</div>
       <div class="form-group">
         <label>Hero Image</label>
         <div class="media-hero-row">
