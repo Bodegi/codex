@@ -54,9 +54,6 @@
           </button>
         </div>
 
-        <button id="btn-firebase-settings" class="btn btn-secondary" title="Configure Firebase Real-time Cloud Sync">
-          <span>🔥</span> Firebase Sync
-        </button>
         <button id="btn-open-file" class="btn btn-secondary" title="Open Markdown File">
           <span>📂</span> Open File
         </button>
@@ -109,42 +106,6 @@
         </div>
       </section>
     </main>
-
-    <!-- Firebase Config Dialog Modal -->
-    <dialog id="firebase-dialog" class="gh-dialog-card">
-      <div class="dialog-header">
-        <h2>🔥 Firebase Cloud Database & Real-time Sync Setup</h2>
-        <button id="btn-close-fb-dialog" class="close-btn">&times;</button>
-      </div>
-      <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">
-        Connect your free Firebase Firestore database so you and your 2 collaborators see real-time updates instantly across all screens!
-      </p>
-      <form id="firebase-form">
-        <div class="form-group" style="margin-bottom:10px;">
-          <label>API Key</label>
-          <input type="text" id="fb-apiKey" class="form-control" placeholder="AIzaSy...">
-        </div>
-        <div class="form-group" style="margin-bottom:10px;">
-          <label>Auth Domain</label>
-          <input type="text" id="fb-authDomain" class="form-control" placeholder="atm10-codex.firebaseapp.com">
-        </div>
-        <div class="form-group" style="margin-bottom:10px;">
-          <label>Project ID</label>
-          <input type="text" id="fb-projectId" class="form-control" placeholder="atm10-codex">
-        </div>
-        <div class="form-group" style="margin-bottom:16px;">
-          <label>Discord Client ID (for Discord OAuth Login)</label>
-          <input type="text" id="fb-discordClientId" class="form-control" placeholder="123456789012345678">
-        </div>
-        <div class="form-group" style="margin-bottom:16px;">
-          <label>Allowed Discord User IDs (Comma-separated)</label>
-          <input type="text" id="fb-allowedDiscordIds" class="form-control" placeholder="12345678, 87654321, 11223344">
-        </div>
-        <div style="display:flex; justify-content:flex-end; gap:10px;">
-          <button type="submit" class="btn btn-primary">Connect Firebase & Discord Auth</button>
-        </div>
-      </form>
-    </dialog>
 
     <!-- Hidden File Input for fallback -->
     <input type="file" id="fallback-file-input" accept=".json" style="display:none">

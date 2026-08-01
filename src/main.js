@@ -6,6 +6,7 @@ import { seedCivilizations, seedMods, seedRegions, seedDecisionLogs } from './da
 import { renderEntryHTML, formatInline } from './utils/entryRenderer.js';
 import { FirebaseManager } from './utils/firebase.js';
 import { DiscordAuth } from './utils/discordAuth.js';
+import { appConfig, resolveFirebaseConfig } from './config/appConfig.js';
 
 import { renderForm as renderSchemaForm } from './schema/formRenderer.js';
 import {
@@ -54,8 +55,8 @@ const state = {
   formData: { ...seedCivilizations[0] },
   fileHandle: null,
   currentFileName: null,
-  firebaseConfig: JSON.parse(localStorage.getItem('atm10_firebase_config') || 'null'),
-  discordClientId: localStorage.getItem('atm10_discord_client_id') || '',
+  firebaseConfig: resolveFirebaseConfig(appConfig.firebase, localStorage.getItem('codex_firebase_override')),
+  discordClientId: appConfig.discord.clientId || '',
   fbManager: null,
   discordAuth: null,
   activeDocUnsubscribe: null,
@@ -125,12 +126,6 @@ const userProfileBadge = document.getElementById('user-profile-badge');
 const gatewayContainer = document.getElementById('gateway-container');
 const mainWorkspace = document.getElementById('main-workspace');
 
-// Firebase Modal References
-const fbDialog = document.getElementById('firebase-dialog');
-const btnFbSettings = document.getElementById('btn-firebase-settings');
-const btnCloseFbDialog = document.getElementById('btn-close-fb-dialog');
-const fbForm = document.getElementById('firebase-form');
-
 // Check OAuth callback token from URL
 async function initAuth() {
   await state.discordAuth.handleCallback();
@@ -166,7 +161,6 @@ function renderUserBadge() {
         state.discordAuth.login();
       } catch (err) {
         showToast(err.message);
-        fbDialog.showModal();
       }
     });
   }
@@ -187,7 +181,6 @@ function checkAuthAndRenderState() {
         state.discordAuth.login();
       } catch (err) {
         showToast(err.message);
-        fbDialog.showModal();
       }
     });
 
@@ -749,56 +742,6 @@ document.getElementById('btn-save-disk').addEventListener('click', async () => {
       if (err.name !== 'AbortError') showToast('Save error: ' + err.message);
     }
   }
-});
-
-// Firebase & Discord Settings Dialog
-btnFbSettings.addEventListener('click', () => {
-  if (state.firebaseConfig) {
-    document.getElementById('fb-apiKey').value = state.firebaseConfig.apiKey || '';
-    document.getElementById('fb-authDomain').value = state.firebaseConfig.authDomain || '';
-    document.getElementById('fb-projectId').value = state.firebaseConfig.projectId || '';
-  }
-  document.getElementById('fb-discordClientId').value = state.discordClientId || '';
-  document.getElementById('fb-allowedDiscordIds').value = (state.discordAuth.getAllowedUserIds() || []).join(', ');
-  fbDialog.showModal();
-});
-
-btnCloseFbDialog.addEventListener('click', () => {
-  fbDialog.close();
-});
-
-fbForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const apiKey = document.getElementById('fb-apiKey').value.trim();
-  const authDomain = document.getElementById('fb-authDomain').value.trim();
-  const projectId = document.getElementById('fb-projectId').value.trim();
-  const clientId = document.getElementById('fb-discordClientId').value.trim();
-  const allowedIdsStr = document.getElementById('fb-allowedDiscordIds').value.trim();
-
-  if (clientId) {
-    state.discordClientId = clientId;
-    localStorage.setItem('atm10_discord_client_id', clientId);
-    state.discordAuth.clientId = clientId;
-  }
-
-  if (allowedIdsStr) {
-    const ids = allowedIdsStr.split(',').map(s => s.trim()).filter(Boolean);
-    state.discordAuth.setAllowedUserIds(ids);
-  }
-
-  if (apiKey && projectId) {
-    const config = { apiKey, authDomain, projectId };
-    state.firebaseConfig = config;
-    state.fbManager = new FirebaseManager(config);
-    subscribeToLiveFirestoreDoc(state.currentTab, state.formData.id);
-    subscribeSchemaOverlay();
-    showToast('🔥 Firebase DB & Real-time Sync Connected!');
-  }
-
-  fbDialog.close();
-  renderUserBadge();
-  checkAuthAndRenderState();
-  renderSyncStatus();
 });
 
 // Reflect the real cloud-connection state in the status badge

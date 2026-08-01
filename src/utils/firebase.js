@@ -31,7 +31,6 @@ export class FirebaseManager {
     this.config = config;
     this.app = initializeApp(config);
     this.db = getFirestore(this.app);
-    localStorage.setItem('atm10_firebase_config', JSON.stringify(config));
   }
 
   isConfigured() {
