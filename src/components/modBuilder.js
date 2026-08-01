@@ -1,3 +1,5 @@
+import { renderMediaControls } from './mediaControls.js';
+
 export function renderModForm(data) {
   return `
     <div class="form-section">
@@ -41,5 +43,7 @@ export function renderModForm(data) {
         </div>
       </div>
     </div>
+
+    ${renderMediaControls(data)}
   `;
 }

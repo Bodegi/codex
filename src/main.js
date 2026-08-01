@@ -3,13 +3,7 @@
  */
 
 import { seedCivilizations, seedMods, seedRegions, seedDecisionLogs } from './data/seedData.js';
-import { 
-  compileCivilizationMarkdown, 
-  compileModMarkdown, 
-  compileRegionMarkdown, 
-  compileDecisionLogMarkdown, 
-  renderMarkdownToHTML 
-} from './utils/markdownCompiler.js';
+import { renderEntryHTML, formatInline } from './utils/entryRenderer.js';
 import { FirebaseManager } from './utils/firebase.js';
 import { DiscordAuth } from './utils/discordAuth.js';
 
@@ -20,6 +14,14 @@ import { renderDecisionLogForm } from './components/decisionLogBuilder.js';
 import { renderMatrixView } from './components/matrixView.js';
 import { renderAtlasView, initAtlasCanvas } from './components/atlasView.js';
 import { renderAuthGateway } from './components/authGateway.js';
+import { attachMediaControls } from './components/mediaControls.js';
+import { renderCarousel, initCarousel } from './components/carousel.js';
+
+// Tabs whose entries support imagery (hero / carousel / inline)
+const MEDIA_TABS = ['civilization', 'mod', 'region'];
+
+// Last-focused prose textarea, target for inline-image insertion
+let lastFocusedProseField = null;
 
 // Tabs that represent a single editable JSON entry
 const BUILDER_TABS = ['civilization', 'mod', 'region', 'decision'];
@@ -29,7 +31,6 @@ const state = {
   currentTab: 'civilization',
   currentViewMode: 'rendered',
   formData: { ...seedCivilizations[0] },
-  compiledMarkdown: '',
   fileHandle: null,
   currentFileName: null,
   firebaseConfig: JSON.parse(localStorage.getItem('atm10_firebase_config') || 'null'),
@@ -188,12 +189,14 @@ function switchTab(tabKey) {
       break;
     case 'matrix':
       formContainer.innerHTML = renderMatrixView();
-      updatePreview('', '');
+      updateRenderedPreview('');
+      updateRawJson('');
       break;
     case 'atlas':
       formContainer.innerHTML = renderAtlasView();
       initAtlasCanvas(state.fbManager);
-      updatePreview('The World Atlas is interactive — drop waypoints, draw roads, and outline territories directly on the map. Changes sync to the cloud automatically.', '');
+      updateRenderedPreview(formatInline('The World Atlas is interactive — drop waypoints, draw roads, and outline territories directly on the map. Changes sync to the cloud automatically.'));
+      updateRawJson('');
       break;
   }
 }
@@ -252,6 +255,8 @@ function renderForm() {
 }
 
 function renderFormWithoutResubscribe() {
+  lastFocusedProseField = null;
+
   if (state.currentTab === 'civilization') {
     formContainer.innerHTML = renderCivilizationForm(state.formData);
   } else if (state.currentTab === 'mod') {
@@ -263,7 +268,8 @@ function renderFormWithoutResubscribe() {
   }
 
   attachFormInputListeners();
-  compileAndRefreshMarkdown();
+  wireMediaForCurrentForm();
+  refreshBuilderPreview();
 }
 
 // Attach Input Listeners & Auto-Sync to Firebase
@@ -274,9 +280,28 @@ function attachFormInputListeners() {
       const fieldId = e.target.id;
       const key = fieldId.replace(/^(civ|mod|region|adr)-/, '');
       state.formData[key] = e.target.value;
-      compileAndRefreshMarkdown();
+      refreshBuilderPreview();
       autoSaveToFirebase();
     });
+  });
+
+  // Track the last-focused prose field for inline-image insertion
+  formContainer.querySelectorAll('textarea').forEach((ta) => {
+    ta.addEventListener('focus', () => { lastFocusedProseField = ta; });
+  });
+}
+
+// Wire the imagery controls (hero / carousel / inline) for media-capable tabs
+function wireMediaForCurrentForm() {
+  if (!MEDIA_TABS.includes(state.currentTab)) return;
+  attachMediaControls({
+    container: formContainer,
+    formData: state.formData,
+    onMutate: () => {
+      renderFormWithoutResubscribe();
+      autoSaveToFirebase();
+    },
+    getFocusedField: () => lastFocusedProseField,
   });
 }
 
@@ -285,30 +310,27 @@ function currentEntryJson() {
   return JSON.stringify({ ...state.formData, type: state.currentTab }, null, 2);
 }
 
-// Compile the current entry's markdown (drives the rendered reading view)
-function compileMarkdownForCurrent() {
-  if (state.currentTab === 'civilization') return compileCivilizationMarkdown(state.formData);
-  if (state.currentTab === 'mod') return compileModMarkdown(state.formData);
-  if (state.currentTab === 'region') return compileRegionMarkdown(state.formData);
-  if (state.currentTab === 'decision') return compileDecisionLogMarkdown(state.formData);
-  return '';
+// Whether the current entry has any content worth saving
+function entryHasContent() {
+  return Object.values(state.formData || {}).some((v) =>
+    typeof v === 'string' ? v.trim() !== '' : v != null
+  );
 }
 
-// Recompile from form state & refresh both preview panels
-function compileAndRefreshMarkdown() {
-  const md = compileMarkdownForCurrent();
-  state.compiledMarkdown = md;
-  updatePreview(md, currentEntryJson());
+// Entry HTML + carousel composed after it (carousel is never part of the entry body)
+function currentPreviewHTML() {
+  return renderEntryHTML(state.currentTab, state.formData) + renderCarousel(state.formData.gallery);
 }
 
-// Update Preview Panels — rendered view from markdown, raw view from JSON
-function updatePreview(markdownText, jsonText = '') {
-  updateRenderedPreview(markdownText);
-  updateRawJson(jsonText);
+// Re-render the current builder entry & refresh both preview panels
+function refreshBuilderPreview() {
+  updateRenderedPreview(currentPreviewHTML());
+  initCarousel(previewRendered);
+  updateRawJson(currentEntryJson());
 }
 
-function updateRenderedPreview(markdownText) {
-  previewRendered.innerHTML = renderMarkdownToHTML(markdownText);
+function updateRenderedPreview(html) {
+  previewRendered.innerHTML = html;
 }
 
 function updateRawJson(jsonText) {
@@ -341,9 +363,9 @@ function applyRawJsonEdit() {
   clearJsonError();
 
   state.formData = parsed;
-  const md = compileMarkdownForCurrent();
-  state.compiledMarkdown = md;
-  updateRenderedPreview(md); // reflect edits in the reading view; leave the textarea as typed
+  // reflect edits in the reading view; leave the textarea as typed
+  updateRenderedPreview(currentPreviewHTML());
+  initCarousel(previewRendered);
   autoSaveToFirebase();
 }
 
@@ -435,7 +457,7 @@ function setActiveTab(tabKey) {
 
 // 💾 Save File (Firebase DB + Local File System Access)
 document.getElementById('btn-save-disk').addEventListener('click', async () => {
-  if (!state.compiledMarkdown) {
+  if (!entryHasContent()) {
     showToast('Nothing to save!');
     return;
   }

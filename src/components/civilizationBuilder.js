@@ -1,3 +1,5 @@
+import { renderMediaControls } from './mediaControls.js';
+
 export function renderCivilizationForm(data) {
   return `
     <div class="form-section">
@@ -95,5 +97,7 @@ export function renderCivilizationForm(data) {
         </div>
       </div>
     </div>
+
+    ${renderMediaControls(data)}
   `;
 }

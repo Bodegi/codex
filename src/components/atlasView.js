@@ -3,7 +3,23 @@
  * Supports Pan/Zoom, Interactive Waypoints, Road/Rail Vector Networks, Territory Polygons, and Real-time Persistence.
  */
 
+import { listImages, resolve as resolvePoolImage } from '../utils/imagePool.js';
+
+function escapeAttr(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 export function renderAtlasView() {
+  const images = listImages();
+  const mapOptions = images.length
+    ? images.map((img) => `<option value="${escapeAttr(img.id)}">${escapeAttr(img.label)}</option>`).join('')
+    : '<option value="">No images in pool</option>';
+  const defaultSrc = images.length ? images[0].url : '';
+
   return `
     <div class="form-section atlas-container">
       <div class="section-header">
@@ -23,9 +39,7 @@ export function renderAtlasView() {
         <div class="tool-group" style="margin-left:auto;">
           <label style="font-size:11px; color:var(--text-muted); display:block;">Map Image:</label>
           <select id="atlas-map-select" class="form-control" style="font-size:12px; padding:4px 8px;">
-            <option value="/atm10worldguide.png">World Guide Map (Default)</option>
-            <option value="/atm10.png">Overworld Topographic Map</option>
-            <option value="/city waterway.png">Waterway & City Map</option>
+            ${mapOptions}
           </select>
         </div>
 
@@ -39,7 +53,7 @@ export function renderAtlasView() {
 
       <!-- Interactive Canvas Container -->
       <div class="atlas-map-wrapper" id="atlas-wrapper">
-        <img id="atlas-bg-img" src="/atm10worldguide.png" class="atlas-map-img" alt="ATM10 World Map">
+        <img id="atlas-bg-img" src="${defaultSrc}" class="atlas-map-img" alt="ATM10 World Map">
         <canvas id="atlas-canvas" class="atlas-canvas-overlay"></canvas>
       </div>
 
@@ -115,10 +129,12 @@ export function initAtlasCanvas(firebaseManager) {
     necromancers: '#6b7280'
   };
 
-  // Map Image Selector
+  // Map Image Selector — options carry pool ids; resolve to the current build URL
   if (mapSelect) {
     mapSelect.addEventListener('change', (e) => {
-      bgImg.src = e.target.value;
+      const url = resolvePoolImage(e.target.value);
+      if (url) bgImg.src = url;
+      saveMapStateToFirebase();
     });
   }
 
@@ -244,7 +260,7 @@ export function initAtlasCanvas(firebaseManager) {
   // Save State to Firebase if configured
   function saveMapStateToFirebase() {
     if (firebaseManager && firebaseManager.isConfigured()) {
-      firebaseManager.saveMapData({ waypoints, roads, territories });
+      firebaseManager.saveMapData({ waypoints, roads, territories, mapImageId: mapSelect?.value || '' });
     }
   }
 
@@ -255,6 +271,11 @@ export function initAtlasCanvas(firebaseManager) {
         waypoints = data.waypoints || [];
         roads = data.roads || [];
         territories = data.territories || [];
+        if (data.mapImageId && mapSelect) {
+          mapSelect.value = data.mapImageId;
+          const url = resolvePoolImage(data.mapImageId);
+          if (url) bgImg.src = url;
+        }
         redraw();
       }
     });
