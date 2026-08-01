@@ -25,8 +25,13 @@ export function permissionId(uid, codexId) {
 }
 
 // ── Top-level collections ───────────────────────────────────────────────────
-export const codexMetaPath = (codexId) => ['codices', codexId];
+export const usersCollectionPath = () => ['users'];
+export const userDocPath = (uid) => ['users', uid];
+
+export const permissionsCollectionPath = () => ['permissions'];
 export const permissionDocPath = (uid, codexId) => ['permissions', permissionId(uid, codexId)];
+
+export const codexMetaPath = (codexId) => ['codices', codexId];
 
 // ── Per-codex subcollections ────────────────────────────────────────────────
 export const entriesCollectionPath = (codexId) => ['codices', codexId, 'entries'];

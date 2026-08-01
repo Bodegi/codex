@@ -276,9 +276,120 @@ body {
 .app-workspace {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 1fr;
   gap: 16px;
   flex: 1;
   min-height: 0;
+}
+
+/* The preset/mode toolbar spans both columns above the panels. */
+.app-workspace > .preset-bar {
+  grid-column: 1 / -1;
+}
+
+/* Builder tab in read mode (default): the form editor collapses and the reading view (preview
+   panel) takes the full width. Edit mode restores the two-panel form+preview layout. Matrix and
+   atlas render their own content into the editor panel, so they are never collapsed this way. */
+.app-workspace.tab-builder.mode-read {
+  grid-template-columns: 1fr;
+}
+.app-workspace.tab-builder.mode-read .editor-panel {
+  display: none;
+}
+
+/* Atlas read mode: hide the editing chrome, keep the map itself. */
+.app-workspace.tab-atlas.mode-read .atlas-toolbar,
+.app-workspace.tab-atlas.mode-read #atlas-inspector-panel {
+  display: none;
+}
+
+/* Honor the hidden attribute even on flex/inline-flex controls (nav + toolbar buttons). */
+[hidden] {
+  display: none !important;
+}
+
+/* ── Admin section ── */
+.admin-subnav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-dim);
+}
+.admin-subnav-btn {
+  background: transparent;
+  border: 1px solid var(--border-dim);
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.admin-subnav-btn.active {
+  color: var(--accent-gold);
+  border-color: var(--accent-gold);
+}
+.admin-section {
+  margin-bottom: 20px;
+}
+.admin-section h3 {
+  font-size: 14px;
+  color: var(--accent-gold);
+  margin-bottom: 8px;
+}
+.admin-roster {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.admin-roster th,
+.admin-roster td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-dim);
+  vertical-align: top;
+}
+.admin-roster th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.admin-muted {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.admin-badge {
+  background: var(--accent-gold);
+  color: #000;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+.role-group {
+  display: inline-flex;
+  gap: 4px;
+}
+.role-btn {
+  background: transparent;
+  border: 1px solid var(--border-dim);
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.role-btn.active {
+  background: var(--accent-gold);
+  color: #000;
+  border-color: var(--accent-gold);
+  font-weight: 600;
+}
+.admin-blurb {
+  color: var(--text-muted);
+  padding: 16px;
 }
 
 .glass-card {

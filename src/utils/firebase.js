@@ -20,12 +20,16 @@ import {
 
 import {
   codexMetaPath,
+  usersCollectionPath,
+  userDocPath,
+  permissionsCollectionPath,
   permissionDocPath,
   entryDocPath,
   schemasCollectionPath,
   schemaDocPath,
   atlasDocPath
 } from './codexPaths.js';
+import { buildUserDoc } from './userDoc.js';
 
 const now = () => new Date().toISOString();
 
@@ -74,10 +78,7 @@ export class FirebaseManager {
     await setDoc(doc(this.db, ...codexMetaPath(codexId)), { ...data, codexId }, { merge: true });
   }
 
-  /**
-   * Grant a user a role on a codex. Phase 1 uses this only to seed the owner's editor grant;
-   * full permissions CRUD (and the rules that enforce it) arrive in Phase 2.
-   */
+  /** Grant a user a role on a codex (admin-only per the rules). Deterministic id → idempotent. */
   async savePermission(uid, codexId, data) {
     if (!this.db) return;
     await setDoc(
@@ -85,6 +86,47 @@ export class FirebaseManager {
       { ...data, uid, codexId },
       { merge: true }
     );
+  }
+
+  /** Revoke a user's role on a codex. No-op when unconfigured. */
+  async deletePermission(uid, codexId) {
+    if (!this.db) return;
+    await deleteDoc(doc(this.db, ...permissionDocPath(uid, codexId)));
+  }
+
+  /**
+   * Record the signed-in person in the global `users` roster. createdAt is written once (on first
+   * sign-in); lastSeenAt updates every time. This is what surfaces a user to the admin to grant access.
+   */
+  async upsertUser(profile) {
+    if (!this.db || !profile || !profile.uid) return;
+    const ref = doc(this.db, ...userDocPath(profile.uid));
+    const snap = await getDoc(ref);
+    await setDoc(ref, buildUserDoc(profile, now(), { isNew: !snap.exists() }), { merge: true });
+  }
+
+  /** Watch one user's permission doc for the given codex; callback gets the data or null (absent). */
+  subscribePermission(uid, codexId, callback) {
+    if (!this.db) return () => {};
+    return onSnapshot(doc(this.db, ...permissionDocPath(uid, codexId)), (snapshot) => {
+      callback(snapshot.exists() ? snapshot.data() : null);
+    });
+  }
+
+  /** Admin roster: every user doc, on every change. No-op when unconfigured. */
+  subscribeUsers(callback) {
+    if (!this.db) return () => {};
+    return onSnapshot(collection(this.db, ...usersCollectionPath()), (snapshot) => {
+      callback(snapshot.docs.map((d) => d.data()));
+    });
+  }
+
+  /** Admin roster: every permission doc, on every change. No-op when unconfigured. */
+  subscribePermissions(callback) {
+    if (!this.db) return () => {};
+    return onSnapshot(collection(this.db, ...permissionsCollectionPath()), (snapshot) => {
+      callback(snapshot.docs.map((d) => d.data()));
+    });
   }
 }
 

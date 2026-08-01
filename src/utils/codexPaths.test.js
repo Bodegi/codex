@@ -4,6 +4,9 @@ import assert from 'node:assert/strict';
 import {
   entryId,
   permissionId,
+  usersCollectionPath,
+  userDocPath,
+  permissionsCollectionPath,
   codexMetaPath,
   permissionDocPath,
   entriesCollectionPath,
@@ -24,6 +27,12 @@ test('permissionId is one deterministic grant per (uid, codexId)', () => {
 test('top-level docs live outside the codex subtree', () => {
   assert.deepEqual(codexMetaPath('atm10'), ['codices', 'atm10']);
   assert.deepEqual(permissionDocPath('user123', 'atm10'), ['permissions', 'user123_atm10']);
+});
+
+test('users + permissions are global top-level collections', () => {
+  assert.deepEqual(usersCollectionPath(), ['users']);
+  assert.deepEqual(userDocPath('user123'), ['users', 'user123']);
+  assert.deepEqual(permissionsCollectionPath(), ['permissions']);
 });
 
 test('entries are scoped under codices/{id}/entries', () => {

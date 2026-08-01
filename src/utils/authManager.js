@@ -4,16 +4,16 @@
  * Because Google is a native Firebase Auth provider, a signed-in user carries a real `request.auth`
  * into Firestore security rules — no custom-token bridge, serverless function, or Blaze plan needed.
  * Auth requires an initialized Firebase app, so this manager only exists when Firebase is configured;
- * local-only mode runs unauthenticated. The allowlist gates the UI (see authProfile.js).
+ * local-only mode runs unauthenticated. This manager owns *identity* only — authorization (admin /
+ * editor / viewer / none) is resolved separately by capabilities.js.
  */
 
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { toAuthProfile } from './authProfile.js';
 
 export class AuthManager {
-  constructor(app, allowlist = []) {
+  constructor(app) {
     this.auth = getAuth(app);
-    this.allowlist = allowlist;
     this.provider = new GoogleAuthProvider();
     this.currentUser = null;
   }
@@ -24,7 +24,7 @@ export class AuthManager {
    */
   onChange(cb) {
     return onAuthStateChanged(this.auth, (fbUser) => {
-      this.currentUser = fbUser ? toAuthProfile(fbUser, this.allowlist) : null;
+      this.currentUser = fbUser ? toAuthProfile(fbUser) : null;
       cb(this.currentUser);
     });
   }
@@ -35,9 +35,5 @@ export class AuthManager {
 
   async logout() {
     await signOut(this.auth);
-  }
-
-  isAuthenticated() {
-    return this.currentUser !== null && this.currentUser.isAuthorized === true;
   }
 }

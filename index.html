@@ -41,8 +41,8 @@
         <button class="nav-btn" data-tab="atlas">
           <span class="icon">🗺️</span> World Atlas
         </button>
-        <button class="nav-btn" data-tab="types">
-          <span class="icon">🧬</span> Types
+        <button class="nav-btn" data-tab="admin" hidden>
+          <span class="icon">🛡️</span> Admin
         </button>
       </nav>
 
@@ -67,17 +67,20 @@
     <div id="gateway-container" class="hidden"></div>
 
     <!-- Main Workspace (Shown when authenticated) -->
-    <main id="main-workspace" class="app-workspace">
-      <!-- Left Panel: Form & Presets Editor -->
-      <section class="editor-panel glass-card">
-        <!-- Preset Selector Bar -->
-        <div class="preset-bar">
-          <span class="preset-label">Quick Presets:</span>
-          <div id="preset-buttons" class="preset-chips">
-            <!-- Dynamically populated per tab -->
-          </div>
+    <main id="main-workspace" class="app-workspace tab-builder mode-read">
+      <!-- Preset / mode toolbar — full width, always visible (navigation stays reachable in read mode) -->
+      <div class="preset-bar">
+        <span class="preset-label">Quick Presets:</span>
+        <div id="preset-buttons" class="preset-chips">
+          <!-- Dynamically populated per tab -->
         </div>
+        <button id="btn-edit-toggle" class="btn btn-primary btn-sm" style="margin-left:auto;" hidden>
+          <span>✏️</span> Edit
+        </button>
+      </div>
 
+      <!-- Left Panel: Form Editor (hidden in read mode) -->
+      <section class="editor-panel glass-card">
         <!-- Dynamic Form Container -->
         <div id="form-container" class="form-scrollable">
           <!-- Active Form rendered here -->

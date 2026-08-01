@@ -1,0 +1,64 @@
+rules_version = '2';
+
+// ATM10 Codex — Firestore security rules (Phase 2).
+//
+// Source of truth for the rules. Deploy by pasting into the Firebase console
+// (Firestore Database → Rules). Mirrors the app's capabilities.js predicate-for-predicate:
+//   - super-admin = one baked email literal (matches appConfig.auth.adminEmail)
+//   - everyone else's access comes from their per-codex permissions/{uid}_{codexId} doc
+//   - editor writes codex content; viewer reads only; schemas are admin-only (Types is admin work)
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'bodegigaming@gmail.com';
+    }
+    function permId(codexId) {
+      return request.auth.uid + '_' + codexId;
+    }
+    function hasPerm(codexId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/permissions/$(permId(codexId)));
+    }
+    function isEditor(codexId) {
+      return hasPerm(codexId)
+        && get(/databases/$(database)/documents/permissions/$(permId(codexId))).data.role == 'editor';
+    }
+
+    // Global identity roster — own doc (sign-in upsert) or admin.
+    match /users/{uid} {
+      allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+    }
+
+    // Access grants. Read keyed by id-prefix (NOT resource.data) so a *missing* own-permission doc
+    // reads as empty rather than denied — an awaiting-access user must be able to learn they have none.
+    // Writes are admin-only: nobody grants themselves access.
+    match /permissions/{doc} {
+      allow read:  if isAdmin() || (isSignedIn() && doc.split('_')[0] == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    // Codices + their content.
+    match /codices/{codexId} {
+      allow read:  if isAdmin() || hasPerm(codexId);
+      allow write: if isAdmin();                                  // codex metadata: admin only
+
+      match /entries/{entryId} {
+        allow read:  if isAdmin() || hasPerm(codexId);
+        allow write: if isAdmin() || isEditor(codexId);
+      }
+      match /atlas/{docId} {
+        allow read:  if isAdmin() || hasPerm(codexId);
+        allow write: if isAdmin() || isEditor(codexId);
+      }
+      match /schemas/{type} {
+        allow read:  if isAdmin() || hasPerm(codexId);
+        allow write: if isAdmin();                                // Types editing is admin-only
+      }
+    }
+  }
+}

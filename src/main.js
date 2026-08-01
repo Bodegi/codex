@@ -36,6 +36,9 @@ import {
 import { renderMatrixView } from './components/matrixView.js';
 import { renderAtlasView, initAtlasCanvas } from './components/atlasView.js';
 import { renderAuthGateway } from './components/authGateway.js';
+import { renderAwaitingAccess } from './components/awaitingAccess.js';
+import { renderAdminSubnav, renderAccessPanel } from './components/adminView.js';
+import { resolveCapabilities } from './utils/capabilities.js';
 import { renderMediaControls, attachMediaControls } from './components/mediaControls.js';
 import { renderCarousel, initCarousel } from './components/carousel.js';
 import { resolve as resolvePoolImage } from './utils/imagePool.js';
@@ -55,6 +58,8 @@ const CURRENT_CODEX_KEY = 'codex_current_id';
 // Application State
 const state = {
   currentTab: 'civilization',
+  // Read-first workspace: everyone lands in 'read' (reading view); editors/admins toggle to 'edit'.
+  mode: 'read',
   currentViewMode: 'rendered',
   formData: { ...seedCivilizations[0] },
   fileHandle: null,
@@ -67,17 +72,28 @@ const state = {
   authManager: null,
   activeDocUnsubscribe: null,
   liveDocId: null,
+  // Access control (Phase 2): the current user's capabilities on the current codex, their own
+  // permission doc, and whether that doc has loaded yet (to avoid flashing awaiting-access on boot).
+  caps: { isAuthed: false, role: 'none', canRead: false, canEdit: false, canAdmin: false },
+  permission: null,
+  permissionLoaded: false,
+  workspaceReady: false,
   // Types tab (schema editor) working state
   editingType: 'civilization',
   workingSchema: null,
-  editorErrors: []
+  editorErrors: [],
+  // Admin section state
+  adminPanel: 'access',          // 'access' | 'types'
+  adminUsers: [],
+  adminPerms: [],
+  codexInitialized: false
 };
 
 // Initialize Firebase + Google Auth. Auth needs an initialized Firebase app, so the auth manager
 // only exists when Firebase is configured; local-only mode runs unauthenticated (no login wall).
 if (state.firebaseConfig) {
   state.fbManager = new FirebaseManager(state.firebaseConfig);
-  state.authManager = new AuthManager(state.fbManager.app, appConfig.auth.allowlist);
+  state.authManager = new AuthManager(state.fbManager.app);
 }
 
 // The active codex's Firestore scope (entries / schemas / atlas under codices/${id}/…), or null in
@@ -122,9 +138,9 @@ function subscribeSchemaOverlay() {
   });
 }
 // Local schema edits (from the Types tab) survive a reload via localStorage; a Firestore
-// subscription then wins per-type when configured. Hydrate before the first render.
+// subscription then wins per-type when configured. Hydrate before the first render. The Firestore
+// schema subscription is deferred to showWorkspace() — it must not fire until the user has read access.
 hydrateOverlayFromStorage();
-subscribeSchemaOverlay();
 
 // Cross-entry lookup for reference fields. Resolves against seed entries — the fixed
 // set of pages that exist in phase 1; a live Firestore index can extend this later.
@@ -162,30 +178,138 @@ const fallbackFileInput = document.getElementById('fallback-file-input');
 const userProfileBadge = document.getElementById('user-profile-badge');
 const gatewayContainer = document.getElementById('gateway-container');
 const mainWorkspace = document.getElementById('main-workspace');
+const editToggleBtn = document.getElementById('btn-edit-toggle');
+const openFileBtn = document.getElementById('btn-open-file');
+const saveDiskBtn = document.getElementById('btn-save-disk');
 
-// Wire the Google-auth session to the UI. onChange fires with the restored session on boot and on
-// every sign-in / sign-out; local-only mode has no auth manager, so we just render the open workspace.
+// ── Auth + access control (Phase 2) ─────────────────────────────────────────
+// Boot flow: on every auth change we upsert the user into the roster, (re)subscribe to their own
+// permission doc for the current codex, recompute capabilities, and render one of four screens
+// (gateway / loading / awaiting-access / workspace). Codex-content subscriptions are deferred until
+// read access is confirmed, so a no-access user never issues a denied Firestore read.
+
 function initAuth() {
-  // Render the initial state synchronously — with auth present but no resolved session yet, this
-  // defaults to locked (gateway shown), avoiding a flash of the workspace before onChange fires.
+  // Synchronous initial paint: gated + unresolved defaults to the gateway (no workspace flash);
+  // local-only mode resolves straight to the open workspace.
+  recomputeCaps();
   renderUserBadge();
-  checkAuthAndRenderState();
+  renderAppState();
   if (state.authManager) {
-    state.authManager.onChange(() => {
-      renderUserBadge();
-      checkAuthAndRenderState();
-    });
+    state.authManager.onChange(onAuthChanged);
   }
 }
 
-// Render User Avatar Profile Badge
+function onAuthChanged() {
+  const user = state.authManager?.currentUser || null;
+  renderUserBadge();
+  if (user) state.fbManager?.upsertUser(user).catch((err) => console.warn('user upsert failed', err));
+  watchOwnPermission();  // resets permission state; its callback re-renders once the doc arrives
+  recomputeCaps();
+  renderAppState();
+}
+
+// Watch the signed-in user's permission doc for the current codex. Its snapshot drives viewer/editor/
+// none; an admin (recognized by email) doesn't depend on it.
+let permissionUnsub = null;
+function watchOwnPermission() {
+  if (permissionUnsub) { permissionUnsub(); permissionUnsub = null; }
+  state.permission = null;
+  state.permissionLoaded = false;
+  const user = state.authManager?.currentUser;
+  if (!(user && state.fbManager && state.fbManager.isConfigured())) return;
+  permissionUnsub = state.fbManager.subscribePermission(user.uid, state.currentCodexId, (perm) => {
+    state.permission = perm;
+    state.permissionLoaded = true;
+    recomputeCaps();
+    renderAppState();
+  });
+}
+
+function recomputeCaps() {
+  if (!state.authManager) {
+    // Local-only mode: a single implicit user with full access (no Firebase, no gating).
+    state.caps = { isAuthed: true, role: 'admin', canRead: true, canEdit: true, canAdmin: true };
+    state.permissionLoaded = true;
+    return;
+  }
+  state.caps = resolveCapabilities({
+    user: state.authManager.currentUser,
+    permission: state.permission,
+    adminEmail: appConfig.auth.adminEmail,
+  });
+}
+
+// Render one of the four top-level screens from the current capabilities.
+function renderAppState() {
+  const caps = state.caps;
+  if (!state.authManager) return showWorkspace();      // local-only: never gated
+  if (!caps.isAuthed) return showGateway();
+  // Admin is authorized by email — no need to wait for a permission doc. Everyone else waits for the
+  // first snapshot so a real viewer/editor never flashes the awaiting-access screen on boot.
+  if (!caps.canAdmin && !state.permissionLoaded) return showLoading();
+  if (caps.canRead) return showWorkspace();
+  return showAwaitingAccess();
+}
+
+function showOverlay(html) {
+  teardownWorkspace();
+  mainWorkspace.classList.add('hidden');
+  gatewayContainer.classList.remove('hidden');
+  gatewayContainer.innerHTML = html;
+}
+
+function showGateway() {
+  showOverlay(renderAuthGateway());
+  document.getElementById('gateway-login-btn')?.addEventListener('click', () => {
+    state.authManager.login().catch((err) => showToast(err.message));
+  });
+}
+
+function showAwaitingAccess() {
+  showOverlay(renderAwaitingAccess(state.authManager.currentUser));
+  document.getElementById('awaiting-logout-btn')?.addEventListener('click', () => {
+    state.authManager.logout().catch((err) => showToast(err.message));
+  });
+}
+
+function showLoading() {
+  showOverlay(`
+    <div style="display:flex; align-items:center; justify-content:center; height:80vh; color:var(--text-muted);">
+      <span class="pulse-dot"></span> &nbsp; Checking access…
+    </div>
+  `);
+}
+
+function showWorkspace() {
+  gatewayContainer.classList.add('hidden');
+  mainWorkspace.classList.remove('hidden');
+  if (!state.workspaceReady) {
+    state.workspaceReady = true;
+    subscribeSchemaOverlay();      // deferred codex-content subscription (now that canRead is true)
+    switchTab(state.currentTab);   // initial workspace render (subscribes the live doc)
+    renderSyncStatus();
+  }
+  applyMode(); // reflect current capabilities (e.g., permission just arrived → canEdit changed)
+}
+
+// Tear down codex-content subscriptions + the one-time workspace init, so re-auth re-initializes.
+function teardownWorkspace() {
+  state.workspaceReady = false;
+  if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
+  if (state.activeDocUnsubscribe) { state.activeDocUnsubscribe(); state.activeDocUnsubscribe = null; }
+  if (adminUsersUnsub) { adminUsersUnsub(); adminUsersUnsub = null; }
+  if (adminPermsUnsub) { adminPermsUnsub(); adminPermsUnsub = null; }
+}
+
+// Render the header user badge: signed-in identity + sign-out, or a sign-in button. Empty in
+// local-only mode (no auth). Authorization is not decided here — that's renderAppState via caps.
 function renderUserBadge() {
   if (!state.authManager) {
     userProfileBadge.innerHTML = '';
     return;
   }
   const user = state.authManager.currentUser;
-  if (user && user.isAuthorized) {
+  if (user) {
     userProfileBadge.innerHTML = `
       <div class="user-badge" title="Signed in as ${user.username}">
         <img src="${user.avatar}" class="user-avatar" alt="${user.username}">
@@ -205,32 +329,6 @@ function renderUserBadge() {
     document.getElementById('btn-google-login')?.addEventListener('click', () => {
       state.authManager.login().catch((err) => showToast(err.message));
     });
-  }
-}
-
-// Private Workspace Auth Enforcement. The wall engages whenever auth is available (Firebase
-// configured); an unresolved or unauthorized session keeps the workspace hidden behind the gateway.
-function checkAuthAndRenderState() {
-  const gated = !!state.authManager;
-  const isAuth = state.authManager ? state.authManager.isAuthenticated() : true;
-
-  if (gated && !isAuth) {
-    // Show private gateway overlay
-    mainWorkspace.classList.add('hidden');
-    gatewayContainer.classList.remove('hidden');
-    gatewayContainer.innerHTML = renderAuthGateway(state.authManager.currentUser);
-
-    document.getElementById('gateway-login-btn')?.addEventListener('click', () => {
-      state.authManager.login().catch((err) => showToast(err.message));
-    });
-
-    document.getElementById('gateway-logout-btn')?.addEventListener('click', () => {
-      state.authManager.logout().catch((err) => showToast(err.message));
-    });
-  } else {
-    // Show main workspace
-    gatewayContainer.classList.add('hidden');
-    mainWorkspace.classList.remove('hidden');
   }
 }
 
@@ -259,6 +357,43 @@ document.querySelectorAll('.preview-tab-btn').forEach(btn => {
       previewRawContainer.classList.remove('hidden');
     }
   });
+});
+
+// Tabs that support an editing mode (entry builders + the atlas). Others (matrix) are read-only.
+const EDITABLE_TABS = [...BUILDER_TABS, 'atlas'];
+
+// Reflect the current capabilities + read/edit mode in the workspace chrome. Read mode collapses the
+// editor and hides Open/Save; edit mode reveals them. Viewers (no canEdit) are pinned to read mode.
+function applyMode() {
+  const canEdit = !!state.caps.canEdit;
+  const editableTab = EDITABLE_TABS.includes(state.currentTab);
+  if (!canEdit || !editableTab) state.mode = 'read';
+
+  const editing = state.mode === 'edit';
+  const isBuilder = BUILDER_TABS.includes(state.currentTab);
+  const kind = isBuilder ? 'builder' : state.currentTab === 'atlas' ? 'atlas' : 'other';
+
+  mainWorkspace.classList.remove('tab-builder', 'tab-atlas', 'tab-other', 'mode-read', 'mode-edit');
+  mainWorkspace.classList.add(`tab-${kind}`, editing ? 'mode-edit' : 'mode-read');
+
+  const showToggle = canEdit && editableTab;
+  editToggleBtn.hidden = !showToggle;
+  editToggleBtn.innerHTML = editing ? '<span>✓</span> Done' : '<span>✏️</span> Edit';
+
+  // Open/Save are for JSON entries only, and only while editing.
+  const showFileActions = editing && canEdit && isBuilder;
+  openFileBtn.hidden = !showFileActions;
+  saveDiskBtn.hidden = !showFileActions;
+
+  // The Admin tab is only visible to admins.
+  const adminNavBtn = document.querySelector('.nav-btn[data-tab="admin"]');
+  if (adminNavBtn) adminNavBtn.hidden = !state.caps.canAdmin;
+}
+
+editToggleBtn.addEventListener('click', () => {
+  if (!state.caps.canEdit) return;
+  state.mode = state.mode === 'edit' ? 'read' : 'edit';
+  applyMode();
 });
 
 // Switch Tab Logic
@@ -293,10 +428,12 @@ function switchTab(tabKey) {
       updateRenderedPreview(formatInline('The World Atlas is interactive — drop waypoints, draw roads, and outline territories directly on the map. Changes sync to the cloud automatically.'));
       updateRawJson('');
       break;
-    case 'types':
-      enterTypesTab();
+    case 'admin':
+      enterAdminTab();
       break;
   }
+
+  applyMode(); // reflect read/edit + tab-kind in the workspace chrome
 }
 
 // Render Presets Bar
@@ -325,19 +462,133 @@ function renderPresets(tabKey) {
   });
 }
 
-// ── Types tab: in-app schema editor ────────────────────────────────────────
+// ── Admin section (admin-only) ──────────────────────────────────────────────
+// Two panels: Users & Access (roster + codex init) and Types (the schema editor, relocated here).
+// Editors author entries against the schemas an admin defines here; only admins reach this tab.
+
+let adminUsersUnsub = null;
+let adminPermsUnsub = null;
+
+// True when the admin is on the Types panel — the schema editor is active.
+function editingSchema() {
+  return state.currentTab === 'admin' && state.adminPanel === 'types';
+}
+
+function enterAdminTab() {
+  if (!state.caps.canAdmin) return switchTab('civilization'); // safety; nav btn is also hidden
+  ensureAdminSubscriptions();
+  fetchCodexStatus();
+  renderAdminPanel();
+}
+
+function renderAdminPanel() {
+  if (state.adminPanel === 'types') {
+    formContainer.innerHTML = renderAdminSubnav('types') + '<div id="admin-types-mount"></div>';
+    wireAdminSubnav();
+    setEditingType(state.editingType || 'civilization'); // renders the schema editor into the mount
+  } else {
+    formContainer.innerHTML =
+      renderAdminSubnav('access') +
+      renderAccessPanel({
+        codexId: state.currentCodexId,
+        initialized: state.codexInitialized,
+        rows: buildRosterRows(),
+      });
+    wireAdminSubnav();
+    wireAccessPanel();
+    updateRenderedPreview('<div class="admin-blurb">Admin — manage codex access and type schemas.</div>');
+    updateRawJson('');
+  }
+}
+
+function wireAdminSubnav() {
+  formContainer.querySelectorAll('[data-admin-panel]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.adminPanel = btn.dataset.adminPanel;
+      renderAdminPanel();
+    });
+  });
+}
+
+function wireAccessPanel() {
+  formContainer.querySelector('#btn-init-codex')?.addEventListener('click', () => {
+    window.seedAtm10Codex().then(() => fetchCodexStatus());
+  });
+  formContainer.querySelectorAll('[data-grant-uid]').forEach((btn) => {
+    btn.addEventListener('click', () => grantRole(btn.dataset.grantUid, btn.dataset.grantRole));
+  });
+}
+
+// Join the users roster with their permission for the current codex.
+function buildRosterRows() {
+  const adminEmail = (appConfig.auth.adminEmail || '').toLowerCase();
+  const roleByUid = new Map(
+    state.adminPerms.filter((p) => p.codexId === state.currentCodexId).map((p) => [p.uid, p.role])
+  );
+  return state.adminUsers.map((u) => ({
+    uid: u.uid,
+    email: u.email,
+    displayName: u.displayName,
+    lastSeenAt: u.lastSeenAt,
+    role: roleByUid.get(u.uid) || 'none',
+    isAdmin: (u.email || '').toLowerCase() === adminEmail,
+  }));
+}
+
+// Grant or revoke a role. The roster re-renders from the live subscription once the write lands.
+function grantRole(uid, role) {
+  const grantedBy = state.authManager?.currentUser?.uid;
+  const action =
+    role === 'none'
+      ? state.fbManager.deletePermission(uid, state.currentCodexId)
+      : state.fbManager.savePermission(uid, state.currentCodexId, {
+          role,
+          grantedBy,
+          grantedAt: new Date().toISOString(),
+        });
+  action?.catch((err) => showToast('Access change failed: ' + err.message));
+}
+
+function ensureAdminSubscriptions() {
+  if (!(state.caps.canAdmin && state.fbManager && state.fbManager.isConfigured())) return;
+  if (!adminUsersUnsub) {
+    adminUsersUnsub = state.fbManager.subscribeUsers((users) => {
+      state.adminUsers = users;
+      if (state.currentTab === 'admin' && state.adminPanel === 'access') renderAdminPanel();
+    });
+  }
+  if (!adminPermsUnsub) {
+    adminPermsUnsub = state.fbManager.subscribePermissions((perms) => {
+      state.adminPerms = perms;
+      if (state.currentTab === 'admin' && state.adminPanel === 'access') renderAdminPanel();
+    });
+  }
+}
+
+async function fetchCodexStatus() {
+  if (!(state.fbManager && state.fbManager.isConfigured())) { state.codexInitialized = false; return; }
+  try {
+    state.codexInitialized = !!(await state.fbManager.getCodexMeta(state.currentCodexId));
+  } catch {
+    state.codexInitialized = false;
+  }
+  if (state.currentTab === 'admin' && state.adminPanel === 'access') renderAdminPanel();
+}
+
+// ── Schema editor (lives inside the Admin › Types panel) ─────────────────────
 // The editor holds a deep-cloned working schema. Structural edits rebuild the editor
 // DOM; text edits don't (to keep input focus). Every change re-renders the live preview
 // through the in-memory overlay. Nothing persists until Save; Reset returns to seed.
+
+// Where the schema editor mounts: the Admin › Types sub-container when present, else the form panel.
+function typesMountEl() {
+  return document.getElementById('admin-types-mount') || formContainer;
+}
 
 // A representative entry to render the type's read-view preview against.
 function sampleForType(type) {
   const list = SEED_BY_TYPE[type] || [];
   return list.length ? list[0] : {};
-}
-
-function enterTypesTab() {
-  setEditingType(state.editingType || 'civilization');
 }
 
 function setEditingType(type) {
@@ -349,12 +600,13 @@ function setEditingType(type) {
 
 // Rebuild the structured editor (after a structural change) and refresh the preview.
 function renderTypesEditor() {
-  formContainer.innerHTML = renderSchemaEditor(state.workingSchema, {
+  const mount = typesMountEl();
+  mount.innerHTML = renderSchemaEditor(state.workingSchema, {
     types: listTypes(),
     editingType: state.editingType,
     errors: state.editorErrors,
   });
-  attachSchemaEditor(formContainer.querySelector('.schema-editor'), handleSchemaIntent);
+  attachSchemaEditor(mount.querySelector('.schema-editor'), handleSchemaIntent);
   refreshWorkingPreview();
 }
 
@@ -460,12 +712,13 @@ function applySchemaRawJsonEdit() {
   clearJsonError();
 
   state.workingSchema = parsed;
-  formContainer.innerHTML = renderSchemaEditor(state.workingSchema, {
+  const mount = typesMountEl();
+  mount.innerHTML = renderSchemaEditor(state.workingSchema, {
     types: listTypes(),
     editingType: state.editingType,
     errors: state.editorErrors,
   });
-  attachSchemaEditor(formContainer.querySelector('.schema-editor'), handleSchemaIntent);
+  attachSchemaEditor(mount.querySelector('.schema-editor'), handleSchemaIntent);
   setOverlaySchema(state.editingType, state.workingSchema);
   updateRenderedPreview(renderEntryHTML(state.editingType, sampleForType(state.editingType), renderCtx));
 }
@@ -596,8 +849,11 @@ function loadEntry(type, id) {
 }
 
 function updateRawJson(jsonText) {
-  // Single-entry builder tabs edit an entry; the Types tab edits a schema — both editable.
-  previewRawTextarea.readOnly = !(BUILDER_TABS.includes(state.currentTab) || state.currentTab === 'types');
+  // Editable only while in edit mode with write access: builder entries or the Types schema editor.
+  const editableRaw =
+    state.caps.canEdit &&
+    (editingSchema() || (state.mode === 'edit' && BUILDER_TABS.includes(state.currentTab)));
+  previewRawTextarea.readOnly = !editableRaw;
   // Never overwrite the textarea while the user is actively typing in it
   if (document.activeElement === previewRawTextarea) return;
   previewRawTextarea.value = jsonText;
@@ -606,6 +862,7 @@ function updateRawJson(jsonText) {
 
 // Persist the current entry to Firebase — shared by the form and JSON editors
 function autoSaveToFirebase() {
+  if (!state.caps.canEdit) return; // read-only users never write (rules also enforce)
   const scope = codexScope();
   if (scope && scope.isConfigured()) {
     scope.saveDoc(state.currentTab, state.formData.id || 'draft', state.formData);
@@ -614,7 +871,7 @@ function autoSaveToFirebase() {
 
 // Apply a live edit from the Raw JSON editor back into form state
 function applyRawJsonEdit() {
-  if (state.currentTab === 'types') return applySchemaRawJsonEdit();
+  if (editingSchema()) return applySchemaRawJsonEdit();
   if (!BUILDER_TABS.includes(state.currentTab)) return;
 
   let parsed;
@@ -647,7 +904,7 @@ function clearJsonError() {
 // Raw JSON editor — live-apply on valid input, resync the form on blur
 previewRawTextarea.addEventListener('input', applyRawJsonEdit);
 previewRawTextarea.addEventListener('change', () => {
-  if (state.currentTab === 'types') {
+  if (editingSchema()) {
     try {
       JSON.parse(previewRawTextarea.value);
     } catch {
@@ -730,6 +987,10 @@ function setActiveTab(tabKey) {
 
 // 💾 Save File (Firebase DB + Local File System Access)
 document.getElementById('btn-save-disk').addEventListener('click', async () => {
+  if (!state.caps.canEdit) {
+    showToast('Read-only — you don’t have edit access.');
+    return;
+  }
   if (!entryHasContent()) {
     showToast('Nothing to save!');
     return;
@@ -813,7 +1074,8 @@ function showToast(message) {
   }, 3000);
 }
 
-// Bootstrap Auth & Application
+// Bootstrap Auth & Application. initAuth() resolves capabilities and renders the right screen;
+// the workspace (initial tab render + content subscriptions) is set up by showWorkspace() once read
+// access is confirmed — not here — so no codex reads fire before authorization.
 initAuth();
-switchTab('civilization');
 renderSyncStatus();
