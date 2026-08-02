@@ -1,12 +1,14 @@
 rules_version = '2';
 
-// ATM10 Codex — Firestore security rules (Phase 2).
+// ATM10 Codex — Firestore security rules.
 //
 // Source of truth for the rules. Deploy by pasting into the Firebase console
 // (Firestore Database → Rules). Mirrors the app's capabilities.js predicate-for-predicate:
 //   - super-admin = one of the baked email literals (matches appConfig.auth.adminEmail)
 //   - everyone else's access comes from their per-codex permissions/{uid}_{codexId} doc
 //   - editor writes codex content; viewer reads only; schemas are admin-only (Types is admin work)
+//   - the shared `images` library gates on membership: editors touch their codex + own labels,
+//     everything global is admin (see the images block for the full framing)
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -28,6 +30,10 @@ service cloud.firestore {
     function isEditor(codexId) {
       return hasPerm(codexId)
         && get(/databases/$(database)/documents/permissions/$(permId(codexId))).data.role == 'editor';
+    }
+    // A codex you may write content into: admin everywhere, or an editor of that specific codex.
+    function canEdit(codexId) {
+      return isAdmin() || isEditor(codexId);
     }
 
     // Global identity roster — own doc (sign-in upsert) or admin.
@@ -63,6 +69,58 @@ service cloud.firestore {
         allow read:  if isAdmin() || hasPerm(codexId);
         allow write: if isAdmin();                                // Types editing is admin-only
       }
+    }
+
+    // Shared image library. Bytes live in Supabase (gated by Storage RLS); this collection is the
+    // metadata source of truth for what exists and where it belongs. Framing that keeps the rules
+    // enforceable: editors only ever touch codex membership and their own uploads' label —
+    // everything global (status, cross-assigning to a codex you can't edit, relabeling others'
+    // images) is admin. `id` == content hash == doc id == Supabase object key.
+    match /images/{imageId} {
+      // Keys changed by this write (added / removed / value-changed). updatedAt is always present.
+      function changedKeys() {
+        return request.resource.data.diff(resource.data).affectedKeys();
+      }
+      // Codices in the new membership but not the old (and vice-versa). List difference, not a loop:
+      // membership changes one codex at a time, so exactly one of these is size 1 and the other 0.
+      function addedCodices() {
+        return request.resource.data.codices.removeAll(resource.data.codices);
+      }
+      function removedCodices() {
+        return resource.data.codices.removeAll(request.resource.data.codices);
+      }
+      // Editor path (a): add or remove a single codex you can edit, nothing else but the timestamp.
+      function editorMembershipChange() {
+        return changedKeys().hasOnly(['codices', 'updatedAt'])
+          && (
+            (addedCodices().size() == 1 && removedCodices().size() == 0 && canEdit(addedCodices()[0]))
+            || (removedCodices().size() == 1 && addedCodices().size() == 0 && canEdit(removedCodices()[0]))
+          );
+      }
+      // Editor path (b): rename your own upload. Relabeling someone else's image is admin-only.
+      function uploaderRelabel() {
+        return changedKeys().hasOnly(['label', 'updatedAt'])
+          && resource.data.uploadedBy == request.auth.uid;
+      }
+
+      // Metadata isn't secret and the app already gates on sign-in.
+      allow read: if isSignedIn();
+
+      // Upload: editor of the single target codex (or admin). Uploader stamps self; new records active.
+      allow create: if isSignedIn()
+        && request.resource.data.id == imageId
+        && request.resource.data.uploadedBy == request.auth.uid
+        && request.resource.data.status == 'active'
+        && request.resource.data.codices.size() == 1
+        && canEdit(request.resource.data.codices[0]);
+
+      // Admin does anything (status archive/restore, cross-assign, relabel others); editors get the
+      // two narrow paths above. Note: an editor re-uploading an *archived* image hits the resurrect
+      // (status) write, which is admin-only here — that upload is denied by design.
+      allow update: if isAdmin() || editorMembershipChange() || uploaderRelabel();
+
+      // Soft-delete is a status flag, not a document delete. Hard delete is an admin break-glass.
+      allow delete: if isAdmin();
     }
   }
 }
