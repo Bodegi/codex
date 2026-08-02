@@ -26,12 +26,12 @@ export const appConfig = {
     adminEmail: ['bodegigaming@gmail.com', 'aspensquare.chuck@gmail.com'],
   },
   // Supabase Storage hosts uploaded image bytes (Firestore keeps the metadata). Like the Firebase
-  // config these are public locators, not secrets — the anon key is safe to ship because Storage RLS
-  // is the real gate (see the supabase-image-store spec §8). Empty until the Supabase setup is done →
-  // resolveSupabaseConfig returns null → the image store stays off (local-only for images).
+  // config these are public locators, not secrets — the publishable key is safe to ship because Storage
+  // RLS is the real gate (see the supabase-image-store spec §8). If left empty, resolveSupabaseConfig
+  // returns null and the image store stays off (local-only for images).
   supabase: {
-    url: '',
-    anonKey: '',
+    url: 'https://mdvkrumxjunrpabgeamy.supabase.co',
+    anonKey: 'sb_publishable_sXEDmcIxs5XKKoRTyvAJdw_ltufKbi5',
     bucket: 'pool',
   },
 };
