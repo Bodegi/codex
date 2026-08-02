@@ -15,15 +15,19 @@ import {
   getDoc,
   deleteDoc,
   collection,
+  query,
+  where,
   onSnapshot
 } from 'firebase/firestore';
 
 import {
+  codicesCollectionPath,
   codexMetaPath,
   usersCollectionPath,
   userDocPath,
   permissionsCollectionPath,
   permissionDocPath,
+  entriesCollectionPath,
   entryDocPath,
   schemasCollectionPath,
   schemaDocPath,
@@ -105,6 +109,26 @@ export class FirebaseManager {
     await setDoc(ref, buildUserDoc(profile, now(), { isNew: !snap.exists() }), { merge: true });
   }
 
+  /** Admin codex registry: every codex meta doc, on every change. Requires the `list` rule. No-op unconfigured. */
+  subscribeCodices(callback) {
+    if (!this.db) return () => {};
+    return onSnapshot(collection(this.db, ...codicesCollectionPath()), (snapshot) => {
+      callback(snapshot.docs.map((d) => d.data()));
+    });
+  }
+
+  /**
+   * A non-admin's own permission grants across all codices (how they discover which codices they can
+   * open). Queries `permissions where uid == uid`; requires the per-user `list` rule. No-op unconfigured.
+   */
+  subscribeOwnPermissions(uid, callback) {
+    if (!this.db || !uid) return () => {};
+    const q = query(collection(this.db, ...permissionsCollectionPath()), where('uid', '==', uid));
+    return onSnapshot(q, (snapshot) => {
+      callback(snapshot.docs.map((d) => d.data()));
+    });
+  }
+
   /** Watch one user's permission doc for the given codex; callback gets the data or null (absent). */
   subscribePermission(uid, codexId, callback) {
     if (!this.db) return () => {};
@@ -153,6 +177,18 @@ export class CodexScope {
       { ...data, type, id, updatedAt: now() },
       { merge: true }
     );
+  }
+
+  /**
+   * Subscribe to this codex's entire entries collection (the live entry index). The callback gets
+   * the full array of entry docs on every change; an unconfigured scope is a no-op.
+   */
+  subscribeEntries(callback) {
+    if (!this.db) return () => {};
+    const col = collection(this.db, ...entriesCollectionPath(this.codexId));
+    return onSnapshot(col, (snapshot) => {
+      callback(snapshot.docs.map((d) => d.data()));
+    });
   }
 
   /** Subscribe to real-time updates for a specific entry. */

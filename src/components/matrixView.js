@@ -1,7 +1,7 @@
-import { seedCivilizations } from '../data/seedData.js';
-
-export function renderMatrixView() {
-  const cardsHtml = seedCivilizations.map(civ => `
+// Parked component (not in nav) — awaiting the summary-card redesign. Seed dependency removed
+// with the Phase-4 seed teardown; it now takes its data as a parameter (empty until rewired).
+export function renderMatrixView(civilizations = []) {
+  const cardsHtml = civilizations.map(civ => `
     <div class="matrix-card">
       <div class="matrix-title">${civ.name}</div>
       <p style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">${civ.philosophy}</p>

@@ -20,14 +20,10 @@ export function renderAdminSubnav(panel) {
 }
 
 /**
- * Users & Access panel: codex status + Initialize button, then a roster table with a role control
- * per user. `rows` = [{ uid, email, displayName, lastSeenAt, role: 'none'|'viewer'|'editor', isAdmin }].
+ * Users & Access panel: a roster table with a role control per user.
+ * `rows` = [{ uid, email, displayName, lastSeenAt, role: 'none'|'viewer'|'editor', isAdmin }].
  */
-export function renderAccessPanel({ codexId, initialized, rows }) {
-  const status = initialized
-    ? '<span style="color:var(--accent-emerald,#10b981);">Initialized</span>'
-    : '<span style="color:var(--text-muted);">Not initialized</span>';
-
+export function renderAccessPanel({ codexId, rows }) {
   const roleBtn = (uid, role, current, label) =>
     `<button class="role-btn${current === role ? ' active' : ''}" data-grant-uid="${escapeHtml(uid)}" data-grant-role="${role}">${label}</button>`;
 
@@ -59,9 +55,6 @@ export function renderAccessPanel({ codexId, initialized, rows }) {
   return `
     <div class="admin-section">
       <h3>Codex: ${escapeHtml(codexId)}</h3>
-      <p>${status} &middot;
-        <button id="btn-init-codex" class="btn btn-secondary btn-sm">Initialize / re-seed codex</button>
-      </p>
     </div>
     <div class="admin-section">
       <h3>Users &amp; Access</h3>

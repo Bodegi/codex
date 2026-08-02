@@ -144,6 +144,8 @@ body {
 }
 
 .codex-switcher[disabled] { opacity: 0.9; }
+.codex-switcher:not([disabled]) { cursor: pointer; }
+.codex-switcher:not([disabled]):hover { border-color: var(--border-bright, var(--border-dim)); }
 
 .codex-switcher .caret {
   width: 0; height: 0;
@@ -151,6 +153,47 @@ body {
   border-right: 5px solid transparent;
   border-top: 6px solid var(--text-muted);
 }
+
+/* Switcher dropdown */
+.codex-switcher-wrap { position: relative; }
+
+.codex-switcher-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: var(--bg-panel, rgba(20, 20, 28, 0.98));
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-glass);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.codex-switcher-menu.hidden { display: none; }
+
+.codex-switcher-option {
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text-main);
+  font-size: 14px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.codex-switcher-option:hover { background: rgba(255, 255, 255, 0.06); }
+.codex-switcher-option.is-current { color: var(--accent-gold, #d4af37); font-weight: 700; }
+
+.codex-switcher-empty,
+.empty-state {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 10px 12px;
+}
+.empty-state { padding: 24px; text-align: center; }
 
 .type-nav {
   flex: 1;
@@ -735,10 +778,13 @@ textarea.form-control {
 }
 
 .reader-body h3 {
-  font-size: 15px;
-  color: var(--accent-blue);
+  font-size: 13px;
+  color: #c2a878; /* quiet parchment-gold field label — was link-blue, which clashed and read as a link */
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
   margin-top: 16px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .reader-body p {
@@ -817,6 +863,31 @@ textarea.form-control {
   border: 1px dashed var(--border-dim);
   border-radius: var(--radius-sm);
   padding: 2px 8px;
+}
+
+/* Reader links — internal references and inline external links. Previously unstyled, so they fell
+   back to default browser blue/underline, which clashed with the parchment theme. Now they sit on
+   the gold accent with a soft underline that firms up on hover. */
+.reader-body a {
+  color: var(--accent-gold);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.reader-body a:hover {
+  color: #fbbf24;
+}
+/* External inline links (open in a new tab) get a subtle outbound cue; internal refs don't. */
+.reader-body a[target="_blank"]::after {
+  content: "\2197"; /* ↗ */
+  font-size: 0.82em;
+  margin-left: 1px;
+  color: var(--text-muted);
+}
+/* A reference whose target no longer exists — signalled, not linked. */
+.reader-body .muted-ref {
+  color: var(--text-muted);
+  border-bottom: 1px dashed var(--border-dim);
+  cursor: help;
 }
 
 /* Hero image (read-side) */
@@ -1140,10 +1211,12 @@ textarea.form-control {
 /* Toast Notifications */
 .toast-container {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  top: 76px; /* below the header, not flush to the top */
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 10px;
   z-index: 1000;
 }
@@ -1162,8 +1235,8 @@ textarea.form-control {
 }
 
 @keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from { transform: translateY(-12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 .hidden {

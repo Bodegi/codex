@@ -2,8 +2,7 @@
  * Codex Studio — Main Application Bootstrap
  */
 
-import { seedCivilizations, seedMods, seedRegions, seedDecisionLogs } from './data/seedData.js';
-import { seedAtm10Codex, ATM10_CODEX_ID } from './data/seedCodex.js';
+import { demoCodexId, demoCodexMeta, demoSchemas, demoEntriesByType } from './data/demoFixture.js';
 import { renderEntryHTML } from './utils/entryRenderer.js';
 import { FirebaseManager } from './utils/firebase.js';
 import { AuthManager } from './utils/authManager.js';
@@ -14,10 +13,13 @@ import {
   getSchema,
   setOverlaySchema,
   listTypes,
-  hydrateOverlayFromStorage,
+  loadCodex,
+  applyCodexSchemas,
   saveSchemaLocal,
   resetSchema,
 } from './schema/schemaStore.js';
+import { indexEntries, activeEntries, findEntry } from './schema/entryIndex.js';
+import { switcherCodices } from './schema/codexRegistry.js';
 import { validateSchema } from './schema/schemaValidate.js';
 import { escapeHtml } from './schema/inlineText.js';
 import { getIcon } from './schema/iconRegistry.js';
@@ -44,33 +46,50 @@ import { renderMediaControls, attachMediaControls } from './components/mediaCont
 import { renderCarousel, initCarousel } from './components/carousel.js';
 import { resolve as resolvePoolImage } from './utils/imagePool.js';
 
-// Tabs whose entries support imagery (hero / carousel / inline)
-const MEDIA_TABS = ['civilization', 'mod', 'region'];
-
 // Last-focused prose textarea, target for inline-image insertion
 let lastFocusedProseField = null;
-
-// Tabs that represent a single editable JSON entry
-const BUILDER_TABS = ['civilization', 'mod', 'region', 'decision'];
 
 // localStorage key persisting the active codex across reloads.
 const CURRENT_CODEX_KEY = 'codex_current_id';
 
+// Firebase config resolved once; presence drives configured vs. local-only mode.
+const firebaseConfig = resolveFirebaseConfig(appConfig.firebase, localStorage.getItem('codex_firebase_override'));
+
+// The codex shown first: a configured build defaults to the baked codex; local-only mode is the
+// single demo-fixture codex (no switcher, no Firestore).
+const DEFAULT_CODEX_ID = firebaseConfig ? (appConfig.defaultCodexId || 'atm10') : demoCodexId;
+
+// A content tab is any type; 'admin' is the sole non-type tab.
+const isTypeTab = (tab) => !!tab && tab !== 'admin';
+// Whether a type's schema declares imagery fields (hero/gallery) → show the media controls.
+const schemaHasMedia = (type) => {
+  const schema = getSchema(type);
+  return !!schema && schema.sections.some((s) => s.fields.some((f) => f.kind === 'hero' || f.kind === 'gallery'));
+};
+
 // Application State
 const state = {
-  currentTab: 'civilization',
+  // Resolved to the codex's first type once its schemas load; '' means "nothing selected yet".
+  currentTab: '',
   // Read-first workspace: everyone lands in 'read' (reading view); editors/admins toggle to 'edit'.
   mode: 'read',
   currentViewMode: 'rendered',
-  formData: { ...seedCivilizations[0] },
-  // The active codex. Phase 3 renders the current codex only; the switcher (create/select/rename)
-  // arrives in Phase 4. Every Firestore access is codex-scoped from Phase 1.
-  currentCodexId: localStorage.getItem(CURRENT_CODEX_KEY) || ATM10_CODEX_ID,
-  firebaseConfig: resolveFirebaseConfig(appConfig.firebase, localStorage.getItem('codex_firebase_override')),
+  formData: {},
+  // Which sidebar type-sections are expanded — independent of the current selection, so an opened
+  // section can be collapsed and stay collapsed across re-renders.
+  navExpanded: new Set(),
+  // The active codex. Every Firestore access is codex-scoped; the switcher re-scopes on change.
+  currentCodexId: localStorage.getItem(CURRENT_CODEX_KEY) || DEFAULT_CODEX_ID,
+  firebaseConfig,
   fbManager: null,
   authManager: null,
   activeDocUnsubscribe: null,
   liveDocId: null,
+  // The current codex's live entries grouped by type (replaces the bundled SEED_BY_TYPE).
+  entryIndex: {},
+  // Codex registry: the meta docs the viewer may switch between, and (non-admin) their own grants.
+  codices: [],
+  ownPermissions: [],
   // Access control (Phase 2): the current user's capabilities on the current codex, their own
   // permission doc, and whether that doc has loaded yet (to avoid flashing awaiting-access on boot).
   caps: { isAuthed: false, role: 'none', canRead: false, canEdit: false, canAdmin: false },
@@ -78,14 +97,13 @@ const state = {
   permissionLoaded: false,
   workspaceReady: false,
   // Types editor (admin) working state
-  editingType: 'civilization',
+  editingType: '',
   workingSchema: null,
   editorErrors: [],
   // Admin section state
   adminPanel: 'access',          // 'access' | 'types'
   adminUsers: [],
-  adminPerms: [],
-  codexInitialized: false
+  adminPerms: []
 };
 
 // Initialize Firebase + Google Auth. Auth needs an initialized Firebase app, so the auth manager
@@ -101,57 +119,57 @@ function codexScope() {
   return state.fbManager ? state.fbManager.codex(state.currentCodexId) : null;
 }
 
-// Content seed: an idempotent, console-invokable seed. Run it once while signed in as the
-// super-admin — `window.seedCodex()` — to write the bundled content into codices/atm10/….
-// Also backs the admin "Initialize codex" button.
-window.seedCodex = async () => {
-  const uid = state.authManager?.currentUser?.uid;
-  if (!uid) {
-    showToast('Sign in as the super-admin before seeding.');
-    return;
-  }
-  try {
-    const result = await seedAtm10Codex(state.fbManager, uid);
-    const msg = result.seeded
-      ? `Seeded ${state.currentCodexId} — ${result.counts.entries} entries, ${result.counts.schemas} schemas`
-      : `Seed skipped — ${result.counts.reason}`;
-    showToast(msg);
-    console.log('[seedCodex]', result);
-    return result;
-  } catch (err) {
-    showToast('Seed error: ' + err.message);
-    console.error('[seedCodex]', err);
-  }
-};
-
-// Overlay any Firestore-authored schemas on top of the bundled seed schemas. Seed is
-// the offline source of truth; this only adds/overrides when a project is configured.
+// ── Codex content: schemas + entries for the active codex ────────────────────
+// The store + entry index are (re)loaded per codex. In configured mode a Firestore subscription
+// keeps both live; in local-only mode the demo fixture is the single codex's content. The Firestore
+// subscriptions are deferred to showWorkspace() so no read fires before the user has read access.
 let schemaUnsubscribe = null;
-function subscribeSchemaOverlay() {
-  if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
+let entriesUnsubscribe = null;
+
+function subscribeCodexContent() {
   const scope = codexScope();
   if (!(scope && scope.isConfigured())) return;
+
+  if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
   schemaUnsubscribe = scope.subscribeSchemas((schemas) => {
-    schemas.forEach((s) => { if (s && s.type) setOverlaySchema(s.type, s); });
-    if (BUILDER_TABS.includes(state.currentTab)) renderFormWithoutResubscribe();
+    applyCodexSchemas(schemas);
+    onCodexContentChanged();
+  });
+
+  if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
+  entriesUnsubscribe = scope.subscribeEntries((entries) => {
+    state.entryIndex = indexEntries(entries);
+    onCodexContentChanged();
   });
 }
-// Local schema edits (from the Types editor) survive a reload via localStorage; a Firestore
-// subscription then wins per-type when configured. Hydrate before the first render. The Firestore
-// schema subscription is deferred to showWorkspace() — it must not fire until the user has read access.
-hydrateOverlayFromStorage();
 
-// Cross-entry lookup for reference fields. Resolves against seed entries — the fixed
-// set of pages that exist in phase 1; a live Firestore index can extend this later.
-const SEED_BY_TYPE = {
-  civilization: seedCivilizations,
-  mod: seedMods,
-  region: seedRegions,
-  decision: seedDecisionLogs,
+// Re-render nav + selection when the codex's live types/entries change.
+function onCodexContentChanged() {
+  if (!state.workspaceReady) return;
+  renderTypeNav();
+  ensureTypeSelection();
+}
+
+// Point the store + entry index at a codex's content: the demo fixture in local-only mode, or empty
+// in configured mode (filled by the Firestore subscription). Called on boot and on every switch.
+function loadCodexContent() {
+  if (state.firebaseConfig) {
+    loadCodex(state.currentCodexId, []); // base filled by subscribeCodexContent
+    state.entryIndex = {};
+  } else {
+    loadCodex(demoCodexId, demoSchemas);
+    state.entryIndex = { ...demoEntriesByType };
+  }
+}
+loadCodexContent();
+
+// Cross-entry lookup for the nav + reference fields, backed by the live entry index.
+const entryLabel = (e) => {
+  const schema = getSchema(e.type);
+  return (schema && e[schema.titleField]) || e.name || e.title || e.id;
 };
-const entryLabel = (e) => e.name || e.title || e.id;
-const entriesOfType = (type) => (SEED_BY_TYPE[type] || []).map((e) => ({ id: e.id, label: entryLabel(e) }));
-const findSeedEntry = (type, id) => (SEED_BY_TYPE[type] || []).find((e) => e.id === id) || null;
+const entriesOfType = (type) => activeEntries(state.entryIndex, type).map((e) => ({ id: e.id, label: entryLabel(e) }));
+const findEntryByTypeId = (type, id) => findEntry(state.entryIndex, type, id);
 
 // Title shown in the reader/editor headers for the current entry.
 const entryTitle = (data, type) => {
@@ -166,7 +184,7 @@ const renderCtx = {
   resolveImage: (id) => resolvePoolImage(id),
   listEntries: (type) => entriesOfType(type),
   resolveRef: (type, id) => {
-    const entry = findSeedEntry(type, id);
+    const entry = findEntryByTypeId(type, id);
     return entry ? { label: entryLabel(entry), exists: true } : { label: id, exists: false };
   },
 };
@@ -190,6 +208,7 @@ const readerTitle = document.getElementById('reader-title');
 const editorTitle = document.getElementById('editor-title');
 const typeNav = document.getElementById('type-nav');
 const navAdmin = document.getElementById('nav-admin');
+const codexSwitcher = document.getElementById('codex-switcher');
 const codexSwitcherLabel = document.getElementById('codex-switcher-label');
 
 // ── Auth + access control (Phase 2) ─────────────────────────────────────────
@@ -296,11 +315,12 @@ function showWorkspace() {
   mainWorkspace.classList.remove('hidden');
   if (!state.workspaceReady) {
     state.workspaceReady = true;
-    renderCodexSwitcher();
     navAdmin.querySelector('.nav-icon').innerHTML = getIcon('admin');
+    subscribeCodexRegistry();      // populate the switcher (app-global, not codex-scoped)
+    subscribeCodexContent();       // deferred schema + entry subscriptions (now that canRead is true)
+    renderCodexSwitcher();
     renderTypeNav();
-    subscribeSchemaOverlay();      // deferred codex-content subscription (now that canRead is true)
-    switchTab(state.currentTab);   // initial workspace render (subscribes the live doc)
+    ensureTypeSelection();         // pick the first type (or empty state) and render it
     renderSyncStatus();
   }
   applyMode(); // reflect current capabilities (e.g., permission just arrived → canEdit changed)
@@ -310,7 +330,10 @@ function showWorkspace() {
 function teardownWorkspace() {
   state.workspaceReady = false;
   if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
+  if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
   if (state.activeDocUnsubscribe) { state.activeDocUnsubscribe(); state.activeDocUnsubscribe = null; }
+  if (codicesUnsub) { codicesUnsub(); codicesUnsub = null; }
+  if (ownPermsUnsub) { ownPermsUnsub(); ownPermsUnsub = null; }
   if (adminUsersUnsub) { adminUsersUnsub(); adminUsersUnsub = null; }
   if (adminPermsUnsub) { adminPermsUnsub(); adminPermsUnsub = null; }
 }
@@ -344,14 +367,139 @@ function renderUserBadge() {
   }
 }
 
+// ── Codex switcher + registry ───────────────────────────────────────────────
+// The switcher lists the active codices the viewer can open (admin: all; others: the codices their
+// permissions grant). Selecting one re-scopes every codex subscription. Local-only mode is a single
+// demo codex, so the control stays inert.
+
+const codexSwitcherWrap = codexSwitcher.parentElement;
+let codicesUnsub = null;
+let ownPermsUnsub = null;
+
+// The codices to show in the switcher, per the pure registry rules.
+function visibleCodices() {
+  if (!state.firebaseConfig) return [demoCodexMeta];
+  const uid = state.authManager?.currentUser?.uid || '';
+  return switcherCodices(state.codices, state.ownPermissions, { isAdmin: !!state.caps.canAdmin, uid });
+}
+
+// Populate the registry once per session: an admin lists every codex; a normal user derives their
+// list from their own permission grants. App-global — not re-run on codex switch.
+function subscribeCodexRegistry() {
+  if (!(state.fbManager && state.fbManager.isConfigured())) {
+    state.codices = [demoCodexMeta];
+    return;
+  }
+  const uid = state.authManager?.currentUser?.uid;
+  if (state.caps.canAdmin) {
+    if (!codicesUnsub) {
+      codicesUnsub = state.fbManager.subscribeCodices((codices) => {
+        state.codices = codices;
+        renderCodexSwitcher();
+      });
+    }
+  } else if (uid && !ownPermsUnsub) {
+    ownPermsUnsub = state.fbManager.subscribeOwnPermissions(uid, async (perms) => {
+      state.ownPermissions = perms;
+      const metas = await Promise.all(
+        perms.map((p) => state.fbManager.getCodexMeta(p.codexId).then((m) => (m ? { ...m, codexId: p.codexId } : null)))
+      );
+      state.codices = metas.filter(Boolean);
+      renderCodexSwitcher();
+    });
+  }
+}
+
+function renderCodexSwitcher() {
+  const list = visibleCodices();
+  const current = list.find((c) => c.codexId === state.currentCodexId);
+  codexSwitcherLabel.textContent = (current && (current.name || current.codexId)) || state.currentCodexId;
+
+  codexSwitcherWrap.querySelector('.codex-switcher-menu')?.remove();
+  // Local-only (single codex) leaves the control inert.
+  if (!state.firebaseConfig) { codexSwitcher.disabled = true; return; }
+  codexSwitcher.disabled = false;
+
+  const menu = document.createElement('div');
+  menu.className = 'codex-switcher-menu hidden';
+  menu.innerHTML =
+    list
+      .map(
+        (c) =>
+          `<button class="codex-switcher-option${c.codexId === state.currentCodexId ? ' is-current' : ''}" data-codex-id="${escapeHtml(
+            c.codexId
+          )}">${escapeHtml(c.name || c.codexId)}</button>`
+      )
+      .join('') || '<div class="codex-switcher-empty">No codices available</div>';
+  codexSwitcherWrap.appendChild(menu);
+  menu.querySelectorAll('[data-codex-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      menu.classList.add('hidden');
+      switchCodex(btn.dataset.codexId);
+    });
+  });
+}
+
+codexSwitcher.addEventListener('click', () => {
+  if (codexSwitcher.disabled) return;
+  codexSwitcherWrap.querySelector('.codex-switcher-menu')?.classList.toggle('hidden');
+});
+
+// Re-scope every codex subscription onto a different codex (§7 of the Phase-4 spec).
+function switchCodex(codexId) {
+  if (!codexId || codexId === state.currentCodexId) return;
+  if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
+  if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
+  if (state.activeDocUnsubscribe) { state.activeDocUnsubscribe(); state.activeDocUnsubscribe = null; }
+
+  state.currentCodexId = codexId;
+  localStorage.setItem(CURRENT_CODEX_KEY, codexId);
+  state.currentTab = '';
+  state.formData = {};
+  loadCodexContent();       // reset store + entry index for the new codex
+  watchOwnPermission();     // re-subscribe permission → recompute caps for this codex
+  subscribeCodexContent();  // schemas + entries for the new codex
+  renderCodexSwitcher();
+  renderTypeNav();
+  ensureTypeSelection();
+  renderSyncStatus();
+  applyMode();
+}
+
 // ── Sidebar navigation (codex → type → entry, then Admin) ───────────────────
 // The nav is data-driven: types come from listTypes() (the current codex's schemas) and entries
-// from the seed index. Selecting a type loads its first entry into the reader; selecting an entry
-// opens it. Admin is the only fixed, non-type item and shows only to admins.
+// from the live entry index. Selecting a type opens its first entry; selecting an entry opens it.
+// Admin is the only fixed, non-type item and shows only to admins.
 
-// The current codex's display name in the (Phase-4) switcher. No registry yet, so the id is the name.
-function renderCodexSwitcher() {
-  codexSwitcherLabel.textContent = state.currentCodexId;
+// Select a valid content tab: keep the current type if it still exists, else the first type; if the
+// codex has no types, show an empty state. Non-disruptive — keeps the user's open entry when valid.
+function ensureTypeSelection() {
+  if (state.currentTab === 'admin') return;
+  const types = listTypes();
+  const validType = isTypeTab(state.currentTab) && types.some((t) => t.type === state.currentTab);
+
+  if (!validType) {
+    const first = types[0];
+    if (first) return switchTab(first.type);
+    state.currentTab = '';
+    return renderEmptyCodexState();
+  }
+  const open = state.formData && state.formData.id ? findEntryByTypeId(state.currentTab, state.formData.id) : null;
+  if (open) highlightNav();
+  else switchTab(state.currentTab);
+}
+
+// A codex with no types (fresh/blank) — nothing to read yet.
+function renderEmptyCodexState() {
+  readerTitle.textContent = '';
+  editorTitle.textContent = '';
+  const msg = state.caps.canAdmin
+    ? 'This codex has no types yet. Open Admin to create the first one.'
+    : 'This codex has no content yet.';
+  updateRenderedPreview(`<div class="empty-state">${escapeHtml(msg)}</div>`);
+  updateRawJson('');
+  applyMode();
+  highlightNav();
 }
 
 function renderTypeNav() {
@@ -389,10 +537,17 @@ function renderTypeNav() {
 }
 
 function wireTypeNav() {
+  // A type header toggles its section: opening it also selects the type (loads its first entry);
+  // closing it just collapses, leaving the current selection untouched.
   typeNav.querySelectorAll('[data-type-header]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      state.currentTab = btn.dataset.typeHeader;
-      switchTab(state.currentTab);
+      const type = btn.dataset.typeHeader;
+      if (state.navExpanded.has(type)) {
+        state.navExpanded.delete(type);
+        highlightNav();
+      } else {
+        switchTab(type); // adds to navExpanded + selects
+      }
     });
   });
   typeNav.querySelectorAll('.nav-entry').forEach((btn) => {
@@ -400,10 +555,16 @@ function wireTypeNav() {
   });
 }
 
-// Mark the active type (expanded) + entry, or Admin.
+// Reflect expansion (from navExpanded) + the active type/entry (or Admin) in the nav.
 function highlightNav() {
   typeNav.querySelectorAll('.nav-item').forEach((el) => el.classList.remove('is-active'));
+  typeNav.querySelectorAll('.nav-type').forEach((el) => el.classList.remove('is-expanded'));
   navAdmin.classList.remove('is-active');
+
+  // Expansion is independent of selection — an opened section stays open until toggled shut.
+  state.navExpanded.forEach((type) => {
+    typeNav.querySelector(`.nav-type[data-type="${CSS.escape(type)}"]`)?.classList.add('is-expanded');
+  });
 
   if (state.currentTab === 'admin') {
     navAdmin.classList.add('is-active');
@@ -411,7 +572,6 @@ function highlightNav() {
   }
   const typeEl = typeNav.querySelector(`.nav-type[data-type="${CSS.escape(state.currentTab)}"]`);
   if (!typeEl) return;
-  typeEl.classList.add('is-expanded');
   typeEl.querySelector('.nav-type-header')?.classList.add('is-active');
   typeEl.querySelectorAll('.nav-entry').forEach((el) => {
     if (el.dataset.id === String(state.formData.id)) el.classList.add('is-active');
@@ -447,7 +607,7 @@ function showRenderedPane() {
 // reader; builder edit = full-width form; admin = editor + preview. Viewers (no canEdit) stay in read.
 function applyMode() {
   const canEdit = !!state.caps.canEdit;
-  const isBuilder = BUILDER_TABS.includes(state.currentTab);
+  const isBuilder = isTypeTab(state.currentTab);
   if (!canEdit || !isBuilder) state.mode = 'read';
 
   const editing = state.mode === 'edit';
@@ -484,7 +644,7 @@ navAdmin.addEventListener('click', () => {
   switchTab('admin');
 });
 
-// Switch to a type (loads its first entry) or the Admin section.
+// Switch to a type (opens its first entry) or the Admin section.
 function switchTab(tabKey) {
   if (tabKey === 'admin') {
     enterAdminTab();
@@ -493,8 +653,10 @@ function switchTab(tabKey) {
     return;
   }
 
-  const seed = SEED_BY_TYPE[tabKey] || [];
-  state.formData = seed.length ? { ...seed[0] } : {};
+  state.currentTab = tabKey;
+  state.navExpanded.add(tabKey); // selecting a type opens its section
+  const entries = activeEntries(state.entryIndex, tabKey);
+  state.formData = entries.length ? { ...entries[0] } : { type: tabKey };
   showRenderedPane();
   renderForm();
   applyMode();
@@ -514,12 +676,11 @@ function editingSchema() {
 }
 
 function enterAdminTab() {
-  if (!state.caps.canAdmin) return switchTab('civilization'); // safety; nav item is also hidden
+  if (!state.caps.canAdmin) return ensureTypeSelection(); // safety; nav item is also hidden
   readerTitle.textContent = 'Admin';
   editorTitle.textContent = 'Admin';
   showRenderedPane();
   ensureAdminSubscriptions();
-  fetchCodexStatus();
   renderAdminPanel();
 }
 
@@ -527,13 +688,18 @@ function renderAdminPanel() {
   if (state.adminPanel === 'types') {
     formContainer.innerHTML = renderAdminSubnav('types') + '<div id="admin-types-mount"></div>';
     wireAdminSubnav();
-    setEditingType(state.editingType || 'civilization'); // renders the schema editor into the mount
+    const types = listTypes();
+    const editType = types.some((t) => t.type === state.editingType) ? state.editingType : types[0]?.type;
+    if (editType) {
+      setEditingType(editType); // renders the schema editor into the mount
+    } else {
+      typesMountEl().innerHTML = '<div class="empty-state">This codex has no types yet.</div>';
+    }
   } else {
     formContainer.innerHTML =
       renderAdminSubnav('access') +
       renderAccessPanel({
         codexId: state.currentCodexId,
-        initialized: state.codexInitialized,
         rows: buildRosterRows(),
       });
     wireAdminSubnav();
@@ -553,9 +719,6 @@ function wireAdminSubnav() {
 }
 
 function wireAccessPanel() {
-  formContainer.querySelector('#btn-init-codex')?.addEventListener('click', () => {
-    window.seedCodex().then(() => fetchCodexStatus());
-  });
   formContainer.querySelectorAll('[data-grant-uid]').forEach((btn) => {
     btn.addEventListener('click', () => grantRole(btn.dataset.grantUid, btn.dataset.grantRole));
   });
@@ -607,15 +770,6 @@ function ensureAdminSubscriptions() {
   }
 }
 
-async function fetchCodexStatus() {
-  if (!(state.fbManager && state.fbManager.isConfigured())) { state.codexInitialized = false; return; }
-  try {
-    state.codexInitialized = !!(await state.fbManager.getCodexMeta(state.currentCodexId));
-  } catch {
-    state.codexInitialized = false;
-  }
-  if (state.currentTab === 'admin' && state.adminPanel === 'access') renderAdminPanel();
-}
 
 // ── Schema editor (lives inside the Admin › Types panel) ─────────────────────
 // The editor holds a deep-cloned working schema. Structural edits rebuild the editor
@@ -629,8 +783,8 @@ function typesMountEl() {
 
 // A representative entry to render the type's read-view preview against.
 function sampleForType(type) {
-  const list = SEED_BY_TYPE[type] || [];
-  return list.length ? list[0] : {};
+  const list = activeEntries(state.entryIndex, type);
+  return list.length ? list[0] : { type };
 }
 
 function setEditingType(type) {
@@ -726,15 +880,15 @@ function saveWorkingSchema() {
 }
 
 function resetWorkingSchema() {
-  resetSchema(state.editingType); // overlay -> seed + drop localStorage entry
+  resetSchema(state.editingType); // drop the local edit; fall back to the loaded base
   const scope = codexScope();
   if (scope && scope.isConfigured()) {
     scope.deleteSchema(state.editingType).catch((err) => showToast('Firebase reset error: ' + err.message));
   }
   state.editorErrors = [];
-  state.workingSchema = structuredClone(getSchema(state.editingType)); // now the seed
+  state.workingSchema = structuredClone(getSchema(state.editingType)); // the loaded base
   renderTypesEditor();
-  showToast(`Reset “${state.editingType}” to default`);
+  showToast(`Reset “${state.editingType}”`);
 }
 
 // Apply a live edit from the Raw JSON pane to the working schema (the Advanced escape
@@ -800,7 +954,7 @@ function renderFormWithoutResubscribe() {
   readerTitle.textContent = title;
   editorTitle.textContent = title;
 
-  const mediaBlock = MEDIA_TABS.includes(state.currentTab) ? renderMediaControls(state.formData) : '';
+  const mediaBlock = schemaHasMedia(state.currentTab) ? renderMediaControls(state.formData) : '';
   formContainer.innerHTML = renderSchemaForm(getSchema(state.currentTab), state.formData, renderCtx) + mediaBlock;
 
   attachFormInputListeners();
@@ -835,7 +989,7 @@ function attachFormInputListeners() {
 
 // Wire the imagery controls (hero / carousel / inline) for media-capable tabs
 function wireMediaForCurrentForm() {
-  if (!MEDIA_TABS.includes(state.currentTab)) return;
+  if (!schemaHasMedia(state.currentTab)) return;
   attachMediaControls({
     container: formContainer,
     formData: state.formData,
@@ -884,18 +1038,18 @@ previewRendered.addEventListener('click', (e) => {
 });
 
 function loadEntry(type, id) {
-  const entry = findSeedEntry(type, id);
+  const entry = findEntryByTypeId(type, id);
   if (!entry) {
     showToast('Entry not found');
     return;
   }
   state.formData = { ...entry };
   state.currentTab = type;
+  state.navExpanded.add(type); // keep the selected entry's section open
   showRenderedPane();
   renderForm();
   applyMode();
   highlightNav();
-  showToast(`Opened ${entryLabel(entry)}`);
 }
 
 function updateRawJson(jsonText) {

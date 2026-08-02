@@ -36,15 +36,18 @@ service cloud.firestore {
 
     // Access grants. Read keyed by id-prefix (NOT resource.data) so a *missing* own-permission doc
     // reads as empty rather than denied — an awaiting-access user must be able to learn they have none.
+    // A user may LIST their own grants (query where uid == me) to discover which codices they can open.
     // Writes are admin-only: nobody grants themselves access.
     match /permissions/{doc} {
-      allow read:  if isAdmin() || (isSignedIn() && doc.split('_')[0] == request.auth.uid);
+      allow get:   if isAdmin() || (isSignedIn() && doc.split('_')[0] == request.auth.uid);
+      allow list:  if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow write: if isAdmin();
     }
 
     // Codices + their content.
     match /codices/{codexId} {
-      allow read:  if isAdmin() || hasPerm(codexId);
+      allow get:   if isAdmin() || hasPerm(codexId);
+      allow list:  if isAdmin();                                  // only an admin enumerates all codices
       allow write: if isAdmin();                                  // codex metadata: admin only
 
       match /entries/{entryId} {

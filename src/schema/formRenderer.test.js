@@ -2,7 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { renderForm } from './formRenderer.js';
-import { getSchema } from './schemaStore.js';
+import { getSchema, loadCodex } from './schemaStore.js';
+import { demoSchemas } from '../data/demoFixture.js';
+
+// The last test drives a real loaded schema through the store.
+loadCodex('demo', demoSchemas);
 
 const SCHEMA = {
   type: 'demo',
@@ -46,10 +50,10 @@ test('renderForm shows a placeholder for an unknown field kind', () => {
   assert.match(renderForm(schema, {}), /unknown field kind/);
 });
 
-test('renderForm drives the real civilization schema without the Imagery section', () => {
-  const html = renderForm(getSchema('civilization'), { id: 'dwarves', exports: ['Iron'] });
-  assert.match(html, /class="section-header">Core Identity</);
-  assert.match(html, /data-field-key="id"[^>]*value="dwarves"/);
-  assert.match(html, /data-field-key="exports"/);
+test('renderForm drives a real loaded schema without the Imagery section', () => {
+  const html = renderForm(getSchema('note'), { id: 'welcome', tags: ['demo'] });
+  assert.match(html, /class="section-header">Note</);
+  assert.match(html, /data-field-key="id"[^>]*value="welcome"/);
+  assert.match(html, /data-field-key="tags"/);
   assert.doesNotMatch(html, /Imagery/);
 });

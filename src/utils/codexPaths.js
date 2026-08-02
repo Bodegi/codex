@@ -31,6 +31,7 @@ export const userDocPath = (uid) => ['users', uid];
 export const permissionsCollectionPath = () => ['permissions'];
 export const permissionDocPath = (uid, codexId) => ['permissions', permissionId(uid, codexId)];
 
+export const codicesCollectionPath = () => ['codices'];
 export const codexMetaPath = (codexId) => ['codices', codexId];
 
 // ── Per-codex subcollections ────────────────────────────────────────────────
