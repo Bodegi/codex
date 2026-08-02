@@ -23,6 +23,11 @@ export function activeEntries(byType, type) {
   return (byType[type] || []).filter((e) => e.status !== 'archived');
 }
 
+/** Archived entries of a type (the restore affordance). Empty array for an unknown type. */
+export function archivedEntries(byType, type) {
+  return (byType[type] || []).filter((e) => e.status === 'archived');
+}
+
 /** Find a full entry by type + id (including archived), or null. */
 export function findEntry(byType, type, id) {
   return (byType[type] || []).find((e) => e.id === id) || null;

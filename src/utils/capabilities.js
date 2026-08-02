@@ -8,17 +8,23 @@
  * Inputs:
  *   user        the signed-in identity ({ uid, email, … }) or null
  *   permission  the user's permission doc for the CURRENT codex ({ role } ) or null
- *   adminEmail  the baked super-admin email (mirrors the rules literal)
+ *   adminEmail  the baked super-admin email, or a list of them (mirrors the rules literal(s))
  */
 
 const NONE = Object.freeze({ role: 'none', canRead: false, canEdit: false, canAdmin: false });
 
+/** Whether `email` is one of the baked super-admins. `adminEmail` may be a string or a list. */
+export function isAdminEmail(email, adminEmail) {
+  const target = String(email || '').toLowerCase();
+  if (!target) return false;
+  const list = Array.isArray(adminEmail) ? adminEmail : [adminEmail];
+  return list.some((a) => String(a || '').toLowerCase() === target);
+}
+
 export function resolveCapabilities({ user, permission, adminEmail } = {}) {
   if (!user) return { isAuthed: false, ...NONE };
 
-  const email = String(user.email || '').toLowerCase();
-  const admin = String(adminEmail || '').toLowerCase();
-  if (admin && email === admin) {
+  if (isAdminEmail(user.email, adminEmail)) {
     return { isAuthed: true, role: 'admin', canRead: true, canEdit: true, canAdmin: true };
   }
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { indexEntries, activeEntries, findEntry } from './entryIndex.js';
+import { indexEntries, activeEntries, archivedEntries, findEntry } from './entryIndex.js';
 
 const ENTRIES = [
   { type: 'note', id: 'welcome', status: 'active', title: 'Welcome' },
@@ -33,6 +33,12 @@ test('activeEntries treats a missing status as active', () => {
 
 test('activeEntries returns an empty array for an unknown type', () => {
   assert.deepEqual(activeEntries({}, 'nope'), []);
+});
+
+test('archivedEntries returns only archived entries of a type', () => {
+  const byType = indexEntries(ENTRIES);
+  assert.deepEqual(archivedEntries(byType, 'note').map((e) => e.id), ['old']);
+  assert.deepEqual(archivedEntries(byType, 'person'), []); // none archived
 });
 
 test('findEntry returns the full entry by type+id, including archived ones', () => {

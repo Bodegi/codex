@@ -19,11 +19,11 @@ export const appConfig = {
     projectId: 'codex-80902',
   },
   // Google sign-in via Firebase Auth — no OAuth client ID needed (Firebase `authDomain` handles the
-  // handshake). `adminEmail` is the single baked super-admin literal, mirrored by the Firestore
-  // security rules (isAdmin()). Everyone else's access comes from their per-codex `permissions` doc
-  // (editor/viewer), resolved by capabilities.js and enforced by the rules — no baked allowlist.
+  // handshake). `adminEmail` lists the baked super-admins, mirrored by the Firestore security rules
+  // (isAdmin()). Everyone else's access comes from their per-codex `permissions` doc (editor/viewer),
+  // resolved by capabilities.js and enforced by the rules — no baked allowlist.
   auth: {
-    adminEmail: 'bodegigaming@gmail.com',
+    adminEmail: ['bodegigaming@gmail.com', 'aspensquare.chuck@gmail.com'],
   },
 };
 

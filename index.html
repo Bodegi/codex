@@ -29,7 +29,7 @@
 
     <!-- App body: sidebar nav + content workspace (Shown when authenticated) -->
     <div class="app-body">
-      <!-- Left sidebar: codex switcher → types → entries, then Admin -->
+      <!-- Left sidebar: codex switcher → types → entries. Admin lives in the header user menu. -->
       <aside id="sidebar" class="app-sidebar">
         <div class="codex-switcher-wrap">
           <button id="codex-switcher" class="codex-switcher" disabled title="Switch codex">
@@ -41,14 +41,6 @@
         <nav id="type-nav" class="type-nav" aria-label="Codex contents">
           <!-- Data-driven: types (from listTypes) → entries -->
         </nav>
-
-        <div class="sidebar-foot">
-          <div class="sidebar-divider"></div>
-          <button id="nav-admin" class="nav-item nav-admin" hidden>
-            <span class="nav-icon"></span>
-            <span class="nav-label">Admin</span>
-          </button>
-        </div>
       </aside>
 
       <!-- Content workspace -->
@@ -59,6 +51,7 @@
             <h2 id="editor-title" class="panel-title"></h2>
             <div class="editor-actions">
               <button id="btn-save-entry" class="btn btn-primary btn-sm">Save</button>
+              <button id="btn-archive-entry" class="btn btn-secondary btn-sm" hidden>Archive</button>
               <button id="btn-done-edit" class="btn btn-secondary btn-sm">Done</button>
             </div>
           </div>

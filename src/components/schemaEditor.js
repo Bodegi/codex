@@ -17,6 +17,7 @@
 
 import { escapeHtml } from '../schema/inlineText.js';
 import { fieldKinds, MEDIA_KINDS } from '../schema/fieldKinds.js';
+import { slugify, uniqueSlug } from '../schema/slug.js';
 
 /** Field kinds the editor's picker offers: pure registry kinds first, then media. */
 export const FIELD_KIND_OPTIONS = [...Object.keys(fieldKinds), ...MEDIA_KINDS];
@@ -39,6 +40,33 @@ export function slugToCamel(label) {
   return words
     .map((w, i) => (i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()))
     .join('');
+}
+
+/**
+ * A minimal, valid schema for a brand-new type: a kebab type id derived from the label
+ * (unique against `existingTypes`), an id + title field so entries can be named and keyed,
+ * and `status: 'active'`. Passes `validateSchema`, so the author can Save immediately and
+ * grow it from there.
+ */
+export function newTypeSchema(label, existingTypes = []) {
+  const type = uniqueSlug(slugify(label) || 'type', existingTypes);
+  return {
+    type,
+    label: String(label ?? '').trim() || 'New Type',
+    icon: 'dot',
+    idField: 'id',
+    titleField: 'title',
+    status: 'active',
+    sections: [
+      {
+        title: 'Details',
+        fields: [
+          { key: 'id', label: 'ID', kind: 'text', placeholder: 'e.g. my-entry', showInMetadata: true },
+          { key: 'title', label: 'Title', kind: 'text', placeholder: 'e.g. My Entry' },
+        ],
+      },
+    ],
+  };
 }
 
 /** Every field key in the type, across all sections. */
@@ -224,7 +252,8 @@ export function renderSchemaEditor(schema, { types, editingType, errors = [] }) 
           <select class="se-input" data-se="type-picker">${typeOptions(types, editingType)}</select>
         </label>
         <span class="se-head-actions">
-          <button type="button" class="btn btn-secondary btn-sm" data-se="reset">Reset to default</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-se="reset">Revert changes</button>
+          <button type="button" class="btn btn-secondary btn-sm se-danger" data-se="archive">Archive type</button>
           <button type="button" class="btn btn-primary btn-sm" data-se="save">Save type</button>
         </span>
       </div>
@@ -239,6 +268,7 @@ export function renderSchemaEditor(schema, { types, editingType, errors = [] }) 
 const CLICK_INTENTS = {
   save: () => ({ action: 'save' }),
   reset: () => ({ action: 'reset' }),
+  archive: () => ({ action: 'archive' }),
   'section-add': () => ({ action: 'add-section' }),
   'section-remove': (d) => ({ action: 'remove-section', si: +d.si }),
   'section-up': (d) => ({ action: 'move-section', si: +d.si, delta: -1 }),

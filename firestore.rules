@@ -4,7 +4,7 @@ rules_version = '2';
 //
 // Source of truth for the rules. Deploy by pasting into the Firebase console
 // (Firestore Database → Rules). Mirrors the app's capabilities.js predicate-for-predicate:
-//   - super-admin = one baked email literal (matches appConfig.auth.adminEmail)
+//   - super-admin = one of the baked email literals (matches appConfig.auth.adminEmail)
 //   - everyone else's access comes from their per-codex permissions/{uid}_{codexId} doc
 //   - editor writes codex content; viewer reads only; schemas are admin-only (Types is admin work)
 
@@ -15,7 +15,8 @@ service cloud.firestore {
       return request.auth != null;
     }
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email == 'bodegigaming@gmail.com';
+      return isSignedIn()
+        && request.auth.token.email in ['bodegigaming@gmail.com', 'aspensquare.chuck@gmail.com'];
     }
     function permId(codexId) {
       return request.auth.uid + '_' + codexId;

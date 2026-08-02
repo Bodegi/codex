@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   getSchema,
   listTypes,
+  listArchivedTypes,
   loadCodex,
   applyCodexSchemas,
   setOverlaySchema,
@@ -49,6 +50,13 @@ test('listTypes excludes archived types but getSchema can still resolve them', (
   loadCodex('demo', [noteSchema, archived], makeStorage());
   assert.deepEqual(listTypes().map((t) => t.type), ['note']);
   assert.equal(getSchema('person').type, 'person'); // resolvable, just not listed
+});
+
+test('listArchivedTypes returns only archived types, for the restore affordance', () => {
+  const archived = { ...personSchema, status: 'archived' };
+  loadCodex('demo', [noteSchema, archived], makeStorage());
+  assert.deepEqual(listArchivedTypes().map((t) => t.type), ['person']);
+  assert.deepEqual(listTypes().map((t) => t.type), ['note']); // the two are complementary
 });
 
 test('a saved local edit wins over the loaded base', () => {

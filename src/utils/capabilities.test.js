@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { resolveCapabilities } from './capabilities.js';
+import { resolveCapabilities, isAdminEmail } from './capabilities.js';
 
 const ADMIN = 'owner@example.com';
 const caps = (user, permission, adminEmail = ADMIN) =>
@@ -62,4 +62,19 @@ test('empty adminEmail never grants admin', () => {
   const c = caps({ uid: 'u6', email: '' }, null, '');
   assert.notEqual(c.role, 'admin');
   assert.equal(c.canAdmin, false);
+});
+
+test('adminEmail may be a list — any listed email is a super-admin', () => {
+  const admins = ['owner@example.com', 'second@example.com'];
+  assert.equal(caps({ uid: 'a', email: 'second@example.com' }, null, admins).canAdmin, true);
+  assert.equal(caps({ uid: 'b', email: 'OWNER@example.com' }, null, admins).canAdmin, true); // case-insensitive
+  assert.equal(caps({ uid: 'c', email: 'stranger@example.com' }, null, admins).canAdmin, false);
+});
+
+test('isAdminEmail matches against a string or a list, case-insensitively', () => {
+  assert.equal(isAdminEmail('a@b.com', 'a@b.com'), true);
+  assert.equal(isAdminEmail('A@B.com', ['x@y.com', 'a@b.com']), true);
+  assert.equal(isAdminEmail('c@d.com', ['a@b.com']), false);
+  assert.equal(isAdminEmail('', ['a@b.com']), false);
+  assert.equal(isAdminEmail('a@b.com', []), false);
 });

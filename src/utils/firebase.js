@@ -13,6 +13,7 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocs,
   deleteDoc,
   collection,
   query,
@@ -209,6 +210,13 @@ export class CodexScope {
     return onSnapshot(col, (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
     });
+  }
+
+  /** One-shot read of this codex's schema docs (used to copy a template into a new codex). */
+  async getSchemas() {
+    if (!this.db) return [];
+    const snap = await getDocs(collection(this.db, ...schemasCollectionPath(this.codexId)));
+    return snap.docs.map((d) => d.data());
   }
 
   /**

@@ -13,7 +13,9 @@ import {
   removeSection,
   renameSection,
   moveSection,
+  newTypeSchema,
 } from './schemaEditor.js';
+import { validateSchema } from '../schema/schemaValidate.js';
 
 function schema() {
   return {
@@ -95,4 +97,35 @@ test('moveSection reorders and clamps', () => {
   assert.deepEqual(down.sections.map((s) => s.title), ['Extra', 'Core']);
   const clamped = moveSection(schema(), 1, 1);
   assert.deepEqual(clamped.sections.map((s) => s.title), ['Core', 'Extra']); // no-op
+});
+
+// --- newTypeSchema ----------------------------------------------------------
+
+test('newTypeSchema derives a kebab type id from the label', () => {
+  assert.equal(newTypeSchema('Trade Route', []).type, 'trade-route');
+});
+
+test('newTypeSchema produces a schema that passes validation', () => {
+  assert.equal(validateSchema(newTypeSchema('Trade Route', [])).ok, true);
+});
+
+test('newTypeSchema starts active with id/title fields wired', () => {
+  const s = newTypeSchema('Trade Route', []);
+  assert.equal(s.status, 'active');
+  assert.equal(s.label, 'Trade Route');
+  assert.equal(s.idField, 'id');
+  assert.equal(s.titleField, 'title');
+  const keys = allFieldKeys(s);
+  assert.ok(keys.includes('id'));
+  assert.ok(keys.includes('title'));
+});
+
+test('newTypeSchema makes the type id unique against existing types', () => {
+  assert.equal(newTypeSchema('Trade Route', ['trade-route']).type, 'trade-route-2');
+});
+
+test('newTypeSchema falls back to a valid type id when the label has no usable characters', () => {
+  const s = newTypeSchema('!!!', []);
+  assert.ok(s.type.length > 0);
+  assert.equal(validateSchema(s).ok, true);
 });

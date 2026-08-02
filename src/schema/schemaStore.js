@@ -95,6 +95,16 @@ export function listTypes() {
     .map((s) => ({ type: s.type, label: s.label, icon: s.icon }));
 }
 
+/** Archived types (status === 'archived'), as `{ type, label, icon }` — for the restore list. */
+export function listArchivedTypes() {
+  const orderedTypes = [...base.keys()];
+  overlay.forEach((_v, type) => { if (!base.has(type)) orderedTypes.push(type); });
+  return orderedTypes
+    .map((type) => getSchema(type))
+    .filter((s) => s && s.status === 'archived')
+    .map((s) => ({ type: s.type, label: s.label, icon: s.icon }));
+}
+
 /** Replace the overlay for a type (Types-editor live preview). Null clears it. */
 export function setOverlaySchema(type, schema) {
   if (schema) overlay.set(type, schema);
