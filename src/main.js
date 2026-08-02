@@ -1414,6 +1414,15 @@ function applySchemaRawJsonEdit() {
 
 // Realtime Firestore Doc Subscription
 function subscribeToLiveFirestoreDoc(type, id) {
+  // Re-rendering the same open entry (e.g. an images-index refresh mid-edit) must NOT tear down and
+  // re-establish an identical subscription: the fresh initial snapshot would run the merge below and
+  // reassign state.formData to a new object, orphaning any in-flight callback holding the old reference
+  // (e.g. the image picker's field assignment after an upload). A live subscription already pushes remote
+  // changes, so re-subscribing the same doc is redundant as well as harmful.
+  if (id && state.liveDocId === id && state.activeDocUnsubscribe) {
+    renderSyncStatus();
+    return;
+  }
   if (state.activeDocUnsubscribe) {
     state.activeDocUnsubscribe();
     state.activeDocUnsubscribe = null;
