@@ -1034,14 +1034,49 @@ textarea.form-control {
   font-style: italic;
 }
 
-.reader-body .missing-img {
-  display: inline-block;
-  font-size: 12px;
+/* Not-found image placeholder (shared, read + edit sides). One glyph (notFoundImage);
+   standalone variants carry their own box, nested ones (slide/thumb) sit inside an
+   existing box (.carousel-missing / .media-thumb-missing) which supplies the chrome. */
+.image-missing {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
+  box-sizing: border-box;
+}
+.image-missing-glyph {
+  width: 30px;
+  height: 30px;
+  opacity: 0.45;
+}
+.image-missing-inline {
+  width: 140px;
+  height: 92px;
+  margin: 8px 0;
+  vertical-align: middle;
   background: rgba(255, 255, 255, 0.05);
   border: 1px dashed var(--border-dim);
   border-radius: var(--radius-sm);
-  padding: 2px 8px;
+}
+.image-missing-hero {
+  display: flex;
+  width: 100%;
+  height: 200px;
+  margin-bottom: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed var(--border-dim);
+  border-radius: var(--radius-md);
+}
+.image-missing-hero .image-missing-glyph {
+  width: 48px;
+  height: 48px;
+}
+.image-missing-picker {
+  display: flex;
+  width: 100%;
+  height: 90px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
 }
 
 /* Reader links — internal references and inline external links. Previously unstyled, so they fell

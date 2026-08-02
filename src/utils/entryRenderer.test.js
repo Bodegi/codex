@@ -56,6 +56,18 @@ test('the hero image renders at the top when ctx resolves it', () => {
   assert.match(html, /class="entry-hero" src="\/h\/hall.png"/);
 });
 
+test('a set-but-unresolved hero shows the not-found placeholder (a delete never breaks a page)', () => {
+  const ctx = { resolveImage: () => null };
+  const html = renderEntryHTML('note', { ...NOTE, heroImage: 'gone.png' }, ctx);
+  assert.match(html, /class="image-missing image-missing-hero"/);
+});
+
+test('an unset hero renders neither an image nor a placeholder', () => {
+  const ctx = { resolveImage: () => null };
+  const html = renderEntryHTML('note', { ...NOTE }, ctx);
+  assert.doesNotMatch(html, /entry-hero|image-missing/);
+});
+
 test('gallery is not rendered inline (handled by the appended carousel)', () => {
   const html = renderEntryHTML('note', { ...NOTE, gallery: ['a.png'] });
   assert.doesNotMatch(html, /<h3>Gallery<\/h3>/);

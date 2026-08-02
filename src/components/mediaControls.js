@@ -8,29 +8,32 @@
  */
 
 import { openImagePicker } from './imagePicker.js';
-import { resolve as resolvePoolImage } from '../utils/imagePool.js';
+import { notFoundImage } from '../schema/notFoundImage.js';
 
-function thumb(id) {
-  const url = resolvePoolImage(id);
+function thumb(id, resolveImage) {
+  const url = resolveImage ? resolveImage(id) : null;
   return url
     ? `<img src="${url}" alt="" class="media-thumb">`
-    : `<span class="media-thumb media-thumb-missing" title="missing image"></span>`;
+    : `<span class="media-thumb media-thumb-missing" title="image not found">${notFoundImage('image-missing-thumb')}</span>`;
 }
 
-/** Builder-side imagery controls for an entry. */
-export function renderMediaControls(data) {
+/**
+ * Builder-side imagery controls for an entry. `resolveImage(id) → url|null` is injected (the
+ * live image index lives in main.js) so the thumbs resolve without importing any store.
+ */
+export function renderMediaControls(data, resolveImage) {
   const hero = data.heroImage || '';
   const gallery = Array.isArray(data.gallery) ? data.gallery : [];
 
   const heroBlock = hero
-    ? `${thumb(hero)}<button type="button" class="btn btn-secondary btn-sm" data-media="hero-clear">Remove</button>`
+    ? `${thumb(hero, resolveImage)}<button type="button" class="btn btn-secondary btn-sm" data-media="hero-clear">Remove</button>`
     : `<span class="media-empty">No hero image</span>`;
 
   const galleryItems = gallery
     .map(
       (id, i) => `
       <div class="media-gallery-item">
-        ${thumb(id)}
+        ${thumb(id, resolveImage)}
         <div class="media-gallery-actions">
           <button type="button" data-media="gallery-left" data-index="${i}" title="Move left">◀</button>
           <button type="button" data-media="gallery-remove" data-index="${i}" title="Remove">×</button>
@@ -78,8 +81,10 @@ function insertAtCursor(field, text) {
  *   formData        — the entry object to mutate
  *   onMutate()      — called after hero/gallery changes (re-render + autosave)
  *   getFocusedField() — returns the prose <textarea> to insert inline images into
+ *   listImages()    — returns the current codex's images ([{ id, label, url }]) for the picker
  */
-export function attachMediaControls({ container, formData, onMutate, getFocusedField }) {
+export function attachMediaControls({ container, formData, onMutate, getFocusedField, listImages }) {
+  const pick = () => openImagePicker(listImages ? listImages() : []);
   container.querySelectorAll('[data-media]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const action = btn.dataset.media;
@@ -87,7 +92,7 @@ export function attachMediaControls({ container, formData, onMutate, getFocusedF
       const gallery = Array.isArray(formData.gallery) ? formData.gallery.slice() : [];
 
       if (action === 'hero-pick') {
-        const id = await openImagePicker();
+        const id = await pick();
         if (id) {
           formData.heroImage = id;
           onMutate();
@@ -96,7 +101,7 @@ export function attachMediaControls({ container, formData, onMutate, getFocusedF
         delete formData.heroImage;
         onMutate();
       } else if (action === 'gallery-add') {
-        const id = await openImagePicker();
+        const id = await pick();
         if (id) {
           gallery.push(id);
           formData.gallery = gallery;
@@ -117,7 +122,7 @@ export function attachMediaControls({ container, formData, onMutate, getFocusedF
       } else if (action === 'inline-insert') {
         const field = getFocusedField();
         if (!field) return;
-        const id = await openImagePicker();
+        const id = await pick();
         if (id) {
           insertAtCursor(field, `![](pool:${id})`);
           // Let the existing form input handler pick up the change (formData + preview).

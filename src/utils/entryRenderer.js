@@ -13,6 +13,7 @@
  */
 
 import { getSchema } from '../schema/schemaStore.js';
+import { notFoundImage } from '../schema/notFoundImage.js';
 import { getKind, MEDIA_KINDS, displayValue, unknownKindPlaceholder } from '../schema/fieldKinds.js';
 import { escapeHtml, formatInline } from '../schema/inlineText.js';
 
@@ -46,8 +47,9 @@ function heroImage(schema, d, ctx) {
   const field = allFields(schema).find((f) => f.kind === 'hero');
   if (!field) return '';
   const id = d[field.key];
-  const url = id && ctx?.resolveImage ? ctx.resolveImage(id) : null;
-  if (!url) return '';
+  if (!id) return '';                                     // no hero set → render nothing
+  const url = ctx?.resolveImage ? ctx.resolveImage(id) : null;
+  if (!url) return notFoundImage('image-missing-hero');   // set but unresolved → placeholder, never a broken page
   return `<img class="entry-hero" src="${url}" alt="${escapeHtml(d[schema.titleField] || '')}">`;
 }
 

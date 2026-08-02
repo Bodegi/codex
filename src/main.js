@@ -6,7 +6,7 @@ import { demoCodexId, demoCodexMeta, demoSchemas, demoEntriesByType } from './da
 import { renderEntryHTML } from './utils/entryRenderer.js';
 import { FirebaseManager } from './utils/firebase.js';
 import { AuthManager } from './utils/authManager.js';
-import { appConfig, resolveFirebaseConfig } from './config/appConfig.js';
+import { appConfig, resolveFirebaseConfig, resolveSupabaseConfig } from './config/appConfig.js';
 
 import { renderForm as renderSchemaForm } from './schema/formRenderer.js';
 import {
@@ -62,7 +62,7 @@ import {
 import { resolveCapabilities, isAdminEmail } from './utils/capabilities.js';
 import { renderMediaControls, attachMediaControls } from './components/mediaControls.js';
 import { renderCarousel, initCarousel } from './components/carousel.js';
-import { resolve as resolvePoolImage } from './utils/imagePool.js';
+import { createImageIndex } from './schema/imageIndex.js';
 
 // Last-focused prose textarea, target for inline-image insertion
 let lastFocusedProseField = null;
@@ -72,6 +72,10 @@ const CURRENT_CODEX_KEY = 'codex_current_id';
 
 // Firebase config resolved once; presence drives configured vs. local-only mode.
 const firebaseConfig = resolveFirebaseConfig(appConfig.firebase, localStorage.getItem('codex_firebase_override'));
+
+// Supabase (image bytes) resolved once, off the same override sentinel. null in local-only mode, so the
+// image index stays empty and every id resolves to the not-found SVG (spec §7 — images need Firebase).
+const supabaseConfig = resolveSupabaseConfig(appConfig.supabase, localStorage.getItem('codex_firebase_override'));
 
 // The codex shown first: a configured build defaults to the baked codex; local-only mode is the
 // single demo-fixture codex (no switcher, no Firestore).
@@ -104,6 +108,9 @@ const state = {
   liveDocId: null,
   // The current codex's live entries grouped by type (replaces the bundled SEED_BY_TYPE).
   entryIndex: {},
+  // The current codex's live image index (id → URL), rebuilt from subscribeImagesForCodex. Empty until
+  // the first snapshot (and always empty in local-only mode). resolve(id) → URL or null (not-found SVG).
+  imageIndex: createImageIndex([], supabaseConfig),
   // Codex registry: the meta docs the viewer may switch between, and (non-admin) their own grants.
   codices: [],
   ownPermissions: [],
@@ -154,6 +161,7 @@ function codexScope() {
 // subscriptions are deferred to showWorkspace() so no read fires before the user has read access.
 let schemaUnsubscribe = null;
 let entriesUnsubscribe = null;
+let imagesUnsubscribe = null;
 
 function subscribeCodexContent() {
   const scope = codexScope();
@@ -170,6 +178,15 @@ function subscribeCodexContent() {
     state.entryIndex = indexEntries(entries);
     onCodexContentChanged();
   });
+
+  // The codex's image library (the runtime replacement for the build-time pool): rebuild the in-memory
+  // index on every snapshot, then re-render so images that were showing not-found resolve, and removed
+  // ones fall back to the not-found SVG. subscribeImagesForCodex already filters to active records.
+  if (imagesUnsubscribe) { imagesUnsubscribe(); imagesUnsubscribe = null; }
+  imagesUnsubscribe = state.fbManager.subscribeImagesForCodex(state.currentCodexId, (records) => {
+    state.imageIndex = createImageIndex(records, supabaseConfig);
+    onImagesChanged();
+  });
 }
 
 // Re-render nav + selection when the codex's live types/entries change.
@@ -177,6 +194,13 @@ function onCodexContentChanged() {
   if (!state.workspaceReady) return;
   renderNav();
   ensureValidView();
+}
+
+// Re-render the current content view when the codex's images change, so hero / carousel / inline / thumbs
+// pick up new URLs (or the not-found SVG). Skipped in global-admin, whose panels render no codex images.
+function onImagesChanged() {
+  if (!state.workspaceReady || inGlobalAdmin()) return;
+  renderView();
 }
 
 // Point the store + entry index at a codex's content: the demo fixture in local-only mode, or empty
@@ -189,6 +213,8 @@ function loadCodexContent() {
     loadCodex(demoCodexId, demoSchemas);
     state.entryIndex = { ...demoEntriesByType };
   }
+  // Reset the image index on boot + every codex switch; the subscription refills it in configured mode.
+  state.imageIndex = createImageIndex([], supabaseConfig);
 }
 loadCodexContent();
 
@@ -210,7 +236,7 @@ const entryTitle = (data, type) => {
 // Edge adapter handed to the schema renderers: the image/reference resolution they
 // must not import directly (keeps them build-tool-free and unit-testable).
 const renderCtx = {
-  resolveImage: (id) => resolvePoolImage(id),
+  resolveImage: (id) => state.imageIndex.resolve(id),
   listEntries: (type) => entriesOfType(type),
   resolveRef: (type, id) => {
     const entry = findEntryByTypeId(type, id);
@@ -363,6 +389,7 @@ function teardownWorkspace() {
   state.workspaceReady = false;
   if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
   if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
+  if (imagesUnsubscribe) { imagesUnsubscribe(); imagesUnsubscribe = null; }
   if (state.activeDocUnsubscribe) { state.activeDocUnsubscribe(); state.activeDocUnsubscribe = null; }
   if (codicesUnsub) { codicesUnsub(); codicesUnsub = null; }
   if (ownPermsUnsub) { ownPermsUnsub(); ownPermsUnsub = null; }
@@ -531,6 +558,7 @@ function switchCodex(codexId) {
   if (!codexId || codexId === state.currentCodexId) return;
   if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
   if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
+  if (imagesUnsubscribe) { imagesUnsubscribe(); imagesUnsubscribe = null; }
   if (state.activeDocUnsubscribe) { state.activeDocUnsubscribe(); state.activeDocUnsubscribe = null; }
   state.liveDocId = null; // no doc open on the new codex yet — don't show the old codex's "Live sync · id"
 
@@ -1287,7 +1315,7 @@ function renderFormWithoutResubscribe() {
   readerTitle.textContent = title;
   editorTitle.textContent = title;
 
-  const mediaBlock = schemaHasMedia(curType()) ? renderMediaControls(state.formData) : '';
+  const mediaBlock = schemaHasMedia(curType()) ? renderMediaControls(state.formData, renderCtx.resolveImage) : '';
   formContainer.innerHTML = renderSchemaForm(getSchema(curType()), state.formData, renderCtx) + mediaBlock;
 
   attachFormInputListeners();
@@ -1331,6 +1359,7 @@ function wireMediaForCurrentForm() {
       autoSaveToFirebase();
     },
     getFocusedField: () => lastFocusedProseField,
+    listImages: () => state.imageIndex.listImages(),
   });
 }
 
@@ -1348,7 +1377,7 @@ function entryHasContent() {
 
 // Entry HTML + carousel composed after it (carousel is never part of the entry body)
 function currentPreviewHTML() {
-  return renderEntryHTML(curType(), state.formData, renderCtx) + renderCarousel(state.formData.gallery);
+  return renderEntryHTML(curType(), state.formData, renderCtx) + renderCarousel(state.formData.gallery, renderCtx.resolveImage);
 }
 
 // Re-render the current builder entry & refresh both preview panels

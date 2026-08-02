@@ -3,7 +3,9 @@
  * Supports Pan/Zoom, Interactive Waypoints, Road/Rail Vector Networks, Territory Polygons, and Real-time Persistence.
  */
 
-import { listImages, resolve as resolvePoolImage } from '../utils/imagePool.js';
+// NOTE: this atlas component is not yet wired into the app. Its image source is the injected
+// image index ({ listImages, resolve }), same as the other consumers — passed in by whoever
+// wires it up later (there is no call site today).
 
 function escapeAttr(text) {
   return String(text ?? '')
@@ -13,11 +15,11 @@ function escapeAttr(text) {
     .replace(/"/g, '&quot;');
 }
 
-export function renderAtlasView() {
-  const images = listImages();
+export function renderAtlasView(imageIndex) {
+  const images = imageIndex ? imageIndex.listImages() : [];
   const mapOptions = images.length
     ? images.map((img) => `<option value="${escapeAttr(img.id)}">${escapeAttr(img.label)}</option>`).join('')
-    : '<option value="">No images in pool</option>';
+    : '<option value="">No images available</option>';
   const defaultSrc = images.length ? images[0].url : '';
 
   return `
@@ -90,7 +92,7 @@ export function renderAtlasView() {
  * Initialize Interactive Canvas Controls (Pan, Zoom, Polygon Territory Drawing, Polyline Rails, Interactive Pins).
  * `codexScope` is the current codex's Firestore scope (saveMapData / subscribeToMapData), or null in local-only mode.
  */
-export function initAtlasCanvas(codexScope) {
+export function initAtlasCanvas(codexScope, imageIndex) {
   const canvas = document.getElementById('atlas-canvas');
   const bgImg = document.getElementById('atlas-bg-img');
   const mapSelect = document.getElementById('atlas-map-select');
@@ -133,7 +135,7 @@ export function initAtlasCanvas(codexScope) {
   // Map Image Selector — options carry pool ids; resolve to the current build URL
   if (mapSelect) {
     mapSelect.addEventListener('change', (e) => {
-      const url = resolvePoolImage(e.target.value);
+      const url = imageIndex ? imageIndex.resolve(e.target.value) : null;
       if (url) bgImg.src = url;
       saveMapStateToFirebase();
     });
@@ -274,7 +276,7 @@ export function initAtlasCanvas(codexScope) {
         territories = data.territories || [];
         if (data.mapImageId && mapSelect) {
           mapSelect.value = data.mapImageId;
-          const url = resolvePoolImage(data.mapImageId);
+          const url = imageIndex ? imageIndex.resolve(data.mapImageId) : null;
           if (url) bgImg.src = url;
         }
         redraw();

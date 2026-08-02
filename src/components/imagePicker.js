@@ -1,14 +1,15 @@
 /**
  * Codex — Image Picker
  *
- * Reusable modal that shows the image pool as a thumbnail grid. Returns the picked
- * image's stable id (or null if cancelled). Used by the atlas, hero, carousel, and
- * inline-image consumers — none of them talk to the pool for selection UI directly.
+ * Reusable modal that shows the codex's images as a thumbnail grid. Returns the picked
+ * image's stable id (or null if cancelled). Used by the hero, carousel, and inline-image
+ * consumers — none of them talk to the image index for selection UI directly. The image
+ * list is injected (the live index lives in main.js), so this component imports no store.
  *
- *   const id = await openImagePicker();
+ *   const id = await openImagePicker(imageIndex.listImages());
  */
 
-import { listImages } from '../utils/imagePool.js';
+import { notFoundImage } from '../schema/notFoundImage.js';
 
 function escapeAttr(text) {
   return String(text ?? '')
@@ -18,22 +19,23 @@ function escapeAttr(text) {
     .replace(/"/g, '&quot;');
 }
 
-/** Open the picker. Resolves to the picked image id, or null if cancelled. */
-export function openImagePicker() {
+/**
+ * Open the picker over an injected image list ([{ id, label, url }], from the live index).
+ * Resolves to the picked image id, or null if cancelled.
+ */
+export function openImagePicker(images = []) {
   return new Promise((resolve) => {
-    const images = listImages();
-
     const grid = images.length
       ? images
           .map(
             (img) => `
         <button type="button" class="image-picker-item" data-id="${escapeAttr(img.id)}" title="${escapeAttr(img.label)}">
-          <img src="${img.url}" alt="${escapeAttr(img.label)}" loading="lazy">
+          ${img.url ? `<img src="${img.url}" alt="${escapeAttr(img.label)}" loading="lazy">` : notFoundImage('image-missing-picker')}
           <span>${escapeAttr(img.label)}</span>
         </button>`
           )
           .join('')
-      : `<p class="image-picker-empty">No images in the pool yet. Drop files into <code>src/assets/pool/</code> and rebuild.</p>`;
+      : `<p class="image-picker-empty">No images available yet.</p>`;
 
     const overlay = document.createElement('div');
     overlay.className = 'image-picker-overlay';

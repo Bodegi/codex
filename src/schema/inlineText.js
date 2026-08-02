@@ -7,6 +7,8 @@
  * plain Node.
  */
 
+import { notFoundImage } from './notFoundImage.js';
+
 export function escapeHtml(text) {
   return String(text ?? '')
     .replace(/&/g, '&amp;')
@@ -52,12 +54,12 @@ function inlineMarks(text, resolveImage) {
 }
 
 // An image mark. `pool:<id>` refs resolve through the injected resolver; other URLs
-// pass through. An unresolved pool ref renders a small placeholder, not a broken image.
+// pass through. An unresolved pool ref renders the not-found placeholder, not a broken image.
 function renderImageMark(alt, url, resolveImage) {
   if (url.startsWith('pool:')) {
     const id = url.slice(5);
     const resolved = resolveImage ? resolveImage(id) : null;
-    if (!resolved) return `<span class="missing-img">missing image: ${alt || id}</span>`;
+    if (!resolved) return notFoundImage('image-missing-inline');
     return `<img class="inline-img" src="${resolved}" alt="${alt}">`;
   }
   return `<img class="inline-img" src="${url}" alt="${alt}">`;

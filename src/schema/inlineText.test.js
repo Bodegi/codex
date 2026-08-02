@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { escapeHtml, formatInline } from './inlineText.js';
+import { notFoundImage } from './notFoundImage.js';
 
 test('escapeHtml neutralizes HTML metacharacters', () => {
   assert.equal(escapeHtml('a < b & "c"'), 'a &lt; b &amp; &quot;c&quot;');
@@ -54,10 +55,10 @@ test('formatInline resolves pool images through the injected resolver', () => {
   );
 });
 
-test('formatInline shows a placeholder for an unresolved pool image', () => {
+test('formatInline shows the not-found placeholder for an unresolved pool image', () => {
   const resolve = () => null;
   assert.equal(
     formatInline('![alt](pool:missing.png)', resolve),
-    '<p><span class="missing-img">missing image: alt</span></p>'
+    `<p>${notFoundImage('image-missing-inline')}</p>`
   );
 });

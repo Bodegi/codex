@@ -6,19 +6,23 @@
  * part of the entry body. Empty gallery -> renders nothing.
  */
 
-import { resolve as resolvePoolImage } from '../utils/imagePool.js';
+import { notFoundImage } from '../schema/notFoundImage.js';
 
-/** HTML for the carousel, or '' when there are no gallery images. */
-export function renderCarousel(gallery) {
+/**
+ * HTML for the carousel, or '' when there are no gallery images. `resolveImage(id) → url|null`
+ * is injected (the live image index lives in main.js); an unresolved id degrades to the
+ * not-found SVG so a removed image never breaks the strip.
+ */
+export function renderCarousel(gallery, resolveImage) {
   const ids = Array.isArray(gallery) ? gallery : [];
   if (!ids.length) return '';
 
   const slides = ids
     .map((id) => {
-      const url = resolvePoolImage(id);
+      const url = resolveImage ? resolveImage(id) : null;
       return url
         ? `<div class="carousel-slide"><img src="${url}" alt="" loading="lazy"></div>`
-        : `<div class="carousel-slide carousel-missing">missing image</div>`;
+        : `<div class="carousel-slide carousel-missing">${notFoundImage('image-missing-slide')}</div>`;
     })
     .join('');
 
