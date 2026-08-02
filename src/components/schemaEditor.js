@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Schema editor.
+ * Codex — Schema editor.
  *
  * The Types-tab authoring surface. This module owns two things kept deliberately apart:
  *
@@ -180,9 +180,9 @@ function fieldRow(field, si, fi, types) {
         <code class="se-key" title="storage key (fixed)">${escapeHtml(field.key)}</code>
         <select class="se-input se-kind" data-se="field-kind" ${at}>${kindOptions(field.kind)}</select>
         <span class="se-row-controls">
-          <button type="button" class="se-btn" data-se="field-up" ${at} title="Move up">↑</button>
-          <button type="button" class="se-btn" data-se="field-down" ${at} title="Move down">↓</button>
-          <button type="button" class="se-btn se-danger" data-se="field-remove" ${at} title="Remove field">✕</button>
+          <button type="button" class="se-btn" data-se="field-up" ${at} title="Move up">Up</button>
+          <button type="button" class="se-btn" data-se="field-down" ${at} title="Move down">Down</button>
+          <button type="button" class="se-btn se-danger" data-se="field-remove" ${at} title="Remove field">×</button>
         </span>
       </div>
       <div class="se-field-extras">${extras.join('')}</div>
@@ -196,9 +196,9 @@ function sectionBlock(section, si, types) {
       <div class="se-section-head">
         <input class="se-input se-section-title" data-se="section-title" data-si="${si}" value="${escapeHtml(section.title || '')}" placeholder="Section title">
         <span class="se-row-controls">
-          <button type="button" class="se-btn" data-se="section-up" data-si="${si}" title="Move section up">↑</button>
-          <button type="button" class="se-btn" data-se="section-down" data-si="${si}" title="Move section down">↓</button>
-          <button type="button" class="se-btn se-danger" data-se="section-remove" data-si="${si}" title="Remove section">✕</button>
+          <button type="button" class="se-btn" data-se="section-up" data-si="${si}" title="Move section up">Up</button>
+          <button type="button" class="se-btn" data-se="section-down" data-si="${si}" title="Move section down">Down</button>
+          <button type="button" class="se-btn se-danger" data-se="section-remove" data-si="${si}" title="Remove section">×</button>
         </span>
       </div>
       <div class="se-fields">${rows}</div>
@@ -213,7 +213,7 @@ function sectionBlock(section, si, types) {
  */
 export function renderSchemaEditor(schema, { types, editingType, errors = [] }) {
   const errorBlock = errors.length
-    ? `<div class="se-errors">${errors.map((e) => `<div>⚠ ${escapeHtml(e)}</div>`).join('')}</div>`
+    ? `<div class="se-errors">${errors.map((e) => `<div>${escapeHtml(e)}</div>`).join('')}</div>`
     : '';
   const sections = schema.sections.map((s, si) => sectionBlock(s, si, types)).join('');
 

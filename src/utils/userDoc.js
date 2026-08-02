@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — pure builder for the `users/{uid}` document.
+ * Codex — pure builder for the `users/{uid}` document.
  *
  * The sign-in upsert records a person in the global roster the admin grants access from. SDK-free so
  * it's Node-testable; the FirebaseManager upsert decides create-vs-merge and passes `isNew`.

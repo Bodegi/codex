@@ -16,7 +16,7 @@ function escapeHtml(text) {
 export function renderAdminSubnav(panel) {
   const tab = (key, label) =>
     `<button class="admin-subnav-btn${panel === key ? ' active' : ''}" data-admin-panel="${key}">${label}</button>`;
-  return `<div class="admin-subnav">${tab('access', '👥 Users & Access')}${tab('types', '🧬 Types')}</div>`;
+  return `<div class="admin-subnav">${tab('access', 'Users & Access')}${tab('types', 'Types')}</div>`;
 }
 
 /**
@@ -25,7 +25,7 @@ export function renderAdminSubnav(panel) {
  */
 export function renderAccessPanel({ codexId, initialized, rows }) {
   const status = initialized
-    ? '<span style="color:var(--accent-emerald,#10b981);">✓ Initialized</span>'
+    ? '<span style="color:var(--accent-emerald,#10b981);">Initialized</span>'
     : '<span style="color:var(--text-muted);">Not initialized</span>';
 
   const roleBtn = (uid, role, current, label) =>

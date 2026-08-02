@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Field-kind registry.
+ * Codex — Field-kind registry.
  *
  * One entry per pure field kind: `{ renderInput(field, value, ctx), renderRead(field, value, ctx) }`.
  * `renderInput` returns the form CONTROL (the caller wraps it in a labelled group);
@@ -113,5 +113,5 @@ export function displayValue(field, value, ctx) {
 
 /** Visible placeholder for a schema field whose kind we don't recognize. */
 export function unknownKindPlaceholder(kind) {
-  return `<div class="unknown-kind">⚠ unknown field kind: ${escapeHtml(kind)}</div>`;
+  return `<div class="unknown-kind">unknown field kind: ${escapeHtml(kind)}</div>`;
 }

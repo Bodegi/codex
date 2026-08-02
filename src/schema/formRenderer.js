@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Generic form renderer.
+ * Codex — Generic form renderer.
  *
  * Renders a builder form straight from a type schema. Replaces the per-type
  * `render*Form` builders. Media fields (hero/gallery) are skipped here — they are

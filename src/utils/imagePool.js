@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Image Pool
+ * Codex — Image Pool
  *
  * Single source of truth for the build-time image pool. Every image dropped into
  * src/assets/pool/ is auto-discovered by Vite at build time — no manifest to

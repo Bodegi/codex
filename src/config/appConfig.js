@@ -1,5 +1,5 @@
 /**
- * Baked application config for ATM10 Codex Studio.
+ * Baked application config for Codex Studio.
  *
  * These values ship in the build (and, once deployed, in the public bundle). The Firebase web
  * config is a project *locator*, not a secret — real access control lives in Firestore security

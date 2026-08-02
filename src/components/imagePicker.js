@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Image Picker
+ * Codex — Image Picker
  *
  * Reusable modal that shows the image pool as a thumbnail grid. Returns the picked
  * image's stable id (or null if cancelled). Used by the atlas, hero, carousel, and
@@ -40,8 +40,8 @@ export function openImagePicker() {
     overlay.innerHTML = `
       <div class="image-picker-modal" role="dialog" aria-modal="true" aria-label="Select an image">
         <div class="image-picker-header">
-          <strong>🖼️ Select an image</strong>
-          <button type="button" class="image-picker-close" aria-label="Close">✕</button>
+          <strong>Select an image</strong>
+          <button type="button" class="image-picker-close" aria-label="Close">×</button>
         </div>
         <div class="image-picker-grid">${grid}</div>
       </div>`;

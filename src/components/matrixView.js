@@ -25,7 +25,7 @@ export function renderMatrixView() {
 
   return `
     <div class="form-section">
-      <div class="section-header">🕸️ World Ecosystem & Civilization Matrix</div>
+      <div class="section-header">World Ecosystem & Civilization Matrix</div>
       <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">
         Visual summary of how all 7 core civilizations interlock through gameplay mods, resource exports, and trade networks.
       </p>

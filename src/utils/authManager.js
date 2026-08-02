@@ -1,5 +1,5 @@
 /**
- * Google sign-in via Firebase Authentication for ATM10 Codex Studio.
+ * Google sign-in via Firebase Authentication for Codex Studio.
  *
  * Because Google is a native Firebase Auth provider, a signed-in user carries a real `request.auth`
  * into Firestore security rules — no custom-token bridge, serverless function, or Blaze plan needed.

@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — idempotent seed for the `atm10` codex.
+ * Codex — idempotent seed for the `atm10` codex.
  *
  * Writes the bundled seed content into the codex-scoped Firestore layout (`codices/atm10/…`),
  * reusing the app's own Firebase connection + super-admin auth — no service account, no separate
@@ -51,7 +51,7 @@ export function buildAtm10Seed({ ownerUid, timestamp = '' } = {}) {
     codexId,
     meta: {
       codexId,
-      name: 'ATM10 Codex',
+      name: 'ATM10',
       description: 'Design codex for the handcrafted ATM10-inspired Minecraft world.',
       createdBy: ownerUid,
       createdAt: timestamp,

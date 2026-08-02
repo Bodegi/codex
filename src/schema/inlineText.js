@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Inline rich-text (pure).
+ * Codex — Inline rich-text (pure).
  *
  * The small amount of rich text that lives inside free-text field values. Pure and
  * dependency-free: pool-image resolution is passed in as `resolveImage(id) -> url`
@@ -57,7 +57,7 @@ function renderImageMark(alt, url, resolveImage) {
   if (url.startsWith('pool:')) {
     const id = url.slice(5);
     const resolved = resolveImage ? resolveImage(id) : null;
-    if (!resolved) return `<span class="missing-img">⚠ missing image: ${alt || id}</span>`;
+    if (!resolved) return `<span class="missing-img">missing image: ${alt || id}</span>`;
     return `<img class="inline-img" src="${resolved}" alt="${alt}">`;
   }
   return `<img class="inline-img" src="${url}" alt="${alt}">`;

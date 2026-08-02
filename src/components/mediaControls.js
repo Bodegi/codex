@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Media Controls (write-side)
+ * Codex — Media Controls (write-side)
  *
  * The builder-side editing controls for an entry's imagery: hero image, carousel
  * gallery (add / remove / reorder), and an "insert into focused text" button for
@@ -14,7 +14,7 @@ function thumb(id) {
   const url = resolvePoolImage(id);
   return url
     ? `<img src="${url}" alt="" class="media-thumb">`
-    : `<span class="media-thumb media-thumb-missing" title="missing image">⚠</span>`;
+    : `<span class="media-thumb media-thumb-missing" title="missing image"></span>`;
 }
 
 /** Builder-side imagery controls for an entry. */
@@ -33,7 +33,7 @@ export function renderMediaControls(data) {
         ${thumb(id)}
         <div class="media-gallery-actions">
           <button type="button" data-media="gallery-left" data-index="${i}" title="Move left">◀</button>
-          <button type="button" data-media="gallery-remove" data-index="${i}" title="Remove">✕</button>
+          <button type="button" data-media="gallery-remove" data-index="${i}" title="Remove">×</button>
           <button type="button" data-media="gallery-right" data-index="${i}" title="Move right">▶</button>
         </div>
       </div>`
@@ -59,7 +59,7 @@ export function renderMediaControls(data) {
       </div>
       <div class="form-group">
         <label>Inline Image</label>
-        <button type="button" class="btn btn-secondary btn-sm" data-media="inline-insert">🖼️ Insert into focused text field</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-media="inline-insert">Insert into focused text field</button>
       </div>
     </div>`;
 }

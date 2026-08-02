@@ -34,6 +34,11 @@ test('listTypes carries a display label per type', () => {
   assert.equal(civ.label, 'Civilization');
 });
 
+test('listTypes carries the schema icon key per type so nav can render it', () => {
+  const civ = listTypes().find((t) => t.type === 'civilization');
+  assert.equal(civ.icon, 'civilization');
+});
+
 test('getSchema returns the schema for a known type', () => {
   const schema = getSchema('civilization');
   assert.equal(schema.type, 'civilization');

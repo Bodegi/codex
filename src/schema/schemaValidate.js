@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Schema validation.
+ * Codex — Schema validation.
  *
  * Pure gate the in-app schema editor runs before a save is allowed to persist.
  * A malformed schema can brick a type's form/preview, so Save is blocked whenever

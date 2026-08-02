@@ -1,5 +1,5 @@
 /**
- * ATM10 Design Codex Seed Data
+ * Codex Seed Data
  */
 
 export const seedCivilizations = [

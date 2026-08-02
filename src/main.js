@@ -1,10 +1,10 @@
 /**
- * ATM10 Design Codex Studio — Main Application Bootstrap
+ * Codex Studio — Main Application Bootstrap
  */
 
 import { seedCivilizations, seedMods, seedRegions, seedDecisionLogs } from './data/seedData.js';
 import { seedAtm10Codex, ATM10_CODEX_ID } from './data/seedCodex.js';
-import { renderEntryHTML, formatInline } from './utils/entryRenderer.js';
+import { renderEntryHTML } from './utils/entryRenderer.js';
 import { FirebaseManager } from './utils/firebase.js';
 import { AuthManager } from './utils/authManager.js';
 import { appConfig, resolveFirebaseConfig } from './config/appConfig.js';
@@ -19,6 +19,9 @@ import {
   resetSchema,
 } from './schema/schemaStore.js';
 import { validateSchema } from './schema/schemaValidate.js';
+import { escapeHtml } from './schema/inlineText.js';
+import { getIcon } from './schema/iconRegistry.js';
+import { buildNavModel } from './schema/navModel.js';
 import {
   renderSchemaEditor,
   attachSchemaEditor,
@@ -33,8 +36,6 @@ import {
   renameSection,
   moveSection,
 } from './components/schemaEditor.js';
-import { renderMatrixView } from './components/matrixView.js';
-import { renderAtlasView, initAtlasCanvas } from './components/atlasView.js';
 import { renderAuthGateway } from './components/authGateway.js';
 import { renderAwaitingAccess } from './components/awaitingAccess.js';
 import { renderAdminSubnav, renderAccessPanel } from './components/adminView.js';
@@ -62,10 +63,8 @@ const state = {
   mode: 'read',
   currentViewMode: 'rendered',
   formData: { ...seedCivilizations[0] },
-  fileHandle: null,
-  currentFileName: null,
-  // The active codex. Phase 1 has a single codex and no switcher, but every Firestore access is
-  // scoped from day one so Phase 3 only has to add the picker.
+  // The active codex. Phase 3 renders the current codex only; the switcher (create/select/rename)
+  // arrives in Phase 4. Every Firestore access is codex-scoped from Phase 1.
   currentCodexId: localStorage.getItem(CURRENT_CODEX_KEY) || ATM10_CODEX_ID,
   firebaseConfig: resolveFirebaseConfig(appConfig.firebase, localStorage.getItem('codex_firebase_override')),
   fbManager: null,
@@ -78,7 +77,7 @@ const state = {
   permission: null,
   permissionLoaded: false,
   workspaceReady: false,
-  // Types tab (schema editor) working state
+  // Types editor (admin) working state
   editingType: 'civilization',
   workingSchema: null,
   editorErrors: [],
@@ -102,10 +101,10 @@ function codexScope() {
   return state.fbManager ? state.fbManager.codex(state.currentCodexId) : null;
 }
 
-// Phase-1 content migration: an idempotent, console-invokable seed. Run it once while signed in as
-// the super-admin — `window.seedAtm10Codex()` — to write the bundled ATM10 content into
-// codices/atm10/…. Becomes an "Initialize codex" admin-tab button in Phase 2.
-window.seedAtm10Codex = async () => {
+// Content seed: an idempotent, console-invokable seed. Run it once while signed in as the
+// super-admin — `window.seedCodex()` — to write the bundled content into codices/atm10/….
+// Also backs the admin "Initialize codex" button.
+window.seedCodex = async () => {
   const uid = state.authManager?.currentUser?.uid;
   if (!uid) {
     showToast('Sign in as the super-admin before seeding.');
@@ -114,14 +113,14 @@ window.seedAtm10Codex = async () => {
   try {
     const result = await seedAtm10Codex(state.fbManager, uid);
     const msg = result.seeded
-      ? `Seeded atm10 — ${result.counts.entries} entries, ${result.counts.schemas} schemas`
+      ? `Seeded ${state.currentCodexId} — ${result.counts.entries} entries, ${result.counts.schemas} schemas`
       : `Seed skipped — ${result.counts.reason}`;
     showToast(msg);
-    console.log('[seedAtm10Codex]', result);
+    console.log('[seedCodex]', result);
     return result;
   } catch (err) {
     showToast('Seed error: ' + err.message);
-    console.error('[seedAtm10Codex]', err);
+    console.error('[seedCodex]', err);
   }
 };
 
@@ -137,7 +136,7 @@ function subscribeSchemaOverlay() {
     if (BUILDER_TABS.includes(state.currentTab)) renderFormWithoutResubscribe();
   });
 }
-// Local schema edits (from the Types tab) survive a reload via localStorage; a Firestore
+// Local schema edits (from the Types editor) survive a reload via localStorage; a Firestore
 // subscription then wins per-type when configured. Hydrate before the first render. The Firestore
 // schema subscription is deferred to showWorkspace() — it must not fire until the user has read access.
 hydrateOverlayFromStorage();
@@ -154,6 +153,13 @@ const entryLabel = (e) => e.name || e.title || e.id;
 const entriesOfType = (type) => (SEED_BY_TYPE[type] || []).map((e) => ({ id: e.id, label: entryLabel(e) }));
 const findSeedEntry = (type, id) => (SEED_BY_TYPE[type] || []).find((e) => e.id === id) || null;
 
+// Title shown in the reader/editor headers for the current entry.
+const entryTitle = (data, type) => {
+  const schema = getSchema(type);
+  const t = (schema && data[schema.titleField]) || data.name || data.title || data.id;
+  return t || '(untitled)';
+};
+
 // Edge adapter handed to the schema renderers: the image/reference resolution they
 // must not import directly (keeps them build-tool-free and unit-testable).
 const renderCtx = {
@@ -167,20 +173,24 @@ const renderCtx = {
 
 // DOM References
 const formContainer = document.getElementById('form-container');
-const presetButtonsContainer = document.getElementById('preset-buttons');
 const previewRendered = document.getElementById('preview-content-rendered');
 const previewRawTextarea = document.getElementById('raw-json-textarea');
 const previewRawContainer = document.getElementById('preview-content-raw');
 const jsonErrorEl = document.getElementById('json-error');
 const toastContainer = document.getElementById('toast-container');
 const activeFileIndicator = document.getElementById('active-file-indicator');
-const fallbackFileInput = document.getElementById('fallback-file-input');
 const userProfileBadge = document.getElementById('user-profile-badge');
 const gatewayContainer = document.getElementById('gateway-container');
 const mainWorkspace = document.getElementById('main-workspace');
+const appBody = document.querySelector('.app-body');
 const editToggleBtn = document.getElementById('btn-edit-toggle');
-const openFileBtn = document.getElementById('btn-open-file');
-const saveDiskBtn = document.getElementById('btn-save-disk');
+const saveEntryBtn = document.getElementById('btn-save-entry');
+const doneEditBtn = document.getElementById('btn-done-edit');
+const readerTitle = document.getElementById('reader-title');
+const editorTitle = document.getElementById('editor-title');
+const typeNav = document.getElementById('type-nav');
+const navAdmin = document.getElementById('nav-admin');
+const codexSwitcherLabel = document.getElementById('codex-switcher-label');
 
 // ── Auth + access control (Phase 2) ─────────────────────────────────────────
 // Boot flow: on every auth change we upsert the user into the roster, (re)subscribe to their own
@@ -253,7 +263,7 @@ function renderAppState() {
 
 function showOverlay(html) {
   teardownWorkspace();
-  mainWorkspace.classList.add('hidden');
+  appBody.classList.add('hidden');   // hides the sidebar + workspace together
   gatewayContainer.classList.remove('hidden');
   gatewayContainer.innerHTML = html;
 }
@@ -282,9 +292,13 @@ function showLoading() {
 
 function showWorkspace() {
   gatewayContainer.classList.add('hidden');
+  appBody.classList.remove('hidden');
   mainWorkspace.classList.remove('hidden');
   if (!state.workspaceReady) {
     state.workspaceReady = true;
+    renderCodexSwitcher();
+    navAdmin.querySelector('.nav-icon').innerHTML = getIcon('admin');
+    renderTypeNav();
     subscribeSchemaOverlay();      // deferred codex-content subscription (now that canRead is true)
     switchTab(state.currentTab);   // initial workspace render (subscribes the live doc)
     renderSyncStatus();
@@ -322,9 +336,7 @@ function renderUserBadge() {
     });
   } else {
     userProfileBadge.innerHTML = `
-      <button id="btn-google-login" class="btn btn-secondary">
-        <span>🔑</span> Sign in with Google
-      </button>
+      <button id="btn-google-login" class="btn btn-secondary">Sign in with Google</button>
     `;
     document.getElementById('btn-google-login')?.addEventListener('click', () => {
       state.authManager.login().catch((err) => showToast(err.message));
@@ -332,17 +344,81 @@ function renderUserBadge() {
   }
 }
 
-// Tab Navigation Listener
-document.querySelectorAll('.nav-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    state.currentTab = btn.dataset.tab;
-    switchTab(state.currentTab);
-  });
-});
+// ── Sidebar navigation (codex → type → entry, then Admin) ───────────────────
+// The nav is data-driven: types come from listTypes() (the current codex's schemas) and entries
+// from the seed index. Selecting a type loads its first entry into the reader; selecting an entry
+// opens it. Admin is the only fixed, non-type item and shows only to admins.
 
-// View Mode Switcher
+// The current codex's display name in the (Phase-4) switcher. No registry yet, so the id is the name.
+function renderCodexSwitcher() {
+  codexSwitcherLabel.textContent = state.currentCodexId;
+}
+
+function renderTypeNav() {
+  const types = listTypes();
+  const entriesByType = {};
+  types.forEach((t) => {
+    entriesByType[t.type] = entriesOfType(t.type).map((e) => ({ id: e.id, title: e.label }));
+  });
+  const model = buildNavModel(types, entriesByType);
+
+  typeNav.innerHTML = model
+    .map(
+      (node) => `
+    <div class="nav-type" data-type="${escapeHtml(node.type)}">
+      <button class="nav-item nav-type-header" data-type-header="${escapeHtml(node.type)}">
+        <span class="nav-icon">${getIcon(node.icon)}</span>
+        <span class="nav-label">${escapeHtml(node.label)}</span>
+        <span class="nav-caret" aria-hidden="true"></span>
+      </button>
+      <div class="nav-entries">
+        ${node.entries
+          .map(
+            (e) =>
+              `<button class="nav-item nav-entry" data-type="${escapeHtml(node.type)}" data-id="${escapeHtml(
+                e.id
+              )}">${escapeHtml(e.title)}</button>`
+          )
+          .join('')}
+      </div>
+    </div>`
+    )
+    .join('');
+
+  wireTypeNav();
+}
+
+function wireTypeNav() {
+  typeNav.querySelectorAll('[data-type-header]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.currentTab = btn.dataset.typeHeader;
+      switchTab(state.currentTab);
+    });
+  });
+  typeNav.querySelectorAll('.nav-entry').forEach((btn) => {
+    btn.addEventListener('click', () => loadEntry(btn.dataset.type, btn.dataset.id));
+  });
+}
+
+// Mark the active type (expanded) + entry, or Admin.
+function highlightNav() {
+  typeNav.querySelectorAll('.nav-item').forEach((el) => el.classList.remove('is-active'));
+  navAdmin.classList.remove('is-active');
+
+  if (state.currentTab === 'admin') {
+    navAdmin.classList.add('is-active');
+    return;
+  }
+  const typeEl = typeNav.querySelector(`.nav-type[data-type="${CSS.escape(state.currentTab)}"]`);
+  if (!typeEl) return;
+  typeEl.classList.add('is-expanded');
+  typeEl.querySelector('.nav-type-header')?.classList.add('is-active');
+  typeEl.querySelectorAll('.nav-entry').forEach((el) => {
+    if (el.dataset.id === String(state.formData.id)) el.classList.add('is-active');
+  });
+}
+
+// View Mode Switcher (Preview / Raw JSON — Raw is an admin/power tool)
 document.querySelectorAll('.preview-tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.preview-tab-btn').forEach(b => b.classList.remove('active'));
@@ -359,112 +435,75 @@ document.querySelectorAll('.preview-tab-btn').forEach(btn => {
   });
 });
 
-// Tabs that support an editing mode (entry builders + the atlas). Others (matrix) are read-only.
-const EDITABLE_TABS = [...BUILDER_TABS, 'atlas'];
+// Force the rendered pane (used when leaving the admin Raw JSON power tool for a builder entry).
+function showRenderedPane() {
+  state.currentViewMode = 'rendered';
+  document.querySelectorAll('.preview-tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === 'rendered'));
+  previewRendered.classList.remove('hidden');
+  previewRawContainer.classList.add('hidden');
+}
 
-// Reflect the current capabilities + read/edit mode in the workspace chrome. Read mode collapses the
-// editor and hides Open/Save; edit mode reveals them. Viewers (no canEdit) are pinned to read mode.
+// Reflect capabilities + read/edit mode + tab kind in the workspace chrome. Builder read = full-width
+// reader; builder edit = full-width form; admin = editor + preview. Viewers (no canEdit) stay in read.
 function applyMode() {
   const canEdit = !!state.caps.canEdit;
-  const editableTab = EDITABLE_TABS.includes(state.currentTab);
-  if (!canEdit || !editableTab) state.mode = 'read';
+  const isBuilder = BUILDER_TABS.includes(state.currentTab);
+  if (!canEdit || !isBuilder) state.mode = 'read';
 
   const editing = state.mode === 'edit';
-  const isBuilder = BUILDER_TABS.includes(state.currentTab);
-  const kind = isBuilder ? 'builder' : state.currentTab === 'atlas' ? 'atlas' : 'other';
+  const kind = isBuilder ? 'builder' : 'admin';
 
-  mainWorkspace.classList.remove('tab-builder', 'tab-atlas', 'tab-other', 'mode-read', 'mode-edit');
+  mainWorkspace.classList.remove('tab-builder', 'tab-admin', 'mode-read', 'mode-edit');
   mainWorkspace.classList.add(`tab-${kind}`, editing ? 'mode-edit' : 'mode-read');
 
-  const showToggle = canEdit && editableTab;
-  editToggleBtn.hidden = !showToggle;
-  editToggleBtn.innerHTML = editing ? '<span>✓</span> Done' : '<span>✏️</span> Edit';
+  // Edit affordance sits in the reader header (read mode); Save/Done live in the form header (edit).
+  editToggleBtn.hidden = !(canEdit && isBuilder && !editing);
+  saveEntryBtn.hidden = !canEdit;
 
-  // Open/Save are for JSON entries only, and only while editing.
-  const showFileActions = editing && canEdit && isBuilder;
-  openFileBtn.hidden = !showFileActions;
-  saveDiskBtn.hidden = !showFileActions;
-
-  // The Admin tab is only visible to admins.
-  const adminNavBtn = document.querySelector('.nav-btn[data-tab="admin"]');
-  if (adminNavBtn) adminNavBtn.hidden = !state.caps.canAdmin;
+  // Admin is the only non-type nav item, admins only.
+  navAdmin.hidden = !state.caps.canAdmin;
 }
 
 editToggleBtn.addEventListener('click', () => {
   if (!state.caps.canEdit) return;
-  state.mode = state.mode === 'edit' ? 'read' : 'edit';
+  state.mode = 'edit';
   applyMode();
 });
 
-// Switch Tab Logic
-function switchTab(tabKey) {
-  renderPresets(tabKey);
+doneEditBtn.addEventListener('click', () => {
+  state.mode = 'read';
+  refreshBuilderPreview();
+  applyMode();
+});
 
-  switch (tabKey) {
-    case 'civilization':
-      state.formData = { ...seedCivilizations[0] };
-      renderForm();
-      break;
-    case 'mod':
-      state.formData = { ...seedMods[0] };
-      renderForm();
-      break;
-    case 'region':
-      state.formData = { ...seedRegions[0] };
-      renderForm();
-      break;
-    case 'decision':
-      state.formData = { ...seedDecisionLogs[0] };
-      renderForm();
-      break;
-    case 'matrix':
-      formContainer.innerHTML = renderMatrixView();
-      updateRenderedPreview('');
-      updateRawJson('');
-      break;
-    case 'atlas':
-      formContainer.innerHTML = renderAtlasView();
-      initAtlasCanvas(codexScope());
-      updateRenderedPreview(formatInline('The World Atlas is interactive — drop waypoints, draw roads, and outline territories directly on the map. Changes sync to the cloud automatically.'));
-      updateRawJson('');
-      break;
-    case 'admin':
-      enterAdminTab();
-      break;
+saveEntryBtn.addEventListener('click', () => saveEntry());
+
+navAdmin.addEventListener('click', () => {
+  if (!state.caps.canAdmin) return;
+  state.currentTab = 'admin';
+  switchTab('admin');
+});
+
+// Switch to a type (loads its first entry) or the Admin section.
+function switchTab(tabKey) {
+  if (tabKey === 'admin') {
+    enterAdminTab();
+    applyMode();
+    highlightNav();
+    return;
   }
 
-  applyMode(); // reflect read/edit + tab-kind in the workspace chrome
-}
-
-// Render Presets Bar
-function renderPresets(tabKey) {
-  presetButtonsContainer.innerHTML = '';
-
-  let list = [];
-  if (tabKey === 'civilization') list = seedCivilizations;
-  else if (tabKey === 'mod') list = seedMods;
-  else if (tabKey === 'region') list = seedRegions;
-  else if (tabKey === 'decision') list = seedDecisionLogs;
-
-  list.forEach(item => {
-    const btn = document.createElement('button');
-    btn.className = 'chip-btn';
-    btn.textContent = item.name || item.title || item.id;
-    btn.addEventListener('click', () => {
-      state.formData = { ...item };
-      state.fileHandle = null;
-      state.currentFileName = null;
-      renderForm();
-      subscribeToLiveFirestoreDoc(state.currentTab, state.formData.id);
-      showToast(`Loaded preset: ${item.name || item.title}`);
-    });
-    presetButtonsContainer.appendChild(btn);
-  });
+  const seed = SEED_BY_TYPE[tabKey] || [];
+  state.formData = seed.length ? { ...seed[0] } : {};
+  showRenderedPane();
+  renderForm();
+  applyMode();
+  highlightNav();
 }
 
 // ── Admin section (admin-only) ──────────────────────────────────────────────
-// Two panels: Users & Access (roster + codex init) and Types (the schema editor, relocated here).
-// Editors author entries against the schemas an admin defines here; only admins reach this tab.
+// Two panels: Users & Access (roster + codex init) and Types (the schema editor). Editors author
+// entries against the schemas an admin defines here; only admins reach this section.
 
 let adminUsersUnsub = null;
 let adminPermsUnsub = null;
@@ -475,7 +514,10 @@ function editingSchema() {
 }
 
 function enterAdminTab() {
-  if (!state.caps.canAdmin) return switchTab('civilization'); // safety; nav btn is also hidden
+  if (!state.caps.canAdmin) return switchTab('civilization'); // safety; nav item is also hidden
+  readerTitle.textContent = 'Admin';
+  editorTitle.textContent = 'Admin';
+  showRenderedPane();
   ensureAdminSubscriptions();
   fetchCodexStatus();
   renderAdminPanel();
@@ -512,7 +554,7 @@ function wireAdminSubnav() {
 
 function wireAccessPanel() {
   formContainer.querySelector('#btn-init-codex')?.addEventListener('click', () => {
-    window.seedAtm10Codex().then(() => fetchCodexStatus());
+    window.seedCodex().then(() => fetchCodexStatus());
   });
   formContainer.querySelectorAll('[data-grant-uid]').forEach((btn) => {
     btn.addEventListener('click', () => grantRole(btn.dataset.grantUid, btn.dataset.grantRole));
@@ -754,6 +796,10 @@ function renderForm() {
 function renderFormWithoutResubscribe() {
   lastFocusedProseField = null;
 
+  const title = entryTitle(state.formData, state.currentTab);
+  readerTitle.textContent = title;
+  editorTitle.textContent = title;
+
   const mediaBlock = MEDIA_TABS.includes(state.currentTab) ? renderMediaControls(state.formData) : '';
   formContainer.innerHTML = renderSchemaForm(getSchema(state.currentTab), state.formData, renderCtx) + mediaBlock;
 
@@ -773,6 +819,9 @@ function attachFormInputListeners() {
         el.dataset.fieldKind === 'list'
           ? el.value.split('\n').map((s) => s.trim()).filter(Boolean)
           : el.value;
+      // Keep the header title live as the title field is edited.
+      readerTitle.textContent = entryTitle(state.formData, state.currentTab);
+      editorTitle.textContent = readerTitle.textContent;
       refreshBuilderPreview();
       autoSaveToFirebase();
     });
@@ -841,26 +890,25 @@ function loadEntry(type, id) {
     return;
   }
   state.formData = { ...entry };
-  state.fileHandle = null;
-  state.currentFileName = null;
-  setActiveTab(type);
+  state.currentTab = type;
+  showRenderedPane();
   renderForm();
+  applyMode();
+  highlightNav();
   showToast(`Opened ${entryLabel(entry)}`);
 }
 
 function updateRawJson(jsonText) {
-  // Editable only while in edit mode with write access: builder entries or the Types schema editor.
-  const editableRaw =
-    state.caps.canEdit &&
-    (editingSchema() || (state.mode === 'edit' && BUILDER_TABS.includes(state.currentTab)));
-  previewRawTextarea.readOnly = !editableRaw;
+  // Editable only in the admin Types editor (the Raw JSON power tool). Builder entries no longer
+  // surface Raw JSON in the content-edit path.
+  previewRawTextarea.readOnly = !(state.caps.canEdit && editingSchema());
   // Never overwrite the textarea while the user is actively typing in it
   if (document.activeElement === previewRawTextarea) return;
   previewRawTextarea.value = jsonText;
   clearJsonError();
 }
 
-// Persist the current entry to Firebase — shared by the form and JSON editors
+// Persist the current entry to Firebase — used by autosave-on-input and the form Save button.
 function autoSaveToFirebase() {
   if (!state.caps.canEdit) return; // read-only users never write (rules also enforce)
   const scope = codexScope();
@@ -869,25 +917,34 @@ function autoSaveToFirebase() {
   }
 }
 
-// Apply a live edit from the Raw JSON editor back into form state
-function applyRawJsonEdit() {
-  if (editingSchema()) return applySchemaRawJsonEdit();
-  if (!BUILDER_TABS.includes(state.currentTab)) return;
-
-  let parsed;
-  try {
-    parsed = JSON.parse(previewRawTextarea.value);
-  } catch (err) {
-    setJsonError(err.message);
+// Explicit per-entry Save (form header): persist, then return to the reader.
+function saveEntry() {
+  if (!state.caps.canEdit) {
+    showToast('Read-only — you don’t have edit access.');
     return;
   }
-  clearJsonError();
+  if (!entryHasContent()) {
+    showToast('Nothing to save!');
+    return;
+  }
+  const scope = codexScope();
+  if (scope && scope.isConfigured()) {
+    scope
+      .saveDoc(state.currentTab, state.formData.id || 'entry', state.formData)
+      .then(() => showToast('Saved entry'))
+      .catch((err) => showToast('Save error: ' + err.message));
+  } else {
+    showToast('Saved locally');
+  }
+  state.mode = 'read';
+  refreshBuilderPreview();
+  applyMode();
+  highlightNav();
+}
 
-  state.formData = parsed;
-  // reflect edits in the reading view; leave the textarea as typed
-  updateRenderedPreview(currentPreviewHTML());
-  initCarousel(previewRendered);
-  autoSaveToFirebase();
+// Apply a live edit from the Raw JSON editor (admin Types power tool) back into the schema.
+function applyRawJsonEdit() {
+  if (editingSchema()) return applySchemaRawJsonEdit();
 }
 
 function setJsonError(message) {
@@ -901,151 +958,16 @@ function clearJsonError() {
   jsonErrorEl.classList.add('hidden');
 }
 
-// Raw JSON editor — live-apply on valid input, resync the form on blur
+// Raw JSON editor — live-apply on valid input, rebuild the editor on blur (admin Types only)
 previewRawTextarea.addEventListener('input', applyRawJsonEdit);
 previewRawTextarea.addEventListener('change', () => {
-  if (editingSchema()) {
-    try {
-      JSON.parse(previewRawTextarea.value);
-    } catch {
-      return; // leave the invalid text and error visible for the user to fix
-    }
-    renderTypesEditor(); // rebuild editor + normalize the schema JSON
-    return;
-  }
-  if (!BUILDER_TABS.includes(state.currentTab)) return;
+  if (!editingSchema()) return;
   try {
     JSON.parse(previewRawTextarea.value);
   } catch {
     return; // leave the invalid text and error visible for the user to fix
   }
-  renderFormWithoutResubscribe(); // resync the left form and normalize the JSON
-});
-
-// 📂 Open File Handler
-document.getElementById('btn-open-file').addEventListener('click', async () => {
-  if ('showOpenFilePicker' in window) {
-    try {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{
-          description: 'Codex JSON Files (*.json)',
-          accept: { 'application/json': ['.json'] }
-        }]
-      });
-      const file = await handle.getFile();
-      const text = await file.text();
-
-      state.fileHandle = handle;
-      state.currentFileName = file.name;
-      loadJsonIntoState(text, file.name);
-    } catch (err) {
-      if (err.name !== 'AbortError') showToast('Error opening file: ' + err.message);
-    }
-  } else {
-    fallbackFileInput.click();
-  }
-});
-
-fallbackFileInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (event) => {
-    state.fileHandle = null;
-    state.currentFileName = file.name;
-    loadJsonIntoState(event.target.result, file.name);
-  };
-  reader.readAsText(file);
-});
-
-// Load a Codex JSON entry into state
-function loadJsonIntoState(text, filename) {
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch (err) {
-    showToast(`⚠️ ${filename} is not valid JSON`);
-    return;
-  }
-
-  state.formData = parsed;
-
-  setActiveTab(BUILDER_TABS.includes(parsed.type) ? parsed.type : 'civilization');
-
-  renderForm();
-  renderSyncStatus();
-  showToast(`📂 Opened ${filename}`);
-}
-
-function setActiveTab(tabKey) {
-  state.currentTab = tabKey;
-  document.querySelectorAll('.nav-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.tab === tabKey);
-  });
-  renderPresets(tabKey);
-}
-
-// 💾 Save File (Firebase DB + Local File System Access)
-document.getElementById('btn-save-disk').addEventListener('click', async () => {
-  if (!state.caps.canEdit) {
-    showToast('Read-only — you don’t have edit access.');
-    return;
-  }
-  if (!entryHasContent()) {
-    showToast('Nothing to save!');
-    return;
-  }
-
-  // Structured JSON is the source of truth (both cloud and local file)
-  const jsonPayload = currentEntryJson();
-
-  // Save to Firebase Firestore
-  const scope = codexScope();
-  if (scope && scope.isConfigured()) {
-    try {
-      await scope.saveDoc(state.currentTab, state.formData.id || 'entry', state.formData);
-      showToast('🔥 Saved entry to Firebase Cloud DB!');
-    } catch (err) {
-      showToast('Firebase save error: ' + err.message);
-    }
-  }
-
-  // Save to Local File System
-  if (state.fileHandle && 'createWritable' in state.fileHandle) {
-    try {
-      const writable = await state.fileHandle.createWritable();
-      await writable.write(jsonPayload);
-      await writable.close();
-      renderSyncStatus();
-      showToast(`💾 Saved changes to ${state.currentFileName}!`);
-      return;
-    } catch (err) {
-      console.warn('Local file overwrite failed', err);
-    }
-  }
-
-  // Native Save File Picker
-  if ('showSaveFilePicker' in window) {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: `${state.formData.id || 'codex-entry'}.json`,
-        types: [{
-          description: 'Codex JSON File (*.json)',
-          accept: { 'application/json': ['.json'] }
-        }]
-      });
-      const writable = await handle.createWritable();
-      await writable.write(jsonPayload);
-      await writable.close();
-
-      state.fileHandle = handle;
-      state.currentFileName = handle.name;
-      renderSyncStatus();
-      showToast(`💾 Saved ${handle.name} to disk!`);
-    } catch (err) {
-      if (err.name !== 'AbortError') showToast('Save error: ' + err.message);
-    }
-  }
+  renderTypesEditor(); // rebuild editor + normalize the schema JSON
 });
 
 // Reflect the real cloud-connection state in the status badge
@@ -1058,7 +980,6 @@ function renderSyncStatus() {
   } else {
     label = 'Local only — saved in this browser';
   }
-  if (state.currentFileName) label += ` · ${state.currentFileName}`;
 
   activeFileIndicator.className = `compliance-badge${configured ? '' : ' is-local'}`;
   activeFileIndicator.innerHTML = `<span class="${configured ? 'pulse-dot' : 'idle-dot'}"></span> ${label}`;
@@ -1067,7 +988,7 @@ function renderSyncStatus() {
 function showToast(message) {
   const toast = document.createElement('div');
   toast.className = 'toast';
-  toast.innerHTML = `<span>✨</span> ${message}`;
+  toast.textContent = message;
   toastContainer.appendChild(toast);
   setTimeout(() => {
     toast.remove();
@@ -1075,7 +996,7 @@ function showToast(message) {
 }
 
 // Bootstrap Auth & Application. initAuth() resolves capabilities and renders the right screen;
-// the workspace (initial tab render + content subscriptions) is set up by showWorkspace() once read
+// the workspace (initial nav render + content subscriptions) is set up by showWorkspace() once read
 // access is confirmed — not here — so no codex reads fire before authorization.
 initAuth();
 renderSyncStatus();

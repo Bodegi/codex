@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ATM10 Design Codex Studio — Vanilla CSS Design System
+   Codex Studio — Vanilla CSS Design System
    ========================================================================== */
 
 :root {
@@ -90,18 +90,6 @@ body {
   gap: 14px;
 }
 
-.logo-icon {
-  font-size: 28px;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  width: 46px;
-  height: 46px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-md);
-  box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
-}
-
 .brand-title {
   font-family: var(--font-heading);
   font-size: 20px;
@@ -112,48 +100,127 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
-.brand-subtitle {
-  font-size: 12px;
-  color: var(--text-muted);
-  display: block;
-}
-
-/* Navigation Tabs */
-.app-nav {
+/* ── App body: sidebar + workspace ── */
+.app-body {
   display: flex;
-  gap: 6px;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 4px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-dim);
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
 }
 
-.nav-btn {
+/* ── Left sidebar: codex switcher → types → entries, then Admin ── */
+.app-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-glass);
+  overflow: hidden;
+}
+
+.codex-switcher {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+  color: var(--text-main);
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 10px 12px;
+  cursor: default;
+}
+
+.codex-switcher[disabled] { opacity: 0.9; }
+
+.codex-switcher .caret {
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--text-muted);
+}
+
+.type-nav {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 4px;
+}
+
+/* Nav items (shared by type headers, entries, and Admin) */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
   background: transparent;
   border: none;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
-  padding: 8px 16px;
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 500;
-  border-radius: var(--radius-sm);
+  padding: 8px 10px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.nav-btn:hover {
+.nav-item:hover {
   color: var(--text-main);
   background: rgba(255, 255, 255, 0.05);
 }
 
-.nav-btn.active {
-  color: #ffffff;
+.nav-item.is-active {
+  color: #fff;
   background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-glow);
-  box-shadow: var(--shadow-glow);
+  box-shadow: inset 3px 0 0 var(--accent-gold);
+}
+
+.nav-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--accent-gold);
+}
+.nav-icon .icon { width: 18px; height: 18px; display: block; }
+
+.nav-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.nav-type-header { font-weight: 600; color: var(--text-main); }
+
+.nav-caret {
+  width: 0; height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--text-muted);
+  transition: transform 0.15s ease;
+}
+.nav-type.is-expanded .nav-caret { transform: rotate(90deg); }
+
+/* Entries collapse under their type until it is expanded/active */
+.nav-entries { display: none; flex-direction: column; gap: 1px; margin: 2px 0 4px 0; }
+.nav-type.is-expanded .nav-entries { display: flex; }
+
+.nav-entry { padding-left: 40px; font-weight: 400; font-size: 12.5px; }
+
+.sidebar-divider {
+  height: 1px;
+  background: var(--border-dim);
+  margin: 4px 0;
 }
 
 /* Header Actions & User Badge */
@@ -276,32 +343,32 @@ body {
 .app-workspace {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto 1fr;
   gap: 16px;
   flex: 1;
   min-height: 0;
 }
 
-/* The preset/mode toolbar spans both columns above the panels. */
-.app-workspace > .preset-bar {
-  grid-column: 1 / -1;
-}
-
-/* Builder tab in read mode (default): the form editor collapses and the reading view (preview
-   panel) takes the full width. Edit mode restores the two-panel form+preview layout. Matrix and
-   atlas render their own content into the editor panel, so they are never collapsed this way. */
+/* Builder read mode (default): full-width reader, form hidden — the reader IS the preview. */
 .app-workspace.tab-builder.mode-read {
   grid-template-columns: 1fr;
 }
-.app-workspace.tab-builder.mode-read .editor-panel {
-  display: none;
-}
+.app-workspace.tab-builder.mode-read .editor-panel { display: none; }
 
-/* Atlas read mode: hide the editing chrome, keep the map itself. */
-.app-workspace.tab-atlas.mode-read .atlas-toolbar,
-.app-workspace.tab-atlas.mode-read #atlas-inspector-panel {
-  display: none;
+/* Builder edit mode: full-width form, reader hidden. Save/Done return to the reader. */
+.app-workspace.tab-builder.mode-edit {
+  grid-template-columns: 1fr;
 }
+.app-workspace.tab-builder.mode-edit .reader-panel { display: none; }
+
+/* Admin: two-panel — the editor/subnav on the left, its preview (+ Raw JSON power tool) on the right. */
+.app-workspace.tab-admin { grid-template-columns: 1fr 1fr; }
+
+/* The editor header (per-entry Save/Done) only exists while editing a builder entry. */
+.editor-header { display: none; }
+.app-workspace.tab-builder.mode-edit .editor-header { display: flex; }
+
+/* Raw JSON is an admin/power tool — hide the Preview/Raw switch outside the admin section. */
+.app-workspace:not(.tab-admin) .preview-mode-switch { display: none; }
 
 /* Honor the hidden attribute even on flex/inline-flex controls (nav + toolbar buttons). */
 [hidden] {
@@ -409,45 +476,37 @@ body {
   padding: 16px 20px;
 }
 
-.preset-bar {
-  display: flex;
+/* Header shared by the editor (Save/Done) and reader (Edit) panels. Display is controlled by the
+   workspace mode rules above (editor-header is hidden except in builder edit); don't set it here. */
+.editor-header,
+.reader-header {
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  padding-bottom: 14px;
   border-bottom: 1px solid var(--border-dim);
+}
+
+.editor-header {
+  padding-bottom: 14px;
   margin-bottom: 16px;
 }
 
-.preset-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.panel-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.preset-chips {
+.editor-actions,
+.reader-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chip-btn {
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-dim);
-  color: var(--text-main);
-  font-size: 12px;
-  padding: 4px 12px;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.chip-btn:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  background: rgba(245, 158, 11, 0.1);
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .form-scrollable {
@@ -540,18 +599,15 @@ textarea.form-control {
   min-height: 80px;
 }
 
-/* Preview Panel */
-.preview-panel {
+/* Reader / preview panel */
+.reader-panel {
   display: flex;
   flex-direction: column;
 }
 
-.preview-header {
+.reader-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
   padding: 14px 20px;
-  border-bottom: 1px solid var(--border-dim);
   background: rgba(0, 0, 0, 0.2);
 }
 
@@ -656,12 +712,12 @@ textarea.form-control {
   pointer-events: none;
 }
 
-/* Rendered Markdown Styling */
-.markdown-body {
+/* Rendered reading-view styling */
+.reader-body {
   line-height: 1.7;
 }
 
-.markdown-body h1 {
+.reader-body h1 {
   font-family: var(--font-heading);
   font-size: 24px;
   color: var(--accent-gold);
@@ -670,7 +726,7 @@ textarea.form-control {
   margin-bottom: 16px;
 }
 
-.markdown-body h2 {
+.reader-body h2 {
   font-family: var(--font-heading);
   font-size: 18px;
   color: #ffffff;
@@ -678,28 +734,28 @@ textarea.form-control {
   margin-bottom: 12px;
 }
 
-.markdown-body h3 {
+.reader-body h3 {
   font-size: 15px;
   color: var(--accent-blue);
   margin-top: 16px;
   margin-bottom: 8px;
 }
 
-.markdown-body p {
+.reader-body p {
   margin-bottom: 12px;
   color: var(--text-main);
 }
 
-.markdown-body ul, .markdown-body ol {
+.reader-body ul, .reader-body ol {
   padding-left: 20px;
   margin-bottom: 14px;
 }
 
-.markdown-body li {
+.reader-body li {
   margin-bottom: 4px;
 }
 
-.markdown-body blockquote {
+.reader-body blockquote {
   border-left: 4px solid var(--accent-gold);
   background: rgba(245, 158, 11, 0.08);
   padding: 10px 16px;
@@ -742,18 +798,18 @@ textarea.form-control {
   word-break: break-word;
 }
 
-.markdown-body .inline-img {
+.reader-body .inline-img {
   max-width: 100%;
   border-radius: var(--radius-sm);
   margin: 8px 0;
 }
 
-.markdown-body .muted {
+.reader-body .muted {
   color: var(--text-muted);
   font-style: italic;
 }
 
-.markdown-body .missing-img {
+.reader-body .missing-img {
   display: inline-block;
   font-size: 12px;
   color: var(--text-muted);
@@ -764,7 +820,7 @@ textarea.form-control {
 }
 
 /* Hero image (read-side) */
-.markdown-body .entry-hero {
+.reader-body .entry-hero {
   width: 100%;
   max-height: 320px;
   object-fit: cover;

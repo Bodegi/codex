@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Firestore path builders for the codex-scoped data model.
+ * Codex — Firestore path builders for the codex-scoped data model.
  *
  * Pure, SDK-free segment builders so path construction is unit-testable without mocking
  * Firestore. Each returns an array of path segments spread into `doc(db, ...)` /

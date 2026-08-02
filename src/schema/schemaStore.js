@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Schema store.
+ * Codex — Schema store.
  *
  * Single source the app reads type schemas through. Bundled seed schemas are the
  * offline source of truth; an overlay wins when present. The overlay is fed from two
@@ -51,9 +51,9 @@ function writeStoredMap(storage, map) {
   }
 }
 
-/** Ordered list of entry types for nav/registry: [{ type, label }]. */
+/** Ordered list of entry types for nav/registry: [{ type, label, icon }]. */
 export function listTypes() {
-  return seedSchemas.map((s) => ({ type: s.type, label: s.label }));
+  return seedSchemas.map((s) => ({ type: s.type, label: s.label, icon: s.icon }));
 }
 
 /** The schema for a type, or undefined if unknown. Overlay wins over seed. */

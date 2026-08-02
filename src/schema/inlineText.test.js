@@ -58,6 +58,6 @@ test('formatInline shows a placeholder for an unresolved pool image', () => {
   const resolve = () => null;
   assert.equal(
     formatInline('![alt](pool:missing.png)', resolve),
-    '<p><span class="missing-img">⚠ missing image: alt</span></p>'
+    '<p><span class="missing-img">missing image: alt</span></p>'
   );
 });

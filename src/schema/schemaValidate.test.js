@@ -30,6 +30,12 @@ test('a well-formed schema passes with no errors', () => {
   assert.deepEqual(result.errors, []);
 });
 
+test('an optional top-level icon key is tolerated', () => {
+  const schema = validSchema();
+  schema.icon = 'civilization';
+  assert.equal(validateSchema(schema).ok, true);
+});
+
 test('media kinds are accepted as known kinds', () => {
   const schema = validSchema();
   schema.sections[0].fields.push({ key: 'heroImage', label: 'Hero', kind: 'hero' });

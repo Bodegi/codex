@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — pure access-capability resolution.
+ * Codex — pure access-capability resolution.
  *
  * The one safety-critical fact (who can do what) expressed for the app UI. Pure and SDK-free
  * (parallels authProfile.js) so it's Node-testable, and it mirrors the Firestore security rules

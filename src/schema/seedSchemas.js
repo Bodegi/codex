@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Bundled seed schemas.
+ * Codex — Bundled seed schemas.
  *
  * One schema object per entry type. JSON-able (no functions) so a schema can later
  * live in Firestore and be produced by the in-app editor. These are the offline
@@ -20,6 +20,7 @@ export const seedSchemas = [
   {
     type: 'civilization',
     label: 'Civilization',
+    icon: 'civilization',
     idField: 'id',
     titleField: 'name',
     sections: [
@@ -74,6 +75,7 @@ export const seedSchemas = [
   {
     type: 'mod',
     label: 'Mod',
+    icon: 'mod',
     idField: 'id',
     titleField: 'name',
     sections: [
@@ -104,6 +106,7 @@ export const seedSchemas = [
   {
     type: 'region',
     label: 'Region',
+    icon: 'region',
     idField: 'id',
     titleField: 'name',
     sections: [
@@ -135,6 +138,7 @@ export const seedSchemas = [
   {
     type: 'decision',
     label: 'Decision Log',
+    icon: 'decision',
     idField: 'id',
     titleField: 'title',
     sections: [

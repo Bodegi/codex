@@ -1,5 +1,5 @@
 /**
- * Firebase Firestore Database & Real-Time Sync Module for ATM10 Codex Studio.
+ * Firebase Firestore Database & Real-Time Sync Module for Codex Studio.
  *
  * `FirebaseManager` owns the *connection* (the Firebase app + Firestore handle) and the
  * app-level `codices` / `permissions` collections. Per-codex content (entries, schemas,

@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Carousel (read-side)
+ * Codex — Carousel (read-side)
  *
  * Renders an entry's `gallery` as a manual scroll-snap "Inspiration" strip and wires
  * its prev/next arrows. Composed into the preview after the entry HTML — it is never
@@ -18,7 +18,7 @@ export function renderCarousel(gallery) {
       const url = resolvePoolImage(id);
       return url
         ? `<div class="carousel-slide"><img src="${url}" alt="" loading="lazy"></div>`
-        : `<div class="carousel-slide carousel-missing">⚠ missing image</div>`;
+        : `<div class="carousel-slide carousel-missing">missing image</div>`;
     })
     .join('');
 

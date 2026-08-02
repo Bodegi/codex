@@ -23,17 +23,17 @@ export function renderAtlasView() {
   return `
     <div class="form-section atlas-container">
       <div class="section-header">
-        🗺️ World Atlas & Cartography Studio
+        World Atlas & Cartography Studio
       </div>
 
       <!-- Controls & Map Selector Toolbar -->
       <div class="atlas-toolbar">
         <div class="tool-group">
           <label style="font-size:11px; color:var(--text-muted); display:block;">Active Tool:</label>
-          <button id="atlas-tool-select" class="btn btn-primary btn-sm" title="Select & Inspect Map Objects">🔍 Select</button>
-          <button id="atlas-tool-waypoint" class="btn btn-secondary btn-sm" title="Drop Interactive Waypoint Pin">📍 Waypoint</button>
-          <button id="atlas-tool-road" class="btn btn-secondary btn-sm" title="Draw Road / Rail Line">🛤️ Road & Rail</button>
-          <button id="atlas-tool-territory" class="btn btn-secondary btn-sm" title="Draw Territory Polygon">🏰 Territory</button>
+          <button id="atlas-tool-select" class="btn btn-primary btn-sm" title="Select & Inspect Map Objects">Select</button>
+          <button id="atlas-tool-waypoint" class="btn btn-secondary btn-sm" title="Drop Interactive Waypoint Pin">Waypoint</button>
+          <button id="atlas-tool-road" class="btn btn-secondary btn-sm" title="Draw Road / Rail Line">Road & Rail</button>
+          <button id="atlas-tool-territory" class="btn btn-secondary btn-sm" title="Draw Territory Polygon">Territory</button>
         </div>
 
         <div class="tool-group" style="margin-left:auto;">
@@ -45,9 +45,9 @@ export function renderAtlasView() {
 
         <div class="tool-group">
           <label style="font-size:11px; color:var(--text-muted); display:block;">Zoom:</label>
-          <button id="atlas-zoom-in" class="btn btn-secondary btn-sm">➕</button>
-          <button id="atlas-zoom-out" class="btn btn-secondary btn-sm">➖</button>
-          <button id="atlas-zoom-reset" class="btn btn-secondary btn-sm">🔄 Reset</button>
+          <button id="atlas-zoom-in" class="btn btn-secondary btn-sm"></button>
+          <button id="atlas-zoom-out" class="btn btn-secondary btn-sm"></button>
+          <button id="atlas-zoom-reset" class="btn btn-secondary btn-sm">Reset</button>
         </div>
       </div>
 
@@ -61,7 +61,7 @@ export function renderAtlasView() {
       <div id="atlas-inspector-panel" class="form-section hidden" style="margin-top:12px; background:rgba(0,0,0,0.4);">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
           <strong id="inspector-title" style="color:var(--accent-gold); font-size:13px;">Selected Object</strong>
-          <button id="btn-delete-object" class="btn btn-secondary btn-sm" style="color:var(--accent-crimson);">🗑️ Delete Shape</button>
+          <button id="btn-delete-object" class="btn btn-secondary btn-sm" style="color:var(--accent-crimson);">Delete Shape</button>
         </div>
         <div class="form-grid">
           <div class="form-group">

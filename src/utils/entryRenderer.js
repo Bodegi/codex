@@ -1,5 +1,5 @@
 /**
- * ATM10 Codex — Entry Renderer (schema-driven).
+ * Codex — Entry Renderer (schema-driven).
  *
  * Renders an entry object straight to HTML for the Visual Preview, driven entirely by
  * the type's schema. No per-type branches. Image and reference resolution arrive via
