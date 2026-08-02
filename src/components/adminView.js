@@ -1,8 +1,11 @@
 /**
- * Global-admin panels (admin-only): the Users & Access roster and the Codices manager. Panel
- * switching + a way back out live in the sidebar (main.js renderAdminNav), not here. Pure HTML
- * builders; main.js owns the wiring (roster subscriptions, grant/revoke, codex create/rename/archive).
+ * Global-admin panels (admin-only): the Users & Access roster, the Codices manager, and the
+ * Images gallery. Panel switching + a way back out live in the sidebar (main.js renderAdminNav),
+ * not here. Pure HTML builders; main.js owns the wiring (roster subscriptions, grant/revoke, codex
+ * create/rename/archive, image label/cross-assign/archive/restore).
  */
+
+import { notFoundImage } from '../schema/notFoundImage.js';
 
 function escapeHtml(text) {
   return String(text ?? '')
@@ -128,4 +131,74 @@ export function renderCodicesPanel({ active = [], archived = [], templateSources
       ${activeRows}
     </div>
     ${archivedBlock}`;
+}
+
+/**
+ * Images gallery panel (admin, all statuses): one card per image record. Each card carries a
+ * tile (→ lightbox), an editable label, its codex-membership chips (each removable), an
+ * "add to codex" control (cross-assign), a status badge, and an archive/restore action. main.js
+ * owns the wiring; archive is destructive (confirm modal), restore/label/cross-assign are immediate.
+ *
+ *   rows    — [{ id, label, url, status, codices: [] }] (url precomputed from the image index)
+ *   codices — [{ codexId, name }] the admin may cross-assign to
+ */
+export function renderImagesPanel({ rows = [], codices = [] }) {
+  const nameOf = (id) => {
+    const c = codices.find((x) => x.codexId === id);
+    return (c && c.name) || id;
+  };
+
+  const chip = (imgId, codexId) => `
+    <span class="gallery-chip">
+      ${escapeHtml(nameOf(codexId))}
+      <button type="button" class="gallery-chip-remove" data-image-drop-codex="${escapeHtml(imgId)}" data-codex="${escapeHtml(codexId)}" aria-label="Remove from ${escapeHtml(nameOf(codexId))}" title="Remove from ${escapeHtml(nameOf(codexId))}">×</button>
+    </span>`;
+
+  const addControl = (img) => {
+    const options = codices
+      .filter((c) => !(img.codices || []).includes(c.codexId))
+      .map((c) => `<option value="${escapeHtml(c.codexId)}">${escapeHtml(c.name || c.codexId)}</option>`)
+      .join('');
+    if (!options) return '';
+    return `
+      <select class="admin-input gallery-card-add" data-image-add-codex="${escapeHtml(img.id)}" aria-label="Add to a codex">
+        <option value="">Add to codex…</option>
+        ${options}
+      </select>`;
+  };
+
+  const card = (img) => {
+    const isArchived = img.status === 'archived';
+    const tile = img.url
+      ? `<img class="gallery-card-img" src="${escapeHtml(img.url)}" alt="${escapeHtml(img.label)}" loading="lazy">`
+      : notFoundImage('image-missing-card');
+    const memberChips = (img.codices || []).length
+      ? (img.codices || []).map((cx) => chip(img.id, cx)).join('')
+      : '<span class="admin-muted gallery-card-orphan">In no codex</span>';
+    const statusAction = isArchived
+      ? `<button type="button" class="btn btn-secondary btn-sm" data-image-restore="${escapeHtml(img.id)}">Restore</button>`
+      : `<button type="button" class="btn btn-danger btn-sm" data-image-archive="${escapeHtml(img.id)}">Archive</button>`;
+
+    return `
+      <div class="gallery-card${isArchived ? ' is-archived' : ''}" data-image-id="${escapeHtml(img.id)}">
+        <div class="gallery-card-media">${tile}</div>
+        <input class="admin-input gallery-card-label" data-image-label="${escapeHtml(img.id)}" value="${escapeHtml(img.label)}" aria-label="Image label">
+        <div class="gallery-card-chips">${memberChips}${addControl(img)}</div>
+        <div class="gallery-card-footer">
+          <span class="admin-badge status-badge status-${isArchived ? 'archived' : 'active'}">${isArchived ? 'archived' : 'active'}</span>
+          ${statusAction}
+        </div>
+      </div>`;
+  };
+
+  const body = rows.length
+    ? `<div class="gallery-grid">${rows.map(card).join('')}</div>`
+    : '<div class="admin-muted">No images yet. Editors add images from the picker while authoring an entry.</div>';
+
+  return `
+    <div class="admin-section">
+      <h3>Images</h3>
+      <p class="admin-muted">Every image across all codices. Archiving hides an image everywhere; its bytes are retained.</p>
+      ${body}
+    </div>`;
 }

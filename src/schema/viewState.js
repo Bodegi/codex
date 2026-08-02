@@ -6,7 +6,7 @@
  * `read`/`edit` `mode`) with one discriminated union:
  *
  *   { kind: 'type', type: <typeKey>|null, mode: 'read'|'edit'|'admin' }   // content surface
- *   { kind: 'global-admin', panel: 'access'|'codices' }                   // the separate door
+ *   { kind: 'global-admin', panel: 'access'|'codices'|'images' }          // the separate door
  *
  * `mode: 'admin'` on a type means "edit that type's schema" — the per-thing form state
  * (the UI labels it "Structure"). `type` is `null` only in the empty-content case.
@@ -18,7 +18,7 @@
  */
 
 const MODES = new Set(['read', 'edit', 'admin']);
-const PANELS = new Set(['access', 'codices']);
+const PANELS = new Set(['access', 'codices', 'images']);
 
 const typeView = (type, mode = 'read') => ({ kind: 'type', type: type ?? null, mode });
 

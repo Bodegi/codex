@@ -58,11 +58,16 @@ import { renderAwaitingAccess } from './components/awaitingAccess.js';
 import {
   renderAccessPanel,
   renderCodicesPanel,
+  renderImagesPanel,
 } from './components/adminView.js';
 import { resolveCapabilities, isAdminEmail } from './utils/capabilities.js';
 import { renderMediaControls, attachMediaControls } from './components/mediaControls.js';
 import { renderCarousel, initCarousel } from './components/carousel.js';
-import { createImageIndex } from './schema/imageIndex.js';
+import { createImageIndex, publicUrl } from './schema/imageIndex.js';
+import { createImageStore } from './utils/imageStore.js';
+import { uploadImage } from './schema/imageUpload.js';
+import { attachLightbox } from './components/lightbox.js';
+import { openConfirm } from './components/confirmModal.js';
 
 // Last-focused prose textarea, target for inline-image insertion
 let lastFocusedProseField = null;
@@ -126,7 +131,9 @@ const state = {
   editorErrors: [],
   // Global-admin roster state
   adminUsers: [],
-  adminPerms: []
+  adminPerms: [],
+  // Global-admin Images gallery: every image record, all statuses (subscribeAllImages).
+  adminImages: []
 };
 
 // ── View-state helpers ───────────────────────────────────────────────────────
@@ -153,6 +160,57 @@ if (state.firebaseConfig) {
 // local-only mode. Every Firestore read/write goes through this so nothing is hardwired to one codex.
 function codexScope() {
   return state.fbManager ? state.fbManager.codex(state.currentCodexId) : null;
+}
+
+// ── Image byte store + upload/remove (editor path) ───────────────────────────
+// The Supabase byte adapter. Its token port yields the current Firebase ID token so Supabase trusts
+// our project's JWTs (spec §5) — `authManager.auth.currentUser` is the raw Firebase user (getIdToken),
+// distinct from `authManager.currentUser` (the mapped profile). Null store in local-only mode → the
+// upload UI stays hidden, so the coordinator never sees a null store.
+const imageStore = createImageStore(supabaseConfig, () =>
+  state.authManager?.auth?.currentUser?.getIdToken() ?? Promise.resolve(null)
+);
+
+// Firestore image-metadata port for the upload coordinator (bytes-first, then metadata — see imageUpload.js).
+const imageMetaPort = state.fbManager
+  ? {
+      getImage: (id) => state.fbManager.getImage(id),
+      createImage: (id, data) => state.fbManager.createImage(id, data),
+      addImageToCodex: (id, codexId) => state.fbManager.addImageToCodex(id, codexId),
+      setImageStatus: (id, status) => state.fbManager.setImageStatus(id, status),
+    }
+  : null;
+
+// Editor upload: read the file to bytes, run the dedup/resurrect/create coordinator into the current
+// codex, and return the new image id (the picker resolves with it). Any failure propagates to the
+// picker's inline error. The live subscription refreshes the index, so the new image appears on its own.
+async function uploadImageToCurrentCodex(file) {
+  if (!imageStore || !imageMetaPort) throw new Error('Image upload needs cloud mode.');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return uploadImage(
+    {
+      bytes,
+      filename: file.name,
+      contentType: file.type || 'application/octet-stream',
+      codexId: state.currentCodexId,
+      uid: state.authManager?.currentUser?.uid || '',
+    },
+    { storage: imageStore, meta: imageMetaPort }
+  );
+}
+
+// Editor remove-from-codex: confirm (destructive), then drop the current codex from the image's
+// membership; other codices are untouched. Returns whether it was removed (the picker pulls the thumb).
+async function removeImageFromCurrentCodex(id) {
+  if (!state.fbManager) return false;
+  const ok = await openConfirm({
+    title: 'Remove image from this codex?',
+    message: 'It stays available in any other codex it belongs to, and an admin can restore it.',
+    confirmLabel: 'Remove',
+  });
+  if (!ok) return false;
+  await state.fbManager.removeImageFromCodex(id, state.currentCodexId);
+  return true;
 }
 
 // ── Codex content: schemas + entries for the active codex ────────────────────
@@ -395,6 +453,7 @@ function teardownWorkspace() {
   if (ownPermsUnsub) { ownPermsUnsub(); ownPermsUnsub = null; }
   if (adminUsersUnsub) { adminUsersUnsub(); adminUsersUnsub = null; }
   if (adminPermsUnsub) { adminPermsUnsub(); adminPermsUnsub = null; }
+  if (adminImagesUnsub) { adminImagesUnsub(); adminImagesUnsub = null; }
 }
 
 // Enter the global-admin door (from the header user menu). Keeps the last panel if already there.
@@ -637,6 +696,7 @@ function renderAdminNav() {
       <span class="nav-section-label">Admin</span>
       ${item('access', 'Users & Access')}
       ${item('codices', 'Codices')}
+      ${item('images', 'Images')}
     </div>`;
   typeNav.querySelector('[data-admin-back]')?.addEventListener('click', exitAdmin);
   typeNav.querySelectorAll('[data-admin-nav]').forEach((btn) => {
@@ -901,6 +961,7 @@ archiveEntryBtn.addEventListener('click', () => archiveCurrentEntry());
 
 let adminUsersUnsub = null;
 let adminPermsUnsub = null;
+let adminImagesUnsub = null;
 
 function enterGlobalAdmin() {
   readerTitle.textContent = 'Admin';
@@ -915,6 +976,11 @@ function renderAdminPanel() {
     formContainer.innerHTML = renderCodicesPanelHtml();
     wireCodicesPanel();
     updateRenderedPreview('<div class="admin-blurb">Admin — create and manage codices.</div>');
+    updateRawJson('');
+  } else if (state.view.panel === 'images') {
+    formContainer.innerHTML = renderImagesPanelHtml();
+    wireImagesPanel();
+    updateRenderedPreview('<div class="admin-blurb">Admin — the shared image library across all codices.</div>');
     updateRawJson('');
   } else {
     formContainer.innerHTML = renderAccessPanel({ codexId: state.currentCodexId, rows: buildRosterRows() });
@@ -973,6 +1039,66 @@ function wireCodicesPanel() {
   });
   formContainer.querySelectorAll('[data-codex-restore]').forEach((btn) => {
     btn.addEventListener('click', () => setCodexStatus(btn.dataset.codexRestore, 'active'));
+  });
+}
+
+// ── Images admin panel (label / cross-assign / archive-restore) ──────────────
+// The shared image library across all codices. Bytes are global + public, so a card's tile URL is
+// deterministic from the id regardless of membership/status (publicUrl); archived just hides the
+// record everywhere. Inert in local-only mode (no `images` collection).
+
+function renderImagesPanelHtml() {
+  if (!(state.fbManager && state.fbManager.isConfigured())) {
+    return '<div class="admin-section"><div class="admin-muted">The image library needs cloud mode (Firebase).</div></div>';
+  }
+  const uid = state.authManager?.currentUser?.uid || '';
+  const codices = switcherCodices(state.codices, [], { isAdmin: true, uid });
+  const rows = state.adminImages
+    .map((img) => ({
+      id: img.id,
+      label: img.label || img.id,
+      status: img.status || 'active',
+      codices: img.codices || [],
+      url: publicUrl(supabaseConfig, img.id),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  return renderImagesPanel({ rows, codices });
+}
+
+function wireImagesPanel() {
+  const fb = state.fbManager;
+  if (!fb) return;
+  const guard = (p) => Promise.resolve(p).catch((err) => showToast('Image error: ' + err.message));
+
+  // Label edit + cross-assign are immediate (reversible); archive is destructive → confirm.
+  formContainer.querySelectorAll('[data-image-label]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const label = input.value.trim();
+      if (label) guard(fb.updateImageLabel(input.dataset.imageLabel, label));
+    });
+  });
+  formContainer.querySelectorAll('[data-image-add-codex]').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      if (sel.value) guard(fb.addImageToCodex(sel.dataset.imageAddCodex, sel.value));
+    });
+  });
+  formContainer.querySelectorAll('[data-image-drop-codex]').forEach((btn) => {
+    btn.addEventListener('click', () =>
+      guard(fb.removeImageFromCodex(btn.dataset.imageDropCodex, btn.dataset.codex))
+    );
+  });
+  formContainer.querySelectorAll('[data-image-restore]').forEach((btn) => {
+    btn.addEventListener('click', () => guard(fb.setImageStatus(btn.dataset.imageRestore, 'active')));
+  });
+  formContainer.querySelectorAll('[data-image-archive]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const ok = await openConfirm({
+        title: 'Archive this image?',
+        message: 'It will be hidden from every codex. The bytes are retained, and you can restore it.',
+        confirmLabel: 'Archive',
+      });
+      if (ok) guard(fb.setImageStatus(btn.dataset.imageArchive, 'archived'));
+    });
   });
 }
 
@@ -1120,6 +1246,12 @@ function ensureAdminSubscriptions() {
     adminPermsUnsub = state.fbManager.subscribePermissions((perms) => {
       state.adminPerms = perms;
       if (inGlobalAdmin() && state.view.panel === 'access') renderAdminPanel();
+    });
+  }
+  if (!adminImagesUnsub) {
+    adminImagesUnsub = state.fbManager.subscribeAllImages((images) => {
+      state.adminImages = images;
+      if (inGlobalAdmin() && state.view.panel === 'images') renderAdminPanel();
     });
   }
 }
@@ -1360,6 +1492,12 @@ function wireMediaForCurrentForm() {
     },
     getFocusedField: () => lastFocusedProseField,
     listImages: () => state.imageIndex.listImages(),
+    pickerOptions: {
+      // Editors of the current codex may upload into it and remove images from it, inline in the picker.
+      canManage: !!state.caps.canEdit,
+      onUpload: uploadImageToCurrentCodex,
+      onRemove: removeImageFromCurrentCodex,
+    },
   });
 }
 
@@ -1390,6 +1528,12 @@ function refreshBuilderPreview() {
 function updateRenderedPreview(html) {
   previewRendered.innerHTML = html;
 }
+
+// Click any content image to open it full-size. Delegated once per container so it survives the
+// innerHTML re-renders both the reader preview and the admin gallery do (edit-side thumbs are excluded
+// by the lightbox's own selector). previewRendered covers inline/hero/carousel; formContainer, the gallery.
+attachLightbox(previewRendered);
+attachLightbox(formContainer);
 
 // Reference links in the reading view navigate to the target entry.
 previewRendered.addEventListener('click', (e) => {

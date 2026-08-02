@@ -58,6 +58,11 @@ test('selectAdminPanel swaps the panel within the global-admin surface', () => {
     selectAdminPanel({ kind: 'global-admin', panel: 'access' }, 'codices'),
     { kind: 'global-admin', panel: 'codices' }
   );
+  // The Images gallery is a valid third panel.
+  assert.deepEqual(
+    selectAdminPanel({ kind: 'global-admin', panel: 'access' }, 'images'),
+    { kind: 'global-admin', panel: 'images' }
+  );
 });
 
 test('closeGlobalAdmin returns to a content read view on the fallback type', () => {

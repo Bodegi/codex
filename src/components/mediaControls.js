@@ -82,9 +82,11 @@ function insertAtCursor(field, text) {
  *   onMutate()      — called after hero/gallery changes (re-render + autosave)
  *   getFocusedField() — returns the prose <textarea> to insert inline images into
  *   listImages()    — returns the current codex's images ([{ id, label, url }]) for the picker
+ *   pickerOptions   — { canManage, onUpload, onRemove } forwarded to the picker so editors
+ *                     can upload into / remove from the current codex without leaving the flow
  */
-export function attachMediaControls({ container, formData, onMutate, getFocusedField, listImages }) {
-  const pick = () => openImagePicker(listImages ? listImages() : []);
+export function attachMediaControls({ container, formData, onMutate, getFocusedField, listImages, pickerOptions = {} }) {
+  const pick = () => openImagePicker(listImages ? listImages() : [], pickerOptions);
   container.querySelectorAll('[data-media]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const action = btn.dataset.media;
@@ -98,7 +100,10 @@ export function attachMediaControls({ container, formData, onMutate, getFocusedF
           onMutate();
         }
       } else if (action === 'hero-clear') {
-        delete formData.heroImage;
+        // Empty string, not `delete` — saveDoc writes with merge:true, which never removes a
+        // key, so a deleted field silently resurrects on reload. '' is the entry-draft's own
+        // canonical "no hero" value, and the read-side treats it as unset.
+        formData.heroImage = '';
         onMutate();
       } else if (action === 'gallery-add') {
         const id = await pick();

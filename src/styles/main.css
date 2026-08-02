@@ -1297,20 +1297,75 @@ textarea.form-control {
 }
 
 .image-picker-item {
+  position: relative;
+}
+
+/* The card body is now a button (pick) so a per-thumb remove ✕ can overlay it (editor path). */
+.image-picker-pick {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  width: 100%;
   padding: 8px;
-  background: var(--bg-elevated, #1e1e2e);
+  background: var(--bg-surface-elevated);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  color: inherit;
+  font: inherit;
   transition: border-color 0.15s, transform 0.15s;
 }
 
-.image-picker-item:hover {
+.image-picker-pick:hover {
   border-color: var(--accent-gold);
   transform: translateY(-2px);
+}
+
+.image-picker-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border-dim);
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--text-main);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.image-picker-item:hover .image-picker-remove {
+  opacity: 1;
+}
+
+.image-picker-remove:hover {
+  border-color: var(--accent-crimson);
+  color: var(--accent-crimson);
+}
+
+.image-picker-item.is-busy {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.image-picker-upload {
+  margin-left: auto;
+  margin-right: 10px;
+}
+
+.image-picker-status {
+  padding: 8px 18px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-dim);
+}
+
+.image-picker-status.is-error {
+  color: var(--accent-crimson);
 }
 
 .image-picker-item img {
@@ -1634,4 +1689,206 @@ textarea.form-control {
   margin-top: 8px;
   border-style: dashed;
   color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Image store (Phase E): destructive button, lightbox, confirm modal, gallery
+   ========================================================================== */
+
+/* Destructive action button (image archive, remove). */
+.btn-danger {
+  background: var(--bg-surface-elevated);
+  color: var(--accent-crimson);
+  border: 1px solid var(--accent-crimson);
+}
+.btn-danger:hover {
+  background: var(--accent-crimson);
+  color: #fff;
+}
+
+/* Content images open full-size on click; edit-side thumbs/picker do not. */
+.reader-body .inline-img,
+.reader-body .entry-hero,
+.carousel-slide img,
+.gallery-card-img {
+  cursor: zoom-in;
+}
+
+/* Lightbox — one image full-size on a dimmed backdrop (read-side, everywhere). */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 32px;
+}
+.lightbox-body {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+}
+.lightbox-img {
+  max-width: 100%;
+  max-height: calc(100vh - 64px);
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+}
+.lightbox-close {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border-dim);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.lightbox-close:hover {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+/* Confirm modal — replaces native confirm() for destructive actions. */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 24px;
+}
+.confirm-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  width: min(420px, 100%);
+  padding: 20px;
+}
+.confirm-header strong {
+  font-family: var(--font-heading);
+  color: var(--accent-gold);
+  font-size: 16px;
+}
+.confirm-body {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+/* Admin Images gallery — cards across all codices/statuses. */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.gallery-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+}
+.gallery-card.is-archived {
+  opacity: 0.6;
+}
+.gallery-card-media {
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+}
+.gallery-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.gallery-card-media .image-missing-card {
+  width: 100%;
+  height: 100%;
+}
+.gallery-card-label {
+  width: 100%;
+  font-size: 13px;
+}
+.gallery-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.gallery-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  font-size: 11px;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-dim);
+  border-radius: 999px;
+}
+.gallery-chip-remove {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.gallery-chip-remove:hover {
+  color: var(--accent-crimson);
+}
+.gallery-card-orphan {
+  font-size: 11px;
+  font-style: italic;
+}
+.gallery-card-add {
+  font-size: 11px;
+  padding: 2px 6px;
+}
+.gallery-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+.status-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.status-badge.status-archived {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+.image-missing-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
