@@ -14,6 +14,8 @@ import {
   schemasCollectionPath,
   schemaDocPath,
   atlasDocPath,
+  imagesCollectionPath,
+  imageDocPath,
 } from './codexPaths.js';
 
 test('entryId keeps the ${type}_${id} convention', () => {
@@ -33,6 +35,11 @@ test('users + permissions are global top-level collections', () => {
   assert.deepEqual(usersCollectionPath(), ['users']);
   assert.deepEqual(userDocPath('user123'), ['users', 'user123']);
   assert.deepEqual(permissionsCollectionPath(), ['permissions']);
+});
+
+test('images are a global top-level library keyed by content hash', () => {
+  assert.deepEqual(imagesCollectionPath(), ['images']);
+  assert.deepEqual(imageDocPath('a1b2c3d4e5f6'), ['images', 'a1b2c3d4e5f6']);
 });
 
 test('entries are scoped under codices/{id}/entries', () => {

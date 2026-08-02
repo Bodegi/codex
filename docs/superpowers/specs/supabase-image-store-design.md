@@ -39,13 +39,16 @@ hard-capped (it *pauses* instead of billing). So the bytes go to Supabase; every
 
 ## 3. Data model
 
-**Supabase bucket `pool`** (public read). Object key **is** the content hash — `pool/{hash}`, no
-extension, content-type set on upload. Because the key derives from the id alone, the public URL is fully
-deterministic:
+**Supabase bucket `codex-images`** (public read). Object key **is** the content hash —
+`codex-images/{hash}`, no extension, content-type set on upload. Because the key derives from the id
+alone, the public URL is fully deterministic:
 
 ```
-${SUPABASE_URL}/storage/v1/object/public/pool/{hash}
+${SUPABASE_URL}/storage/v1/object/public/codex-images/{hash}
 ```
+
+The bucket name is carried only in `appConfig.supabase.bucket`; `imageStore` and `imageIndex.publicUrl`
+both read it from config, so it is the single source of truth (not hard-coded anywhere).
 
 **Firestore `images/{hash}`** (top-level collection) — the metadata record and the source of truth for
 what exists and where it belongs:
@@ -78,7 +81,7 @@ resurrect/add-codex branches) is unit-testable under Node with fakes and never t
 |---|---|---|
 | `src/schema/contentHash.js` | pure | `hashBytes(arrayBuffer) → <12-hex id>` via `crypto.subtle` (present in browser **and** Node 24). |
 | `src/schema/imageIndex.js` | pure | In-memory id→record map built from a codex's image records. `listImages()` / `resolve(id) → url\|null` / `publicUrl(config, id)`. Deterministic URL construction; no SDK. |
-| `src/utils/imageStore.js` | adapter (Supabase) | The **only** module importing `@supabase/supabase-js`. `uploadBytes(hash, file)` (upsert with content-type). Quarantines Supabase to byte storage, mirroring how `firebase.js` quarantines Firestore. URL construction is **not** here — it is pure (`imageIndex.publicUrl`) so sync `resolve()` needs no SDK. |
+| `src/utils/imageStore.js` | adapter (Supabase) | The **only** module importing `@supabase/supabase-js`. `uploadBytes(hash, bytes, contentType)` — a **plain insert, not an upsert** (see §8: upsert is denied by Storage RLS); a 409 "already exists" is swallowed as the content-hash no-op. Quarantines Supabase to byte storage, mirroring how `firebase.js` quarantines Firestore. URL construction is **not** here — it is pure (`imageIndex.publicUrl`) so sync `resolve()` needs no SDK. |
 | `FirebaseManager` (in `firebase.js`) | adapter (Firestore) | New **app-level `images` metadata ops** beside `codices`/`users`/`permissions`: `createImage`, `getImage`, `subscribeImagesForCodex(codexId)` (active + `array-contains`), `subscribeAllImages()` (admin, all statuses), `addImageToCodex`, `removeImageFromCodex`, `setImageStatus`, `updateImageLabel`. |
 | `src/schema/imageUpload.js` | use-case (pure-ish) | Coordinator: `hash → getImage → branch`. Injected `{ storage, meta }` ports. Returns the image id. |
 
@@ -99,7 +102,7 @@ codex-open, hold in memory, re-render on change.
 
 1. Read bytes → `hash`.
 2. `getImage(hash)`, then branch:
-   - **No record** → upload bytes to `pool/{hash}`, then `createImage` with `codices:[currentCodex]`,
+   - **No record** → upload bytes to `codex-images/{hash}`, then `createImage` with `codices:[currentCodex]`,
      label from filename, `status:'active'`.
    - **Record active** → dedup hit; bytes already present → `addImageToCodex(hash, currentCodex)`
      (no-op if already a member). No re-upload.
@@ -111,13 +114,16 @@ codex-open, hold in memory, re-render on change.
 
 ## 5. Access model
 
-**Layer 1 — Supabase RLS (byte backstop).** Public read on `pool`; writes allowed only when the caller's
-Firebase ID token pins to **our** project (`aud == "codex-80902"` / issuer
-`https://securetoken.google.com/codex-80902`). This layer is coarse by design — it cannot see per-codex
-permissions, only "a signed-in user from our Firebase project." Firebase shares one signing key across all
-projects, so pinning to our project id is the security must-do. This layer also depends on the
-`role:'authenticated'` custom claim on Firebase users (§8) — without it Supabase sees them as `anon` and
-denies writes. An orphan blob with no Firestore record is invisible to the app regardless.
+**Layer 1 — Supabase RLS (byte backstop).** Public read on `codex-images`; **inserts** allowed only when
+the caller's Firebase ID token pins to **our** project (`auth.jwt()->>'aud' == 'codex-80902'` / `iss ==
+'https://securetoken.google.com/codex-80902'`). This layer is coarse by design — it cannot see per-codex
+permissions, only "a token from our Firebase project." Firebase shares one signing key across all projects,
+so pinning to our project id is the security must-do. The pin is on `to public` (role-agnostic), **not** on
+the `authenticated` role — so no `role:'authenticated'` custom claim is needed and new users work on first
+sign-in with no admin step (verified 2026-08-02: authed insert 200, anonymous insert 403). The policy is
+**insert-only**: bytes are immutable by content hash, so Storage is never updated (an upsert is in fact
+denied — Storage's RLS context cannot read `iss`/`aud` on the UPDATE path). An orphan blob with no Firestore
+record is invisible to the app regardless.
 
 **Layer 2 — Firestore `images` rules (the real gate).** Framing that keeps this enforceable: *editors only
 ever touch codex membership and their own uploads' label; everything global is admin.*
@@ -156,7 +162,7 @@ per-element `get()`" limitation.
 
 ## 7. Config & local-only
 
-- **`appConfig.js`** gains a `supabase: { url, anonKey, bucket: 'pool' }` block beside the Firebase config.
+- **`appConfig.js`** gains a `supabase: { url, anonKey, bucket: 'codex-images' }` block beside the Firebase config.
   These are public **locators, not secrets** (the anon key is safe to ship; RLS is the gate). A pure
   `resolveSupabaseConfig` mirrors `resolveFirebaseConfig`, returning `null` in local-only mode.
 - **New runtime dependency:** `@supabase/supabase-js` (the app's second, after `firebase`). Needed for its
@@ -169,36 +175,39 @@ per-element `get()`" limitation.
 
 ## 8. Supabase setup (user prerequisite, one-time)
 
-Verified 2026-08 against the Supabase Firebase-auth guide (`supabase.com/docs/guides/auth/third-party/firebase-auth`).
-Exact dashboard labels may shift; verify at setup.
+Verified live 2026-08-02 against the actual project (`mdvkrumxjunrpabgeamy`, Firebase `codex-80902`). The
+byte round-trip is proven end-to-end (authed insert 200, anonymous insert 403, public read-back matches).
 
-1. **Bucket `pool`** — make it a **public bucket** (public read serves the deterministic URLs with no auth,
-   so RLS only has to gate writes).
+1. **Bucket `codex-images`** — a **public bucket** (public read serves the deterministic URLs with no auth,
+   so RLS only has to gate writes). *(Named `codex-images`, not `pool` — `appConfig.supabase.bucket` is the
+   single source of truth.)*
 2. **Add the Firebase Third-Party Auth integration** — Dashboard → Authentication → **Third-Party Auth** →
    add Firebase with our Firebase **Project ID `codex-80902`**. Supabase then trusts Firebase-issued JWTs;
-   no separate Supabase login.
-3. **Set the `role: 'authenticated'` custom claim on Firebase users — the key gotcha.** Firebase ID tokens
-   carry **no `role` claim**, so without this Supabase treats the user as `anon` and every `to authenticated`
-   write policy denies them. To stay off serverless/Blaze, set it with a **one-time local `firebase-admin`
-   script** (`setCustomUserClaims(uid, { role: 'authenticated' })`) run against the 2–3 user UIDs with a
-   downloaded service-account key; re-run when a user is added. This is a one-off admin task, **not a runtime
-   broker** — the runtime stays broker-free. Users re-fetch their token (`getIdToken(true)`) once after.
-4. **RLS on `storage.objects`** — a **restrictive** policy pinning to our project, plus a permissive write
-   policy (public read comes from the public bucket, so no SELECT policy):
+   no separate Supabase login. (Confirmed working: PostgREST/Storage both accept the Firebase token.)
+3. **No custom claim needed.** The write policy pins on `iss`/`aud` for `to public` (role-agnostic), so a
+   Firebase token from our project is authorized regardless of any `role` claim. The `role:'authenticated'`
+   claim + the `set-claims.mjs` script are **retired** — nothing to run per new user; a new user can upload
+   on first sign-in. *(Trap avoided: gating `to authenticated` would require the claim AND fails anyway,
+   because Storage's RLS context does not expose `iss`/`aud` on that path — see the upsert note below.)*
+4. **RLS on `storage.objects`** — one **insert-only** permissive policy pinning to our project; public read
+   comes from the public bucket, so no SELECT policy, and there is **no UPDATE policy** (bytes are immutable
+   by content hash — Storage is never updated):
 
    ```sql
-   create policy "pin-firebase-codex-80902" on storage.objects
-     as restrictive to authenticated
-     using (
-       auth.jwt()->>'iss' = 'https://securetoken.google.com/codex-80902'
+   create policy "codex-images-write" on storage.objects
+     for insert to public
+     with check (
+       bucket_id = 'codex-images'
+       and auth.jwt()->>'iss' = 'https://securetoken.google.com/codex-80902'
        and auth.jwt()->>'aud' = 'codex-80902'
      );
-   create policy "pool-write"  on storage.objects for insert to authenticated with check (bucket_id = 'pool');
-   create policy "pool-update" on storage.objects for update to authenticated using (bucket_id = 'pool');
    ```
 
-   Validate these **deny** a foreign/anonymous write during Phase C.
-5. Provide the project **URL + anon (publishable) key** for `appConfig.js`.
+   **Upsert is forbidden.** `imageStore.uploadBytes` does a plain **insert** (409 = content-hash no-op),
+   never an upsert: an upsert makes Storage exercise the UPDATE policy path, and Storage's RLS context
+   **cannot read the Firebase `iss`/`aud` claims there** (unlike PostgREST, which sees them fine), so any
+   upsert — even from a valid caller — is denied. Insert-only sidesteps this and matches immutable bytes.
+5. Provide the project **URL + anon (publishable) key** for `appConfig.js` *(baked, commit `d5c502a`)*.
 6. Confirm the **free-tier cap = pause (not bill)** behavior in the dashboard.
 
 ## 9. Testing strategy
@@ -229,12 +238,16 @@ phase starts until the prior gate is green.
    **Gate:** full `node:test` suite green.
 
 **Phase B — adapters (integration, configured mode):**
-5. `imageStore.js` — Supabase adapter (`uploadBytes` upsert with content-type), wired to the SDK's
-   third-party-auth `accessToken` (Firebase `getIdToken`). (URL construction stays in `imageIndex`, Phase A.)
+5. `imageStore.js` — Supabase adapter (`uploadBytes` **plain insert** with content-type, 409 = no-op),
+   wired to the SDK's third-party-auth `accessToken` (Firebase `getIdToken`). (URL construction stays in
+   `imageIndex`, Phase A.)
 6. `FirebaseManager` image metadata ops (`createImage`, `getImage`, `subscribeImagesForCodex`,
    `subscribeAllImages`, `addImageToCodex`, `removeImageFromCodex`, `setImageStatus`, `updateImageLabel`).
 7. `appConfig.js` `supabase` block; add `@supabase/supabase-js`.
-   **Gate:** a manual upload round-trip writes a blob + a record and reads the URL back.
+   **Gate (byte path — met 2026-08-02):** a live upload round-trip writes a blob and reads the public URL
+   back (new + dedup-409 no-op both verified). The metadata-record write is **deferred to Phase C** — the
+   top-level `images` collection has no rule until then, so Firestore default-denies it (chicken-and-egg the
+   original ordering missed).
 
 **Phase C — rules:**
 8. `firestore.rules` `images` collection per §5; manual **deny-case** verification with editor + admin

@@ -12,6 +12,7 @@
  *   codices/{codexId}/entries/{type}_{id}
  *   codices/{codexId}/schemas/{type}
  *   codices/{codexId}/atlas/{docId}
+ *   images/{contentHash}                     (shared image library; membership via codices[])
  */
 
 /** The deterministic entry doc id — keeps the `${type}_${id}` convention. */
@@ -33,6 +34,9 @@ export const permissionDocPath = (uid, codexId) => ['permissions', permissionId(
 
 export const codicesCollectionPath = () => ['codices'];
 export const codexMetaPath = (codexId) => ['codices', codexId];
+
+export const imagesCollectionPath = () => ['images'];
+export const imageDocPath = (id) => ['images', id];
 
 // ── Per-codex subcollections ────────────────────────────────────────────────
 export const entriesCollectionPath = (codexId) => ['codices', codexId, 'entries'];

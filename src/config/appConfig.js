@@ -32,7 +32,7 @@ export const appConfig = {
   supabase: {
     url: 'https://mdvkrumxjunrpabgeamy.supabase.co',
     anonKey: 'sb_publishable_sXEDmcIxs5XKKoRTyvAJdw_ltufKbi5',
-    bucket: 'pool',
+    bucket: 'codex-images',
   },
 };
 

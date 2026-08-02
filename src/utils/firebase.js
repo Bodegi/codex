@@ -15,10 +15,13 @@ import {
   getDoc,
   getDocs,
   deleteDoc,
+  updateDoc,
   collection,
   query,
   where,
-  onSnapshot
+  onSnapshot,
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 
 import {
@@ -28,6 +31,8 @@ import {
   userDocPath,
   permissionsCollectionPath,
   permissionDocPath,
+  imagesCollectionPath,
+  imageDocPath,
   entriesCollectionPath,
   entryDocPath,
   schemasCollectionPath,
@@ -152,6 +157,71 @@ export class FirebaseManager {
     return onSnapshot(collection(this.db, ...permissionsCollectionPath()), (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
     });
+  }
+
+  // ── Image library (shared `images` collection; bytes live in Supabase) ──────
+  // Metadata is the source of truth for what exists and where it belongs; a record's id is the
+  // content hash, so it is also the Supabase object key and the doc id. Byte upload is the
+  // separate `imageStore` adapter — the upload coordinator drives both (see imageUpload.js).
+
+  /** Read one image record, or null if absent. The coordinator's dedup/resurrect branch pivots on this. */
+  async getImage(id) {
+    if (!this.db) return null;
+    const snap = await getDoc(doc(this.db, ...imageDocPath(id)));
+    return snap.exists() ? snap.data() : null;
+  }
+
+  /** Create a new image record (the coordinator's "no record" branch). Stamps createdAt + updatedAt. */
+  async createImage(id, data) {
+    if (!this.db) return;
+    const ts = now();
+    await setDoc(doc(this.db, ...imageDocPath(id)), { ...data, id, createdAt: ts, updatedAt: ts });
+  }
+
+  /**
+   * Live images for a codex: `images where codices array-contains {codexId}`, filtered to
+   * `status == 'active'` in the callback. The active filter is client-side deliberately —
+   * array-contains + an equality clause would force a composite index, and active-ness is a
+   * cheap in-memory check (the render index drops archived downstream anyway). No-op unconfigured.
+   */
+  subscribeImagesForCodex(codexId, callback) {
+    if (!this.db || !codexId) return () => {};
+    const q = query(collection(this.db, ...imagesCollectionPath()), where('codices', 'array-contains', codexId));
+    return onSnapshot(q, (snapshot) => {
+      callback(snapshot.docs.map((d) => d.data()).filter((r) => r.status === 'active'));
+    });
+  }
+
+  /** Admin all-images view: every image record, all statuses, on every change. No-op when unconfigured. */
+  subscribeAllImages(callback) {
+    if (!this.db) return () => {};
+    return onSnapshot(collection(this.db, ...imagesCollectionPath()), (snapshot) => {
+      callback(snapshot.docs.map((d) => d.data()));
+    });
+  }
+
+  /** Add a codex to an image's membership (editor upload/dedup path). arrayUnion → idempotent. */
+  async addImageToCodex(id, codexId) {
+    if (!this.db) return;
+    await updateDoc(doc(this.db, ...imageDocPath(id)), { codices: arrayUnion(codexId), updatedAt: now() });
+  }
+
+  /** Remove a codex from membership (editor "delete = remove from my codex"). Other codices untouched. */
+  async removeImageFromCodex(id, codexId) {
+    if (!this.db) return;
+    await updateDoc(doc(this.db, ...imageDocPath(id)), { codices: arrayRemove(codexId), updatedAt: now() });
+  }
+
+  /** Set the global soft-delete flag ('active' | 'archived') — admin archive/restore + resurrect. */
+  async setImageStatus(id, status) {
+    if (!this.db) return;
+    await updateDoc(doc(this.db, ...imageDocPath(id)), { status, updatedAt: now() });
+  }
+
+  /** Rename an image (uploader or admin per the rules). */
+  async updateImageLabel(id, label) {
+    if (!this.db) return;
+    await updateDoc(doc(this.db, ...imageDocPath(id)), { label, updatedAt: now() });
   }
 }
 
