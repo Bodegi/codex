@@ -115,8 +115,9 @@ codex-open, hold in memory, re-render on change.
 Firebase ID token pins to **our** project (`aud == "codex-80902"` / issuer
 `https://securetoken.google.com/codex-80902`). This layer is coarse by design — it cannot see per-codex
 permissions, only "a signed-in user from our Firebase project." Firebase shares one signing key across all
-projects, so pinning to our project id is the security must-do. An orphan blob with no Firestore record is
-invisible to the app regardless.
+projects, so pinning to our project id is the security must-do. This layer also depends on the
+`role:'authenticated'` custom claim on Firebase users (§8) — without it Supabase sees them as `anon` and
+denies writes. An orphan blob with no Firestore record is invisible to the app regardless.
 
 **Layer 2 — Firestore `images` rules (the real gate).** Framing that keeps this enforceable: *editors only
 ever touch codex membership and their own uploads' label; everything global is admin.*
@@ -168,16 +169,37 @@ per-element `get()`" limitation.
 
 ## 8. Supabase setup (user prerequisite, one-time)
 
-1. Bucket **`pool`** — created. Confirm **public read** is on.
-2. **Enable Firebase as a third-party auth provider** in Supabase (Authentication → third-party / external),
-   registering our Firebase project so Supabase trusts Firebase-issued JWTs — no separate Supabase login.
-3. **RLS policy on the `pool` bucket:** public `SELECT`; `INSERT`/`UPDATE` allowed only when the JWT pins to
-   our Firebase project (check the `aud` / issuer claim for `codex-80902`). *"Authenticated" alone is not
-   enough* — pin to our project.
-4. Provide the project **URL + anon key** for `appConfig.js`.
-5. Confirm the **free-tier cap = pause (not bill)** behavior in the dashboard.
+Verified 2026-08 against the Supabase Firebase-auth guide (`supabase.com/docs/guides/auth/third-party/firebase-auth`).
+Exact dashboard labels may shift; verify at setup.
 
-*(Exact dashboard clicks may shift; verify against current Supabase UI at setup time.)*
+1. **Bucket `pool`** — make it a **public bucket** (public read serves the deterministic URLs with no auth,
+   so RLS only has to gate writes).
+2. **Add the Firebase Third-Party Auth integration** — Dashboard → Authentication → **Third-Party Auth** →
+   add Firebase with our Firebase **Project ID `codex-80902`**. Supabase then trusts Firebase-issued JWTs;
+   no separate Supabase login.
+3. **Set the `role: 'authenticated'` custom claim on Firebase users — the key gotcha.** Firebase ID tokens
+   carry **no `role` claim**, so without this Supabase treats the user as `anon` and every `to authenticated`
+   write policy denies them. To stay off serverless/Blaze, set it with a **one-time local `firebase-admin`
+   script** (`setCustomUserClaims(uid, { role: 'authenticated' })`) run against the 2–3 user UIDs with a
+   downloaded service-account key; re-run when a user is added. This is a one-off admin task, **not a runtime
+   broker** — the runtime stays broker-free. Users re-fetch their token (`getIdToken(true)`) once after.
+4. **RLS on `storage.objects`** — a **restrictive** policy pinning to our project, plus a permissive write
+   policy (public read comes from the public bucket, so no SELECT policy):
+
+   ```sql
+   create policy "pin-firebase-codex-80902" on storage.objects
+     as restrictive to authenticated
+     using (
+       auth.jwt()->>'iss' = 'https://securetoken.google.com/codex-80902'
+       and auth.jwt()->>'aud' = 'codex-80902'
+     );
+   create policy "pool-write"  on storage.objects for insert to authenticated with check (bucket_id = 'pool');
+   create policy "pool-update" on storage.objects for update to authenticated using (bucket_id = 'pool');
+   ```
+
+   Validate these **deny** a foreign/anonymous write during Phase C.
+5. Provide the project **URL + anon (publishable) key** for `appConfig.js`.
+6. Confirm the **free-tier cap = pause (not bill)** behavior in the dashboard.
 
 ## 9. Testing strategy
 

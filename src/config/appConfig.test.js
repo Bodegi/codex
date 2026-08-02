@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { resolveFirebaseConfig } from './appConfig.js';
+import { resolveFirebaseConfig, resolveSupabaseConfig } from './appConfig.js';
 
 const baked = { apiKey: 'baked-key', authDomain: 'baked.firebaseapp.com', projectId: 'baked' };
 
@@ -34,4 +34,35 @@ test('override JSON without apiKey → ignored, falls back to baked', () => {
 test('no baked config and no usable override → null (local-only)', () => {
   assert.equal(resolveFirebaseConfig(null, null), null);
   assert.equal(resolveFirebaseConfig({}, null), null);
+});
+
+// --- resolveSupabaseConfig -------------------------------------------------
+
+const bakedSupa = { url: 'https://proj.supabase.co', anonKey: 'anon-key', bucket: 'pool' };
+
+test('no override → baked supabase config', () => {
+  assert.deepEqual(resolveSupabaseConfig(bakedSupa, null), bakedSupa);
+  assert.deepEqual(resolveSupabaseConfig(bakedSupa, ''), bakedSupa);
+  assert.deepEqual(resolveSupabaseConfig(bakedSupa, '   '), bakedSupa);
+});
+
+test('override "local" (bare or JSON-quoted) → null (image store off in local-only)', () => {
+  assert.equal(resolveSupabaseConfig(bakedSupa, 'local'), null);
+  assert.equal(resolveSupabaseConfig(bakedSupa, '  local  '), null);
+  assert.equal(resolveSupabaseConfig(bakedSupa, '"local"'), null);
+});
+
+test('a JSON firebase override (dev firestore) still yields the baked supabase config', () => {
+  const devFb = JSON.stringify({ apiKey: 'dev', projectId: 'dev' });
+  assert.deepEqual(resolveSupabaseConfig(bakedSupa, devFb), bakedSupa);
+});
+
+test('a malformed override → ignored, falls back to baked supabase config', () => {
+  assert.deepEqual(resolveSupabaseConfig(bakedSupa, '{ not json'), bakedSupa);
+});
+
+test('incomplete or missing baked supabase config → null', () => {
+  assert.equal(resolveSupabaseConfig(null, null), null);
+  assert.equal(resolveSupabaseConfig({ url: 'u', bucket: 'pool' }, null), null); // no anonKey
+  assert.equal(resolveSupabaseConfig({ anonKey: 'a', bucket: 'pool' }, null), null); // no url
 });

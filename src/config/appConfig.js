@@ -25,6 +25,15 @@ export const appConfig = {
   auth: {
     adminEmail: ['bodegigaming@gmail.com', 'aspensquare.chuck@gmail.com'],
   },
+  // Supabase Storage hosts uploaded image bytes (Firestore keeps the metadata). Like the Firebase
+  // config these are public locators, not secrets — the anon key is safe to ship because Storage RLS
+  // is the real gate (see the supabase-image-store spec §8). Empty until the Supabase setup is done →
+  // resolveSupabaseConfig returns null → the image store stays off (local-only for images).
+  supabase: {
+    url: '',
+    anonKey: '',
+    bucket: 'pool',
+  },
 };
 
 /**
@@ -47,4 +56,22 @@ export function resolveFirebaseConfig(baked, overrideRaw) {
     }
   }
   return baked && baked.apiKey ? baked : null;
+}
+
+/**
+ * Resolve the effective Supabase config from the baked default and the same optional override string.
+ * Pure and Node-testable. The image store is coupled to Firebase (metadata lives in Firestore), so the
+ * `local` sentinel — which forces Firebase local-only — also turns Supabase off here. Any other override
+ * (e.g. a dev-Firestore JSON config) leaves the baked Supabase config in place. Returns the config, or
+ * `null` (image store off) when local-only or the baked config is incomplete.
+ */
+export function resolveSupabaseConfig(baked, overrideRaw) {
+  const raw = typeof overrideRaw === 'string' ? overrideRaw.trim() : '';
+  if (raw === 'local') return null;
+  try {
+    if (raw && JSON.parse(raw) === 'local') return null;
+  } catch {
+    // non-JSON override (e.g. a Firebase config object) → not the local sentinel; ignore
+  }
+  return baked && baked.url && baked.anonKey ? baked : null;
 }
