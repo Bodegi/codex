@@ -29,6 +29,16 @@ import { escapeHtml } from './schema/inlineText.js';
 import { getIcon } from './schema/iconRegistry.js';
 import { buildNavModel } from './schema/navModel.js';
 import {
+  selectType,
+  toRead,
+  toEdit,
+  toSchemaAdmin,
+  openGlobalAdmin,
+  selectAdminPanel,
+  closeGlobalAdmin,
+  normalize,
+} from './schema/viewState.js';
+import {
   renderSchemaEditor,
   attachSchemaEditor,
   deriveKey,
@@ -46,10 +56,8 @@ import {
 import { renderAuthGateway } from './components/authGateway.js';
 import { renderAwaitingAccess } from './components/awaitingAccess.js';
 import {
-  renderAdminSubnav,
   renderAccessPanel,
   renderCodicesPanel,
-  renderTypesToolbar,
 } from './components/adminView.js';
 import { resolveCapabilities, isAdminEmail } from './utils/capabilities.js';
 import { renderMediaControls, attachMediaControls } from './components/mediaControls.js';
@@ -69,8 +77,6 @@ const firebaseConfig = resolveFirebaseConfig(appConfig.firebase, localStorage.ge
 // single demo-fixture codex (no switcher, no Firestore).
 const DEFAULT_CODEX_ID = firebaseConfig ? (appConfig.defaultCodexId || 'atm10') : demoCodexId;
 
-// A content tab is any type; 'admin' is the sole non-type tab.
-const isTypeTab = (tab) => !!tab && tab !== 'admin';
 // Whether a type's schema declares imagery fields (hero/gallery) → show the media controls.
 const schemaHasMedia = (type) => {
   const schema = getSchema(type);
@@ -79,10 +85,11 @@ const schemaHasMedia = (type) => {
 
 // Application State
 const state = {
-  // Resolved to the codex's first type once its schemas load; '' means "nothing selected yet".
-  currentTab: '',
-  // Read-first workspace: everyone lands in 'read' (reading view); editors/admins toggle to 'edit'.
-  mode: 'read',
+  // The single source of truth for what's on screen (see schema/viewState.js): a per-type content
+  // surface ({kind:'type', type, mode:'read'|'edit'|'admin'}) or the global-admin door
+  // ({kind:'global-admin', panel:'access'|'codices'}). `type` is null only in the empty-content case
+  // (a codex with no types). normalize() clamps it to a valid, permitted view once schemas + caps load.
+  view: { kind: 'type', type: null, mode: 'read' },
   currentViewMode: 'rendered',
   formData: {},
   // Which sidebar type-sections are expanded — independent of the current selection, so an opened
@@ -106,15 +113,27 @@ const state = {
   permission: null,
   permissionLoaded: false,
   workspaceReady: false,
-  // Types editor (admin) working state
+  // Schema editor (per-type Structure mode) working state
   editingType: '',
   workingSchema: null,
   editorErrors: [],
-  // Admin section state
-  adminPanel: 'access',          // 'access' | 'types'
+  // Global-admin roster state
   adminUsers: [],
   adminPerms: []
 };
+
+// ── View-state helpers ───────────────────────────────────────────────────────
+// The single source of truth is state.view; these read it, and goto()/renderView() write it.
+const curType = () => (state.view.kind === 'type' ? state.view.type : null);
+const inGlobalAdmin = () => state.view.kind === 'global-admin';
+const inSchemaAdmin = () => state.view.kind === 'type' && state.view.mode === 'admin';
+// The context normalize() clamps against: current capabilities + the codex's live type keys.
+const viewCtx = () => ({ caps: state.caps, types: listTypes() });
+// Apply a view transition, clamp it, and re-render the whole workspace to match.
+function goto(nextView) {
+  state.view = normalize(nextView, viewCtx());
+  renderView();
+}
 
 // Initialize Firebase + Google Auth. Auth needs an initialized Firebase app, so the auth manager
 // only exists when Firebase is configured; local-only mode runs unauthenticated (no login wall).
@@ -156,17 +175,8 @@ function subscribeCodexContent() {
 // Re-render nav + selection when the codex's live types/entries change.
 function onCodexContentChanged() {
   if (!state.workspaceReady) return;
-  renderTypeNav();
-  if (state.currentTab === 'admin') {
-    // After a switch, the Types panel may have rendered "no types" before schemas loaded. Re-mount it
-    // once they arrive — but only when the editor isn't sitting on a still-valid type, so we never
-    // clobber an in-progress schema edit (which keeps a valid editingType).
-    if (state.adminPanel === 'types' && !listTypes().some((t) => t.type === state.editingType)) {
-      renderAdminPanel();
-    }
-    return;
-  }
-  ensureTypeSelection();
+  renderNav();
+  ensureValidView();
 }
 
 // Point the store + entry index at a codex's content: the demo fixture in local-only mode, or empty
@@ -221,6 +231,7 @@ const gatewayContainer = document.getElementById('gateway-container');
 const mainWorkspace = document.getElementById('main-workspace');
 const appBody = document.querySelector('.app-body');
 const editToggleBtn = document.getElementById('btn-edit-toggle');
+const structureBtn = document.getElementById('btn-structure');
 const saveEntryBtn = document.getElementById('btn-save-entry');
 const archiveEntryBtn = document.getElementById('btn-archive-entry');
 const doneEditBtn = document.getElementById('btn-done-edit');
@@ -337,11 +348,14 @@ function showWorkspace() {
     subscribeCodexRegistry();      // populate the switcher (app-global, not codex-scoped)
     subscribeCodexContent();       // deferred schema + entry subscriptions (now that canRead is true)
     renderCodexSwitcher();
-    renderTypeNav();
-    ensureTypeSelection();         // pick the first type (or empty state) and render it
+    state.view = normalize(state.view, viewCtx());
+    renderView();                  // renders the sidebar nav + picks the first type (or empty/admin)
     renderSyncStatus();
+  } else {
+    // Already up: capabilities may have just changed (permission arrived) — re-clamp + reflect chrome.
+    state.view = normalize(state.view, viewCtx());
+    applyViewChrome();
   }
-  applyMode(); // reflect current capabilities (e.g., permission just arrived → canEdit changed)
 }
 
 // Tear down codex-content subscriptions + the one-time workspace init, so re-auth re-initializes.
@@ -356,11 +370,10 @@ function teardownWorkspace() {
   if (adminPermsUnsub) { adminPermsUnsub(); adminPermsUnsub = null; }
 }
 
-// Enter the Admin section (from the header user menu). Admin is no longer a sidebar item.
+// Enter the global-admin door (from the header user menu). Keeps the last panel if already there.
 function enterAdmin() {
   if (!state.caps.canAdmin) return;
-  state.currentTab = 'admin';
-  switchTab('admin');
+  goto(openGlobalAdmin(state.view, inGlobalAdmin() ? state.view.panel : 'access'));
 }
 
 // Render the header user menu: the signed-in identity as a dropdown trigger, with Admin (admins
@@ -452,7 +465,7 @@ function subscribeCodexRegistry() {
       codicesUnsub = state.fbManager.subscribeCodices((codices) => {
         state.codices = codices;
         renderCodexSwitcher();
-        if (state.currentTab === 'admin' && state.adminPanel === 'codices') renderAdminPanel();
+        if (inGlobalAdmin() && state.view.panel === 'codices') renderAdminPanel();
       });
     }
   } else if (uid && !ownPermsUnsub) {
@@ -511,7 +524,9 @@ codexSwitcher.addEventListener('click', () => {
   codexSwitcherWrap.querySelector('.codex-switcher-menu')?.classList.toggle('hidden');
 });
 
-// Re-scope every codex subscription onto a different codex (§7 of the Phase-4 spec).
+// Re-scope every codex subscription onto a different codex (§7 of the Phase-4 spec). The old manual
+// "preserve Admin across the switch" hack is gone: normalize() keeps a global-admin view as-is and
+// retargets a now-missing type, so the whole choreography reduces to re-clamp → render.
 function switchCodex(codexId) {
   if (!codexId || codexId === state.currentCodexId) return;
   if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
@@ -519,22 +534,16 @@ function switchCodex(codexId) {
   if (state.activeDocUnsubscribe) { state.activeDocUnsubscribe(); state.activeDocUnsubscribe = null; }
   state.liveDocId = null; // no doc open on the new codex yet — don't show the old codex's "Live sync · id"
 
-  // Stay in Admin when switching from Admin (e.g. after creating a codex): otherwise currentTab='' and
-  // the incoming schema subscription's ensureTypeSelection would yank us into the builder.
-  const wasAdmin = state.currentTab === 'admin';
   state.currentCodexId = codexId;
   localStorage.setItem(CURRENT_CODEX_KEY, codexId);
-  state.currentTab = wasAdmin ? 'admin' : '';
   state.formData = {};
   loadCodexContent();       // reset store + entry index for the new codex
   watchOwnPermission();     // re-subscribe permission → recompute caps for this codex
   subscribeCodexContent();  // schemas + entries for the new codex
   renderCodexSwitcher();
-  renderTypeNav();
-  if (wasAdmin) enterAdminTab();  // re-render the admin panel for the new codex
-  else ensureTypeSelection();
+  state.view = normalize(state.view, viewCtx());
+  renderView();
   renderSyncStatus();
-  applyMode();
 }
 
 // ── Sidebar navigation (codex → type → entry, then Admin) ───────────────────
@@ -542,22 +551,32 @@ function switchCodex(codexId) {
 // from the live entry index. Selecting a type opens its first entry; selecting an entry opens it.
 // Admin is the only fixed, non-type item and shows only to admins.
 
-// Select a valid content tab: keep the current type if it still exists, else the first type; if the
-// codex has no types, show an empty state. Non-disruptive — keeps the user's open entry when valid.
-function ensureTypeSelection() {
-  if (state.currentTab === 'admin') return;
-  const types = listTypes();
-  const validType = isTypeTab(state.currentTab) && types.some((t) => t.type === state.currentTab);
+// Non-disruptive re-clamp on live content changes: keep the open entry/structure when still valid, so
+// a keystroke elsewhere never resets the open form; otherwise re-normalize and re-render.
+function ensureValidView() {
+  if (inGlobalAdmin()) return;                    // global admin doesn't depend on codex content
+  const type = curType();
+  const stillValid = !!type && listTypes().some((t) => t.type === type);
 
-  if (!validType) {
-    const first = types[0];
-    if (first) return switchTab(first.type);
-    state.currentTab = '';
-    return renderEmptyCodexState();
+  if (!stillValid) {                              // type archived/removed out from under us
+    state.view = normalize(state.view, viewCtx());
+    return renderView();
   }
-  const open = state.formData && state.formData.id ? findEntryByTypeId(state.currentTab, state.formData.id) : null;
-  if (open) highlightNav();
-  else switchTab(state.currentTab);
+  if (inSchemaAdmin()) return;                     // valid type + editing its schema — don't clobber
+
+  const open = state.formData && state.formData.id ? findEntryByTypeId(type, state.formData.id) : null;
+  if (open) { highlightNav(); return; }
+  loadFirstEntry(type);                            // the open entry was archived → fall back to first
+}
+
+// Open a type's first active entry (or a blank draft) in the reader — form + preview + chrome.
+function loadFirstEntry(type) {
+  const entries = activeEntries(state.entryIndex, type);
+  state.formData = entries.length ? { ...entries[0] } : { type };
+  showRenderedPane();
+  renderForm();
+  applyViewChrome();
+  highlightNav();
 }
 
 // A codex with no types (fresh/blank) — nothing to read yet.
@@ -565,17 +584,53 @@ function renderEmptyCodexState() {
   readerTitle.textContent = '';
   editorTitle.textContent = '';
   const msg = state.caps.canAdmin
-    ? 'This codex has no types yet. Open Admin to create the first one.'
+    ? 'This codex has no types yet. Use “＋ New type” in the sidebar to create the first one.'
     : 'This codex has no content yet.';
   updateRenderedPreview(`<div class="empty-state">${escapeHtml(msg)}</div>`);
   updateRawJson('');
-  applyMode();
-  highlightNav();
+}
+
+// The sidebar reflects the current surface: the codex's types (content), or the admin nav
+// (Users & Access / Codices + a way back out) when in the global-admin door.
+function renderNav() {
+  if (inGlobalAdmin()) renderAdminNav();
+  else renderTypeNav();
+}
+
+// The admin sidebar: leave-admin at the top, then the two admin panels. Panel selection lives here
+// now (the in-panel subnav is gone), so the content panel shows only the selected panel's body.
+function renderAdminNav() {
+  const panel = state.view.panel;
+  const item = (key, label) =>
+    `<button class="nav-item nav-admin-item${panel === key ? ' is-active' : ''}" data-admin-nav="${key}">${label}</button>`;
+  typeNav.innerHTML = `
+    <button class="nav-item nav-admin-back" data-admin-back>‹ Back to codex</button>
+    <div class="nav-admin-group">
+      <span class="nav-section-label">Admin</span>
+      ${item('access', 'Users & Access')}
+      ${item('codices', 'Codices')}
+    </div>`;
+  typeNav.querySelector('[data-admin-back]')?.addEventListener('click', exitAdmin);
+  typeNav.querySelectorAll('[data-admin-nav]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.view = selectAdminPanel(state.view, btn.dataset.adminNav);
+      renderAdminNav();
+      renderAdminPanel();
+    });
+  });
+}
+
+// Leave the admin door, returning to the type you were reading (or the first type).
+function exitAdmin() {
+  const t = state.formData && state.formData.type;
+  const back = t && listTypes().some((x) => x.type === t) ? t : listTypes()[0]?.type || null;
+  goto(closeGlobalAdmin(state.view, back));
 }
 
 function renderTypeNav() {
   const types = listTypes();
   const canEdit = !!state.caps.canEdit;
+  const canAdmin = !!state.caps.canAdmin;
   const entriesByType = {};
   types.forEach((t) => {
     entriesByType[t.type] = entriesOfType(t.type).map((e) => ({ id: e.id, title: e.label }));
@@ -605,9 +660,37 @@ function renderTypeNav() {
       </div>
     </div>`
     )
-    .join('');
+    .join('') + (canAdmin ? renderNewTypeRow() + renderArchivedTypes() : '');
 
   wireTypeNav();
+}
+
+// The admin-only "＋ New type" affordance at the foot of the nav — an inline name + create button.
+// Creating a type drops the author into its Structure (schema) mode.
+function renderNewTypeRow() {
+  return `
+    <div class="nav-new-type">
+      <input class="nav-new-type-input" id="new-type-name" placeholder="New type name" aria-label="New type name">
+      <button class="nav-item nav-new-type-btn" id="new-type-btn">＋ New type</button>
+    </div>`;
+}
+
+// The muted "Archived types" list in the nav (admins only) — one Restore per archived type.
+function renderArchivedTypes() {
+  const archived = listArchivedTypes();
+  if (!archived.length) return '';
+  return `
+    <div class="nav-archived nav-archived-types">
+      <span class="nav-archived-label">Archived types</span>
+      ${archived
+        .map(
+          (t) => `<div class="nav-archived-row">
+            <span class="nav-archived-name">${escapeHtml(t.label || t.type)}</span>
+            <button class="nav-mini-btn" data-restore-type="${escapeHtml(t.type)}">Restore</button>
+          </div>`
+        )
+        .join('')}
+    </div>`;
 }
 
 // The muted "Archived" list under a type in the nav (editors only) — one Restore per entry.
@@ -640,7 +723,7 @@ function wireTypeNav() {
         state.navExpanded.delete(type);
         highlightNav();
       } else {
-        switchTab(type); // adds to navExpanded + selects
+        selectTypeTab(type); // adds to navExpanded + selects the type in read mode
       }
     });
   });
@@ -653,6 +736,16 @@ function wireTypeNav() {
   typeNav.querySelectorAll('[data-restore-entry-id]').forEach((btn) => {
     btn.addEventListener('click', () => setEntryStatus(btn.dataset.restoreEntryType, btn.dataset.restoreEntryId, 'active'));
   });
+  typeNav.querySelector('#new-type-btn')?.addEventListener('click', createType);
+  typeNav.querySelectorAll('[data-restore-type]').forEach((btn) => {
+    btn.addEventListener('click', () => setTypeStatus(btn.dataset.restoreType, 'active'));
+  });
+}
+
+// Select a type in the reader (opens its first entry). The nav-header entry point.
+function selectTypeTab(type) {
+  state.navExpanded.add(type);
+  goto(selectType(state.view, type));
 }
 
 // Reflect expansion (from navExpanded) + the active type/entry (or Admin) in the nav.
@@ -665,8 +758,10 @@ function highlightNav() {
     typeNav.querySelector(`.nav-type[data-type="${CSS.escape(type)}"]`)?.classList.add('is-expanded');
   });
 
-  if (state.currentTab === 'admin') return; // Admin is a header-menu section, not a sidebar item
-  const typeEl = typeNav.querySelector(`.nav-type[data-type="${CSS.escape(state.currentTab)}"]`);
+  if (inGlobalAdmin()) return; // the global-admin door is a header-menu surface, not a sidebar item
+  const type = curType();
+  if (!type) return;
+  const typeEl = typeNav.querySelector(`.nav-type[data-type="${CSS.escape(type)}"]`);
   if (!typeEl) return;
   typeEl.querySelector('.nav-type-header')?.classList.add('is-active');
   typeEl.querySelectorAll('.nav-entry').forEach((el) => {
@@ -699,75 +794,87 @@ function showRenderedPane() {
   previewRawContainer.classList.add('hidden');
 }
 
-// Reflect capabilities + read/edit mode + tab kind in the workspace chrome. Builder read = full-width
-// reader; builder edit = full-width form; admin = editor + preview. Viewers (no canEdit) stay in read.
-function applyMode() {
+// The single renderer: render the content area + chrome to match state.view. Used on navigation,
+// codex switch, content changes, and boot — NOT on in-place read/edit toggles (those keep the open
+// form/preview without re-subscribing). Content dispatch by view: global-admin door, empty codex,
+// per-type schema editor ("admin"), else the entry reader/form.
+function renderView() {
+  const v = state.view;
+  renderNav(); // the sidebar reflects the surface: content types, or the admin nav
+  if (v.kind === 'global-admin') enterGlobalAdmin();
+  else if (!v.type) renderEmptyCodexState();
+  else if (v.mode === 'admin') enterSchemaAdmin(v.type);
+  else {
+    // Ensure the open entry belongs to the current type (a type switch reselects its first entry).
+    if (!state.formData || state.formData.type !== v.type) {
+      const entries = activeEntries(state.entryIndex, v.type);
+      state.formData = entries.length ? { ...entries[0] } : { type: v.type };
+    }
+    showRenderedPane();
+    renderForm();
+  }
+  applyViewChrome();
+  highlightNav();
+}
+
+// Apply the one flat workspace class + header-button visibility from state.view (successor to the old
+// applyMode's chrome half) — the only place view-state reaches the workspace chrome.
+function applyViewChrome() {
+  const v = state.view;
   const canEdit = !!state.caps.canEdit;
-  const isBuilder = isTypeTab(state.currentTab);
-  if (!canEdit || !isBuilder) state.mode = 'read';
+  const canAdmin = !!state.caps.canAdmin;
 
-  const editing = state.mode === 'edit';
-  const kind = isBuilder ? 'builder' : 'admin';
+  const cls =
+    v.kind === 'global-admin' ? 'view-global-admin'
+    : v.mode === 'edit' ? 'view-content-edit'
+    : v.mode === 'admin' ? 'view-content-admin'
+    : 'view-content-read';
+  mainWorkspace.classList.remove('view-content-read', 'view-content-edit', 'view-content-admin', 'view-global-admin');
+  mainWorkspace.classList.add(cls);
 
-  mainWorkspace.classList.remove('tab-builder', 'tab-admin', 'mode-read', 'mode-edit');
-  mainWorkspace.classList.add(`tab-${kind}`, editing ? 'mode-edit' : 'mode-read');
-
-  // Edit affordance sits in the reader header (read mode); Save/Done live in the form header (edit).
-  editToggleBtn.hidden = !(canEdit && isBuilder && !editing);
-  saveEntryBtn.hidden = !canEdit;
+  // Edit sits in the reader header (content read); Save/Done live in the form header (edit). Structure
+  // is a toggle: "Structure" to enter from reading, "Done" to leave — so it's never a dead end.
+  const inTypeRead = v.kind === 'type' && !!v.type && v.mode === 'read';
+  const inStructure = v.kind === 'type' && !!v.type && v.mode === 'admin';
+  editToggleBtn.hidden = !(canEdit && inTypeRead);
+  structureBtn.hidden = !(canAdmin && (inTypeRead || inStructure));
+  structureBtn.textContent = inStructure ? 'Done' : 'Structure';
+  const editingEntry = v.kind === 'type' && v.mode === 'edit';
+  saveEntryBtn.hidden = !(canEdit && editingEntry);
   // Archive only makes sense for an already-saved entry (a brand-new draft has no id yet).
-  archiveEntryBtn.hidden = !(canEdit && isBuilder && !!state.formData.id);
+  archiveEntryBtn.hidden = !(canEdit && editingEntry && !!state.formData.id);
 }
 
 editToggleBtn.addEventListener('click', () => {
-  if (!state.caps.canEdit || !isTypeTab(state.currentTab)) return;
-  state.mode = 'edit';
+  if (!state.caps.canEdit || state.view.kind !== 'type' || !state.view.type) return;
+  state.view = toEdit(state.view);
   renderFormWithoutResubscribe(); // reflect current formData (e.g. an id just assigned on save)
-  applyMode();
+  applyViewChrome();
+});
+
+structureBtn.addEventListener('click', () => {
+  if (!state.caps.canAdmin || state.view.kind !== 'type' || !state.view.type) return;
+  goto(inSchemaAdmin() ? toRead(state.view) : toSchemaAdmin(state.view));
 });
 
 doneEditBtn.addEventListener('click', () => {
-  state.mode = 'read';
+  state.view = toRead(state.view);
   refreshBuilderPreview();
-  applyMode();
+  applyViewChrome();
 });
 
 saveEntryBtn.addEventListener('click', () => saveEntry());
 archiveEntryBtn.addEventListener('click', () => archiveCurrentEntry());
 
-// Switch to a type (opens its first entry) or the Admin section.
-function switchTab(tabKey) {
-  if (tabKey === 'admin') {
-    enterAdminTab();
-    applyMode();
-    highlightNav();
-    return;
-  }
-
-  state.currentTab = tabKey;
-  state.navExpanded.add(tabKey); // selecting a type opens its section
-  const entries = activeEntries(state.entryIndex, tabKey);
-  state.formData = entries.length ? { ...entries[0] } : { type: tabKey };
-  showRenderedPane();
-  renderForm();
-  applyMode();
-  highlightNav();
-}
-
-// ── Admin section (admin-only) ──────────────────────────────────────────────
-// Two panels: Users & Access (roster + codex init) and Types (the schema editor). Editors author
-// entries against the schemas an admin defines here; only admins reach this section.
+// ── Global-admin door (admin-only) ──────────────────────────────────────────
+// Two panels: Users & Access (roster) and Codices (create/rename/archive). Per-type schema editing is
+// no longer here — it's the per-type "Structure" (admin) mode. Only admins reach this surface
+// (normalize() guarantees it).
 
 let adminUsersUnsub = null;
 let adminPermsUnsub = null;
 
-// True when the admin is on the Types panel — the schema editor is active.
-function editingSchema() {
-  return state.currentTab === 'admin' && state.adminPanel === 'types';
-}
-
-function enterAdminTab() {
-  if (!state.caps.canAdmin) return ensureTypeSelection(); // safety; nav item is also hidden
+function enterGlobalAdmin() {
   readerTitle.textContent = 'Admin';
   editorTitle.textContent = 'Admin';
   showRenderedPane();
@@ -776,37 +883,28 @@ function enterAdminTab() {
 }
 
 function renderAdminPanel() {
-  if (state.adminPanel === 'types') {
-    formContainer.innerHTML =
-      renderAdminSubnav('types') + renderTypesToolbar({ archived: listArchivedTypes() });
-    wireAdminSubnav();
-    wireTypesToolbar();
-    const types = listTypes();
-    const editType = types.some((t) => t.type === state.editingType) ? state.editingType : types[0]?.type;
-    if (editType) {
-      setEditingType(editType); // renders the schema editor into the mount
-    } else {
-      typesMountEl().innerHTML =
-        '<div class="empty-state">No types yet. Name one above to create the first.</div>';
-    }
-  } else if (state.adminPanel === 'codices') {
-    formContainer.innerHTML = renderAdminSubnav('codices') + renderCodicesPanelHtml();
-    wireAdminSubnav();
+  if (state.view.panel === 'codices') {
+    formContainer.innerHTML = renderCodicesPanelHtml();
     wireCodicesPanel();
     updateRenderedPreview('<div class="admin-blurb">Admin — create and manage codices.</div>');
     updateRawJson('');
   } else {
-    formContainer.innerHTML =
-      renderAdminSubnav('access') +
-      renderAccessPanel({
-        codexId: state.currentCodexId,
-        rows: buildRosterRows(),
-      });
-    wireAdminSubnav();
+    formContainer.innerHTML = renderAccessPanel({ codexId: state.currentCodexId, rows: buildRosterRows() });
     wireAccessPanel();
-    updateRenderedPreview('<div class="admin-blurb">Admin — manage codex access and type schemas.</div>');
+    updateRenderedPreview('<div class="admin-blurb">Admin — manage codex access.</div>');
     updateRawJson('');
   }
+}
+
+// The per-type "Structure" (schema) surface: the schema editor mounted for `type` in the left panel,
+// its live type preview on the right. Entered via the reader's Structure button or the editor's type
+// picker. Note: this is a content-surface mode (kind:'type', mode:'admin'), not the global-admin door.
+function enterSchemaAdmin(type) {
+  const schema = getSchema(type);
+  readerTitle.textContent = (schema && schema.label) || type;
+  editorTitle.textContent = readerTitle.textContent;
+  showRenderedPane();
+  setEditingType(type); // renders the schema editor into #form-container + refreshes the preview
 }
 
 // ── Codices admin panel (create / rename / archive-restore) ──────────────────
@@ -873,8 +971,10 @@ async function createCodex() {
       await Promise.all(buildTemplateSchemas(sourceSchemas).map((s) => dest.saveSchema(s.type, s)));
     }
     showToast(`Created “${name}”`);
-    state.adminPanel = 'types';  // land in the new codex's Types panel, ready to add types
-    switchCodex(slug);           // auto-switch to the new codex (stays in Admin via switchCodex)
+    // Land in the new codex's content: its empty state surfaces "＋ New type" (or a template's first
+    // type once schemas load). A blank content view lets switchCodex's normalize resolve it.
+    state.view = { kind: 'type', type: null, mode: 'read' };
+    switchCodex(slug);
   } catch (err) {
     showToast('Create failed: ' + err.message);
   }
@@ -903,18 +1003,7 @@ function setCodexStatus(codexId, status) {
 
 // Open Admin › Codices directly (the switcher's "＋ New codex" shortcut).
 function openCodicesAdmin() {
-  state.adminPanel = 'codices';
-  state.currentTab = 'admin';
-  switchTab('admin');
-}
-
-function wireAdminSubnav() {
-  formContainer.querySelectorAll('[data-admin-panel]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      state.adminPanel = btn.dataset.adminPanel;
-      renderAdminPanel();
-    });
-  });
+  goto(openGlobalAdmin(state.view, 'codices'));
 }
 
 function wireAccessPanel() {
@@ -923,16 +1012,9 @@ function wireAccessPanel() {
   });
 }
 
-// ── Types panel: new-type + archive/restore ──────────────────────────────────
+// ── Types: new-type + archive/restore ────────────────────────────────────────
 // A type is a schema doc; archive is a status flip on it (no new rules needed). Persistence
 // mirrors the schema editor's Save: local overlay + Firestore saveSchema when configured.
-
-function wireTypesToolbar() {
-  document.getElementById('new-type-btn')?.addEventListener('click', createType);
-  formContainer.querySelectorAll('[data-type-restore]').forEach((btn) => {
-    btn.addEventListener('click', () => setTypeStatus(btn.dataset.typeRestore, 'active'));
-  });
-}
 
 // Persist a schema to the active codex (overlay + Firestore), the shared write path for
 // new-type, archive, and restore.
@@ -944,6 +1026,7 @@ function persistSchema(type, schema) {
   }
 }
 
+// Create a type from the nav's "＋ New type" input, then drop into its Structure (schema) mode.
 function createType() {
   const input = document.getElementById('new-type-name');
   const label = (input?.value || '').trim();
@@ -951,25 +1034,20 @@ function createType() {
   const existing = [...listTypes(), ...listArchivedTypes()].map((t) => t.type);
   const schema = newTypeSchema(label, existing);
   persistSchema(schema.type, schema);
-  state.editingType = schema.type;
   renderTypeNav();
-  renderAdminPanel();
   showToast(`Created “${label}” type`);
+  goto(toSchemaAdmin(selectType(state.view, schema.type)));
 }
 
-// Flip a type's status. Archiving drops it from the nav; the editor falls back to another type.
+// Flip a type's status (archive/restore). Re-clamps the view so archiving the type you're viewing or
+// structuring lands you somewhere valid; restore just refreshes the nav.
 function setTypeStatus(type, status) {
   const schema = getSchema(type);
   if (!schema) return;
   persistSchema(type, { ...schema, status });
-  if (status === 'archived' && state.editingType === type) {
-    state.editingType = listTypes()[0]?.type || '';
-  } else {
-    state.editingType = type;
-  }
   renderTypeNav();
-  ensureTypeSelection(); // the reader's open tab may have just been archived
-  renderAdminPanel();
+  state.view = normalize(state.view, viewCtx());
+  renderView();
   showToast(status === 'archived' ? `Archived “${schema.label}”` : `Restored “${schema.label}”`);
 }
 
@@ -1007,13 +1085,13 @@ function ensureAdminSubscriptions() {
   if (!adminUsersUnsub) {
     adminUsersUnsub = state.fbManager.subscribeUsers((users) => {
       state.adminUsers = users;
-      if (state.currentTab === 'admin' && state.adminPanel === 'access') renderAdminPanel();
+      if (inGlobalAdmin() && state.view.panel === 'access') renderAdminPanel();
     });
   }
   if (!adminPermsUnsub) {
     adminPermsUnsub = state.fbManager.subscribePermissions((perms) => {
       state.adminPerms = perms;
-      if (state.currentTab === 'admin' && state.adminPanel === 'access') renderAdminPanel();
+      if (inGlobalAdmin() && state.view.panel === 'access') renderAdminPanel();
     });
   }
 }
@@ -1024,9 +1102,9 @@ function ensureAdminSubscriptions() {
 // DOM; text edits don't (to keep input focus). Every change re-renders the live preview
 // through the in-memory overlay. Nothing persists until Save; Reset returns to seed.
 
-// Where the schema editor mounts: the Admin › Types sub-container when present, else the form panel.
+// Where the schema editor mounts: the left form panel (Structure mode owns the whole panel).
 function typesMountEl() {
-  return document.getElementById('admin-types-mount') || formContainer;
+  return formContainer;
 }
 
 // A representative entry to render the type's read-view preview against.
@@ -1068,7 +1146,11 @@ function handleSchemaIntent(intent) {
   const s = state.workingSchema;
   switch (intent.action) {
     case 'pick-type':
-      return setEditingType(intent.type);
+      // The editor's type picker navigates to that type's Structure mode (single source of truth).
+      return goto(toSchemaAdmin(selectType(state.view, intent.type)));
+    case 'edit-label':
+      state.workingSchema = { ...s, label: intent.label };
+      return refreshWorkingPreview();
     case 'save':
       return saveWorkingSchema();
     case 'reset':
@@ -1126,6 +1208,7 @@ function saveWorkingSchema() {
       .catch((err) => showToast('Firebase save error: ' + err.message));
   }
   renderTypesEditor();
+  renderTypeNav(); // reflect a rename / icon change in the sidebar
   showToast(`Saved “${state.editingType}” type`);
 }
 
@@ -1194,18 +1277,18 @@ function subscribeToLiveFirestoreDoc(type, id) {
 // Render Form into Editor Panel
 function renderForm() {
   renderFormWithoutResubscribe();
-  subscribeToLiveFirestoreDoc(state.currentTab, state.formData.id);
+  subscribeToLiveFirestoreDoc(curType(), state.formData.id);
 }
 
 function renderFormWithoutResubscribe() {
   lastFocusedProseField = null;
 
-  const title = entryTitle(state.formData, state.currentTab);
+  const title = entryTitle(state.formData, curType());
   readerTitle.textContent = title;
   editorTitle.textContent = title;
 
-  const mediaBlock = schemaHasMedia(state.currentTab) ? renderMediaControls(state.formData) : '';
-  formContainer.innerHTML = renderSchemaForm(getSchema(state.currentTab), state.formData, renderCtx) + mediaBlock;
+  const mediaBlock = schemaHasMedia(curType()) ? renderMediaControls(state.formData) : '';
+  formContainer.innerHTML = renderSchemaForm(getSchema(curType()), state.formData, renderCtx) + mediaBlock;
 
   attachFormInputListeners();
   wireMediaForCurrentForm();
@@ -1224,7 +1307,7 @@ function attachFormInputListeners() {
           ? el.value.split('\n').map((s) => s.trim()).filter(Boolean)
           : el.value;
       // Keep the header title live as the title field is edited.
-      readerTitle.textContent = entryTitle(state.formData, state.currentTab);
+      readerTitle.textContent = entryTitle(state.formData, curType());
       editorTitle.textContent = readerTitle.textContent;
       refreshBuilderPreview();
       autoSaveToFirebase();
@@ -1239,7 +1322,7 @@ function attachFormInputListeners() {
 
 // Wire the imagery controls (hero / carousel / inline) for media-capable tabs
 function wireMediaForCurrentForm() {
-  if (!schemaHasMedia(state.currentTab)) return;
+  if (!schemaHasMedia(curType())) return;
   attachMediaControls({
     container: formContainer,
     formData: state.formData,
@@ -1253,7 +1336,7 @@ function wireMediaForCurrentForm() {
 
 // Serialize the current entry as pretty JSON (the stored format)
 function currentEntryJson() {
-  return JSON.stringify({ ...state.formData, type: state.currentTab }, null, 2);
+  return JSON.stringify({ ...state.formData, type: curType() }, null, 2);
 }
 
 // Whether the current entry has any content worth saving
@@ -1265,7 +1348,7 @@ function entryHasContent() {
 
 // Entry HTML + carousel composed after it (carousel is never part of the entry body)
 function currentPreviewHTML() {
-  return renderEntryHTML(state.currentTab, state.formData, renderCtx) + renderCarousel(state.formData.gallery);
+  return renderEntryHTML(curType(), state.formData, renderCtx) + renderCarousel(state.formData.gallery);
 }
 
 // Re-render the current builder entry & refresh both preview panels
@@ -1294,11 +1377,13 @@ function loadEntry(type, id) {
     return;
   }
   state.formData = { ...entry };
-  state.currentTab = type;
   state.navExpanded.add(type); // keep the selected entry's section open
+  // Open an entry in read mode (preserve edit if the author was already editing this type).
+  const keepEditing = state.view.kind === 'type' && state.view.type === type && state.view.mode === 'edit';
+  state.view = normalize(keepEditing ? toEdit(selectType(state.view, type)) : selectType(state.view, type), viewCtx());
   showRenderedPane();
   renderForm();
-  applyMode();
+  applyViewChrome();
   highlightNav();
 }
 
@@ -1310,13 +1395,12 @@ function newEntry(type) {
   if (!state.caps.canEdit) return;
   const schema = getSchema(type);
   if (!schema) return;
-  state.currentTab = type;
   state.navExpanded.add(type);
   state.formData = blankEntry(schema);
-  state.mode = 'edit';
+  state.view = normalize(toEdit(selectType(state.view, type)), viewCtx());
   showRenderedPane();
   renderForm();
-  applyMode();
+  applyViewChrome();
   highlightNav();
 }
 
@@ -1337,21 +1421,21 @@ function setEntryStatus(type, id, status) {
   if (!entry) return;
   const updated = { ...entry, status };
   persistEntry(type, updated);
-  if (status === 'archived' && state.formData.id === id && state.currentTab === type) {
+  if (status === 'archived' && state.formData.id === id && curType() === type) {
     const remaining = activeEntries(state.entryIndex, type).filter((e) => e.id !== id);
     state.formData = remaining[0] ? { ...remaining[0] } : { type };
-    state.mode = 'read';
+    state.view = normalize(toRead(state.view), viewCtx());
     renderForm();
   }
   renderTypeNav();
-  applyMode();
+  applyViewChrome();
   highlightNav();
   showToast(status === 'archived' ? 'Archived entry' : 'Restored entry');
 }
 
 // Archive the entry currently open in the editor (header Archive button).
 function archiveCurrentEntry() {
-  if (state.formData.id) setEntryStatus(state.currentTab, state.formData.id, 'archived');
+  if (state.formData.id) setEntryStatus(curType(), state.formData.id, 'archived');
 }
 
 // Persist an entry to the active codex (Firestore) or the local index (local-only mode).
@@ -1367,7 +1451,7 @@ function persistEntry(type, entry) {
 function updateRawJson(jsonText) {
   // Editable only in the admin Types editor (the Raw JSON power tool). Builder entries no longer
   // surface Raw JSON in the content-edit path.
-  previewRawTextarea.readOnly = !(state.caps.canEdit && editingSchema());
+  previewRawTextarea.readOnly = !(state.caps.canEdit && inSchemaAdmin());
   // Never overwrite the textarea while the user is actively typing in it
   if (document.activeElement === previewRawTextarea) return;
   previewRawTextarea.value = jsonText;
@@ -1380,7 +1464,7 @@ function autoSaveToFirebase() {
   if (!state.formData.id) return; // a new entry persists on explicit Save (which assigns its id)
   const scope = codexScope();
   if (scope && scope.isConfigured()) {
-    scope.saveDoc(state.currentTab, state.formData.id, state.formData);
+    scope.saveDoc(curType(), state.formData.id, state.formData);
   }
 }
 
@@ -1396,10 +1480,10 @@ function saveEntry() {
     return;
   }
   if (!state.formData.id) {
-    const schema = getSchema(state.currentTab);
+    const schema = getSchema(curType());
     const title =
       (schema && state.formData[schema.titleField]) || state.formData.title || state.formData.name || '';
-    const existing = (state.entryIndex[state.currentTab] || []).map((e) => e.id);
+    const existing = (state.entryIndex[curType()] || []).map((e) => e.id);
     state.formData.id = deriveEntryId(title, existing);
   }
   if (!state.formData.status) state.formData.status = 'active';
@@ -1407,23 +1491,23 @@ function saveEntry() {
   const scope = codexScope();
   if (scope && scope.isConfigured()) {
     scope
-      .saveDoc(state.currentTab, state.formData.id, state.formData)
+      .saveDoc(curType(), state.formData.id, state.formData)
       .then(() => showToast('Saved entry'))
       .catch((err) => showToast('Save error: ' + err.message));
   } else {
     upsertLocalEntry(state.formData);
     showToast('Saved locally');
   }
-  state.mode = 'read';
+  state.view = normalize(toRead(state.view), viewCtx());
   refreshBuilderPreview();
   renderTypeNav(); // a newly-created entry shows up in the nav
-  applyMode();
+  applyViewChrome();
   highlightNav();
 }
 
 // Apply a live edit from the Raw JSON editor (admin Types power tool) back into the schema.
 function applyRawJsonEdit() {
-  if (editingSchema()) return applySchemaRawJsonEdit();
+  if (inSchemaAdmin()) return applySchemaRawJsonEdit();
 }
 
 function setJsonError(message) {
@@ -1440,7 +1524,7 @@ function clearJsonError() {
 // Raw JSON editor — live-apply on valid input, rebuild the editor on blur (admin Types only)
 previewRawTextarea.addEventListener('input', applyRawJsonEdit);
 previewRawTextarea.addEventListener('change', () => {
-  if (!editingSchema()) return;
+  if (!inSchemaAdmin()) return;
   try {
     JSON.parse(previewRawTextarea.value);
   } catch {

@@ -1,7 +1,7 @@
 /**
- * Admin section (admin-only): sub-nav + the Users & Access panel. The Types panel reuses the
- * existing schema editor, mounted by main.js. Pure HTML builders here; main.js owns the wiring
- * (roster subscriptions, grant/revoke, codex init) and the schema-editor state.
+ * Global-admin panels (admin-only): the Users & Access roster and the Codices manager. Panel
+ * switching + a way back out live in the sidebar (main.js renderAdminNav), not here. Pure HTML
+ * builders; main.js owns the wiring (roster subscriptions, grant/revoke, codex create/rename/archive).
  */
 
 function escapeHtml(text) {
@@ -10,13 +10,6 @@ function escapeHtml(text) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-}
-
-/** Sub-navigation between the admin panels. */
-export function renderAdminSubnav(panel) {
-  const tab = (key, label) =>
-    `<button class="admin-subnav-btn${panel === key ? ' active' : ''}" data-admin-panel="${key}">${label}</button>`;
-  return `<div class="admin-subnav">${tab('access', 'Users & Access')}${tab('types', 'Types')}${tab('codices', 'Codices')}</div>`;
 }
 
 /**
@@ -63,40 +56,6 @@ export function renderAccessPanel({ codexId, rows }) {
         <tbody>${rowsHtml}</tbody>
       </table>
     </div>`;
-}
-
-/**
- * Types-panel chrome around the schema editor: a "new type" bar, the editor mount point, and
- * (when present) an Archived-types list with Restore. `archived` = [{ type, label }]. Removal is
- * a status flag — an archived type leaves the nav but is one click from coming back.
- */
-export function renderTypesToolbar({ archived = [] } = {}) {
-  const archivedBlock = archived.length
-    ? `
-    <div class="admin-section">
-      <h3>Archived types</h3>
-      ${archived
-        .map(
-          (t) => `
-      <div class="codex-row" data-type="${escapeHtml(t.type)}">
-        <span>${escapeHtml(t.label || t.type)}</span>
-        <code class="admin-muted">${escapeHtml(t.type)}</code>
-        <span class="codex-row-actions">
-          <button class="btn btn-secondary btn-sm" data-type-restore="${escapeHtml(t.type)}">Restore</button>
-        </span>
-      </div>`
-        )
-        .join('')}
-    </div>`
-    : '';
-
-  return `
-    <div class="admin-section codex-create">
-      <input class="admin-input" id="new-type-name" placeholder="New type name — e.g. Trade Route" aria-label="New type name">
-      <button class="btn btn-primary btn-sm" id="new-type-btn">Add type</button>
-    </div>
-    <div id="admin-types-mount"></div>
-    ${archivedBlock}`;
 }
 
 /**

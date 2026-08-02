@@ -44,7 +44,7 @@
       </aside>
 
       <!-- Content workspace -->
-      <main id="main-workspace" class="app-workspace tab-builder mode-read">
+      <main id="main-workspace" class="app-workspace view-content-read">
         <!-- Editor (form) panel — full-width in builder edit mode; left panel in admin -->
         <section class="editor-panel glass-card">
           <div class="editor-header">
@@ -69,6 +69,7 @@
                 <button class="preview-tab-btn active" data-view="rendered">Preview</button>
                 <button class="preview-tab-btn" data-view="raw">Raw JSON</button>
               </div>
+              <button id="btn-structure" class="btn btn-secondary btn-sm" hidden>Structure</button>
               <button id="btn-edit-toggle" class="btn btn-primary btn-sm" hidden>Edit</button>
               <div id="active-file-indicator" class="compliance-badge is-local">
                 <span class="idle-dot"></span> Local only

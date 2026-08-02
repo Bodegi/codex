@@ -251,6 +251,9 @@ export function renderSchemaEditor(schema, { types, editingType, errors = [] }) 
         <label class="se-type-pick">Editing type
           <select class="se-input" data-se="type-picker">${typeOptions(types, editingType)}</select>
         </label>
+        <label class="se-type-name">Name
+          <input class="se-input" data-se="type-label" value="${escapeHtml(schema.label || '')}" placeholder="Type name">
+        </label>
         <span class="se-head-actions">
           <button type="button" class="btn btn-secondary btn-sm" data-se="reset">Revert changes</button>
           <button type="button" class="btn btn-secondary btn-sm se-danger" data-se="archive">Archive type</button>
@@ -302,6 +305,8 @@ export function attachSchemaEditor(root, onIntent) {
     switch (d.se) {
       case 'section-title':
         return onIntent({ action: 'rename-section', si: +d.si, title: el.value });
+      case 'type-label':
+        return onIntent({ action: 'edit-label', label: el.value });
       case 'field-label':
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { label: el.value } });
       case 'field-placeholder':

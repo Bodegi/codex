@@ -238,6 +238,27 @@ body {
   box-shadow: inset 3px 0 0 var(--accent-gold);
 }
 
+/* Admin sidebar: leave-admin link + the two admin panels. */
+.nav-admin-back {
+  color: var(--accent-gold, #d4af37);
+  font-weight: 500;
+  margin-bottom: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-dim);
+  border-radius: 0;
+}
+.nav-admin-back:hover { background: transparent; opacity: 0.8; }
+.nav-admin-group { display: flex; flex-direction: column; gap: 1px; }
+.nav-section-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  padding: 4px 10px;
+}
+.nav-admin-item { font-weight: 600; color: var(--text-main); }
+
 .nav-icon {
   display: inline-flex;
   flex-shrink: 0;
@@ -295,6 +316,41 @@ body {
   cursor: pointer;
 }
 .nav-mini-btn:hover { color: var(--text-main); border-color: var(--text-muted); }
+
+/* Admin-only "＋ New type" affordance at the foot of the nav. */
+.nav-new-type {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 4px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border-dim);
+}
+.nav-new-type-input {
+  width: 100%;
+  background: var(--bg-input, rgba(0, 0, 0, 0.2));
+  border: 1px solid var(--border-dim);
+  color: var(--text-main);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12.5px;
+}
+.nav-new-type-btn {
+  font-weight: 400;
+  font-size: 12.5px;
+  color: var(--accent-gold, #d4af37);
+  opacity: 0.85;
+}
+.nav-new-type-btn:hover { opacity: 1; }
+
+/* Rename field in the schema-editor head (Structure mode). */
+.se-type-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
 
 .sidebar-divider {
   height: 1px;
@@ -458,27 +514,32 @@ button.user-badge { cursor: pointer; }
   min-height: 0;
 }
 
-/* Builder read mode (default): full-width reader, form hidden — the reader IS the preview. */
-.app-workspace.tab-builder.mode-read {
+/* One flat class per view (set by renderView). Content read (default): full-width reader, form
+   hidden — the reader IS the preview. */
+.app-workspace.view-content-read {
   grid-template-columns: 1fr;
 }
-.app-workspace.tab-builder.mode-read .editor-panel { display: none; }
+.app-workspace.view-content-read .editor-panel { display: none; }
 
-/* Builder edit mode: full-width form, reader hidden. Save/Done return to the reader. */
-.app-workspace.tab-builder.mode-edit {
+/* Content edit: full-width form, reader hidden. Save/Done return to the reader. */
+.app-workspace.view-content-edit {
   grid-template-columns: 1fr;
 }
-.app-workspace.tab-builder.mode-edit .reader-panel { display: none; }
+.app-workspace.view-content-edit .reader-panel { display: none; }
 
-/* Admin: two-panel — the editor/subnav on the left, its preview (+ Raw JSON power tool) on the right. */
-.app-workspace.tab-admin { grid-template-columns: 1fr 1fr; }
+/* Admin surfaces — per-type schema editor ("Structure") and the global-admin door — are two-panel:
+   the editor/subnav on the left, its preview (+ Raw JSON power tool) on the right. */
+.app-workspace.view-content-admin,
+.app-workspace.view-global-admin { grid-template-columns: 1fr 1fr; }
 
-/* The editor header (per-entry Save/Done) only exists while editing a builder entry. */
+/* The editor header (per-entry Save/Done) only exists while editing an entry. */
 .editor-header { display: none; }
-.app-workspace.tab-builder.mode-edit .editor-header { display: flex; }
+.app-workspace.view-content-edit .editor-header { display: flex; }
 
-/* Raw JSON is an admin/power tool — hide the Preview/Raw switch outside the admin section. */
-.app-workspace:not(.tab-admin) .preview-mode-switch { display: none; }
+/* Raw JSON is an admin/power tool — the Preview/Raw switch shows only on the admin surfaces. */
+.preview-mode-switch { display: none; }
+.app-workspace.view-content-admin .preview-mode-switch,
+.app-workspace.view-global-admin .preview-mode-switch { display: flex; }
 
 /* Honor the hidden attribute even on flex/inline-flex controls (nav + toolbar buttons). */
 [hidden] {
@@ -773,7 +834,7 @@ textarea.form-control {
 }
 
 .preview-mode-switch {
-  display: flex;
+  /* display is owned by the .view-* rules above (admin surfaces only). */
   gap: 4px;
   background: rgba(0, 0, 0, 0.3);
   padding: 3px;
