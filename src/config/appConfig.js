@@ -32,6 +32,8 @@ export const appConfig = {
   supabase: {
     url: 'https://mdvkrumxjunrpabgeamy.supabase.co',
     anonKey: 'sb_publishable_sXEDmcIxs5XKKoRTyvAJdw_ltufKbi5',
+    // Also hard-coded in the Supabase Storage RLS policy — this is the SSOT for URL/path construction
+    // only, NOT authorization. Renaming here alone 403s every write. See src/utils/imageStore.js.
     bucket: 'codex-images',
   },
 };

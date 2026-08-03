@@ -45,6 +45,10 @@ service cloud.firestore {
     // reads as empty rather than denied — an awaiting-access user must be able to learn they have none.
     // A user may LIST their own grants (query where uid == me) to discover which codices they can open.
     // Writes are admin-only: nobody grants themselves access.
+    // `get`'s `doc.split('_')[0] == uid` is an exact owner-check ONLY because Firebase Auth uids contain
+    // no '_', so the uid is precisely the first segment of the `{uid}_{codexId}` id (built by permId).
+    // Keep that id shape: a uid containing '_', or reordering to `{codexId}_{uid}`, would mismatch (deny a
+    // user their own grant → stuck awaiting-access) or let a uid-prefix collision read someone else's doc.
     match /permissions/{doc} {
       allow get:   if isAdmin() || (isSignedIn() && doc.split('_')[0] == request.auth.uid);
       allow list:  if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);

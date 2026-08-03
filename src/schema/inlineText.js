@@ -9,6 +9,10 @@
 
 import { notFoundImage } from './notFoundImage.js';
 
+// Escapes " but deliberately NOT ' — every attribute the inline marks below emit (href/src/alt) is
+// DOUBLE-quoted, so &quot; is what closes the attribute-injection vector. This pairing is load-bearing:
+// single-quoting one of those attributes, or building an attr from a raw (un-escaped) value, silently
+// reopens XSS because formatInline output is inserted via innerHTML. Keep the attrs double-quoted.
 export function escapeHtml(text) {
   return String(text ?? '')
     .replace(/&/g, '&amp;')
@@ -44,7 +48,8 @@ export function formatInline(raw, resolveImage) {
     .join('');
 }
 
-// Inline-level marks applied to already-escaped text.
+// Inline-level marks applied to already-escaped text. Attrs (href/src/alt) MUST stay double-quoted:
+// escapeHtml neutralizes " but not ' (see escapeHtml), so single-quoting one reopens attribute-injection XSS.
 function inlineMarks(text, resolveImage) {
   return text
     .replace(/!\[(.*?)\]\((.*?)\)/g, (_m, alt, url) => renderImageMark(alt, url, resolveImage))

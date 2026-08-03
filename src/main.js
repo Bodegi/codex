@@ -1454,6 +1454,9 @@ function renderForm() {
   renderFormWithoutResubscribe();
 }
 
+// Re-render the form WITHOUT touching write-path state. Use THIS (not renderForm) for any mid-edit
+// re-render (e.g. a media mutation): renderForm resets state.baseVersion and clears state.dirty, which
+// mid-edit would silently disarm the unsaved-changes guard AND re-baseline the conflict check.
 function renderFormWithoutResubscribe() {
   lastFocusedProseField = null;
 

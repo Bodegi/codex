@@ -248,6 +248,11 @@ export class CodexScope {
    * so dropped fields actually disappear) or reject with a `version-conflict` error carrying the
    * current doc. `force` is the "overwrite mine" path — write regardless of a stale base version.
    * Returns the new version. Full replace (not merge) is why deletions persist.
+   *
+   * CALLER CONTRACT: `data` must be the COMPLETE entry, not a partial patch. The write is a full `set`
+   * with no merge (below), so any field omitted from `data` is silently erased — and it still satisfies
+   * the version+1 rule, so it looks successful. Status-only flips use `saveEntryStatus` (reads-current
+   * first) to avoid exactly this. Note the other writes in this file DO use `{merge:true}` — this one doesn't.
    */
   async saveEntry(type, id, data, baseVersion, { force = false } = {}) {
     if (!this.db) throw new Error('Firebase DB is not initialized');

@@ -10,6 +10,14 @@ dist/
 *.token
 token.txt
 
+# Local-only orientation docs — never published to the public repo
+HANDOFF.md
+backlog.md
+
+# Design specs are local-only build scaffolding — extract invariants to the code, then delete.
+# Kept out of the published repo (history retains any that were committed).
+docs/superpowers/specs/
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db

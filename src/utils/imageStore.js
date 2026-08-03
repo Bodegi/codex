@@ -16,6 +16,20 @@
 import { createClient } from '@supabase/supabase-js';
 
 /**
+ * Supabase Storage RLS the `codex-images` bucket depends on — it lives ONLY in the Supabase dashboard
+ * (there is no SQL/policy file in this repo), recorded here as the sole Supabase-touching module. Two
+ * write-policy pins are load-bearing and BOTH fail SILENTLY if "hardened" the wrong way:
+ *   - Granted `to public`, NOT `to authenticated`: Storage's RLS context can't read the Firebase
+ *     `iss`/`aud` claims on the authenticated-role path, and we mint no per-user `role:'authenticated'`
+ *     claim — so `to authenticated` (which looks stricter) silently denies every new user's first upload.
+ *   - `with check` pins `auth.jwt()->>'iss'`/`'aud'` to THIS Firebase project (`codex-80902`), not merely
+ *     "is authenticated": Firebase shares one signing key across all its projects, so a loose pin lets any
+ *     Firebase project's token write — and the bucket is public-read, so those bytes go world-visible.
+ *   - The policy hard-codes `bucket_id = 'codex-images'`; `appConfig.supabase.bucket` is the SSOT for the
+ *     URL/upload path only, NOT authorization — renaming it without recreating the bucket + policy 403s.
+ */
+
+/**
  * Build the byte store, or return `null` in local-only mode (no Supabase config), matching
  * the `fbManager.codex()` unconfigured convention — the caller guards and the upload UI is
  * hidden, so a null store is never handed to the upload coordinator.
