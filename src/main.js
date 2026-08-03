@@ -68,6 +68,7 @@ import { createImageStore } from './utils/imageStore.js';
 import { uploadImage } from './schema/imageUpload.js';
 import { attachLightbox } from './components/lightbox.js';
 import { openConfirm } from './components/confirmModal.js';
+import { openConflictModal } from './components/conflictModal.js';
 
 // Last-focused prose textarea, target for inline-image insertion
 let lastFocusedProseField = null;
@@ -109,8 +110,10 @@ const state = {
   firebaseConfig,
   fbManager: null,
   authManager: null,
-  activeDocUnsubscribe: null,
-  liveDocId: null,
+  // Explicit-save write path: `dirty` = unsaved form edits; `baseVersion` = the entry version this
+  // edit started from (the form-Save transaction's conflict guard compares against it).
+  dirty: false,
+  baseVersion: 0,
   // The current codex's live entries grouped by type (replaces the bundled SEED_BY_TYPE).
   entryIndex: {},
   // The current codex's live image index (id → URL), rebuilt from subscribeImagesForCodex. Empty until
@@ -147,6 +150,21 @@ const viewCtx = () => ({ caps: state.caps, types: listTypes() });
 function goto(nextView) {
   state.view = normalize(nextView, viewCtx());
   renderView();
+}
+
+// Explicit-save guard: leaving an entry mid-edit with unsaved changes must confirm first (there's no
+// autosave to fall back on). Returns true when it's safe to proceed — not editing, nothing dirty, or the
+// user chose to discard. Wraps the user-initiated edit-exit paths (Done, nav, codex switch, admin).
+async function confirmDiscardIfDirty() {
+  const editing = state.view.kind === 'type' && state.view.mode === 'edit';
+  if (!editing || !state.dirty) return true;
+  const ok = await openConfirm({
+    title: 'Discard unsaved changes?',
+    message: 'Your unsaved edits to this entry will be lost.',
+    confirmLabel: 'Discard',
+  });
+  if (ok) state.dirty = false;
+  return ok;
 }
 
 // Initialize Firebase + Google Auth. Auth needs an initialized Firebase app, so the auth manager
@@ -448,7 +466,6 @@ function teardownWorkspace() {
   if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
   if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
   if (imagesUnsubscribe) { imagesUnsubscribe(); imagesUnsubscribe = null; }
-  if (state.activeDocUnsubscribe) { state.activeDocUnsubscribe(); state.activeDocUnsubscribe = null; }
   if (codicesUnsub) { codicesUnsub(); codicesUnsub = null; }
   if (ownPermsUnsub) { ownPermsUnsub(); ownPermsUnsub = null; }
   if (adminUsersUnsub) { adminUsersUnsub(); adminUsersUnsub = null; }
@@ -457,8 +474,9 @@ function teardownWorkspace() {
 }
 
 // Enter the global-admin door (from the header user menu). Keeps the last panel if already there.
-function enterAdmin() {
+async function enterAdmin() {
   if (!state.caps.canAdmin) return;
+  if (!(await confirmDiscardIfDirty())) return;
   goto(openGlobalAdmin(state.view, inGlobalAdmin() ? state.view.panel : 'access'));
 }
 
@@ -613,13 +631,12 @@ codexSwitcher.addEventListener('click', () => {
 // Re-scope every codex subscription onto a different codex (§7 of the Phase-4 spec). The old manual
 // "preserve Admin across the switch" hack is gone: normalize() keeps a global-admin view as-is and
 // retargets a now-missing type, so the whole choreography reduces to re-clamp → render.
-function switchCodex(codexId) {
+async function switchCodex(codexId) {
   if (!codexId || codexId === state.currentCodexId) return;
+  if (!(await confirmDiscardIfDirty())) return;
   if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
   if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
   if (imagesUnsubscribe) { imagesUnsubscribe(); imagesUnsubscribe = null; }
-  if (state.activeDocUnsubscribe) { state.activeDocUnsubscribe(); state.activeDocUnsubscribe = null; }
-  state.liveDocId = null; // no doc open on the new codex yet — don't show the old codex's "Live sync · id"
 
   state.currentCodexId = codexId;
   localStorage.setItem(CURRENT_CODEX_KEY, codexId);
@@ -652,7 +669,19 @@ function ensureValidView() {
   if (inSchemaAdmin()) return;                     // valid type + editing its schema — don't clobber
 
   const open = state.formData && state.formData.id ? findEntryByTypeId(type, state.formData.id) : null;
-  if (open) { highlightNav(); return; }
+  if (open) {
+    // Read mode reflects a remote edit to the open entry live; edit mode keeps its in-memory draft
+    // (refreshed only by an explicit Save/conflict). Compare versions so our own just-saved change —
+    // which already advanced state.formData.version — doesn't toast at us.
+    if (state.view.kind === 'type' && state.view.mode === 'read' && (open.version ?? 0) !== (state.formData.version ?? 0)) {
+      state.formData = { ...open };
+      state.baseVersion = open.version ?? 0;
+      refreshBuilderPreview();
+      showToast('This entry was just updated');
+    }
+    highlightNav();
+    return;
+  }
   loadFirstEntry(type);                            // the open entry was archived → fall back to first
 }
 
@@ -831,7 +860,8 @@ function wireTypeNav() {
 }
 
 // Select a type in the reader (opens its first entry). The nav-header entry point.
-function selectTypeTab(type) {
+async function selectTypeTab(type) {
+  if (!(await confirmDiscardIfDirty())) return;
   state.navExpanded.add(type);
   goto(selectType(state.view, type));
 }
@@ -945,7 +975,8 @@ structureBtn.addEventListener('click', () => {
   goto(inSchemaAdmin() ? toRead(state.view) : toSchemaAdmin(state.view));
 });
 
-doneEditBtn.addEventListener('click', () => {
+doneEditBtn.addEventListener('click', async () => {
+  if (!(await confirmDiscardIfDirty())) return;
   state.view = toRead(state.view);
   refreshBuilderPreview();
   applyViewChrome();
@@ -1413,40 +1444,14 @@ function applySchemaRawJsonEdit() {
 }
 
 // Realtime Firestore Doc Subscription
-function subscribeToLiveFirestoreDoc(type, id) {
-  // Re-rendering the same open entry (e.g. an images-index refresh mid-edit) must NOT tear down and
-  // re-establish an identical subscription: the fresh initial snapshot would run the merge below and
-  // reassign state.formData to a new object, orphaning any in-flight callback holding the old reference
-  // (e.g. the image picker's field assignment after an upload). A live subscription already pushes remote
-  // changes, so re-subscribing the same doc is redundant as well as harmful.
-  if (id && state.liveDocId === id && state.activeDocUnsubscribe) {
-    renderSyncStatus();
-    return;
-  }
-  if (state.activeDocUnsubscribe) {
-    state.activeDocUnsubscribe();
-    state.activeDocUnsubscribe = null;
-  }
-  state.liveDocId = null;
-
-  const scope = codexScope();
-  if (scope && scope.isConfigured() && id) {
-    state.liveDocId = id;
-    state.activeDocUnsubscribe = scope.subscribeToDoc(type, id, (remoteData) => {
-      if (remoteData) {
-        state.formData = { ...state.formData, ...remoteData };
-        renderFormWithoutResubscribe();
-      }
-    });
-  }
-
-  renderSyncStatus();
-}
-
-// Render Form into Editor Panel
+// Render the entry form from state.formData and reset the write-path state for a freshly-opened entry:
+// capture the version this edit starts from and clear dirty. Edit mode holds NO live subscription — that
+// was the self-echo / clobber source. Read mode picks up remote changes via the entries subscription
+// (see ensureValidView); the form stays in-memory until an explicit Save.
 function renderForm() {
+  state.baseVersion = state.formData.version ?? 0;
+  state.dirty = false;
   renderFormWithoutResubscribe();
-  subscribeToLiveFirestoreDoc(curType(), state.formData.id);
 }
 
 function renderFormWithoutResubscribe() {
@@ -1478,8 +1483,8 @@ function attachFormInputListeners() {
       // Keep the header title live as the title field is edited.
       readerTitle.textContent = entryTitle(state.formData, curType());
       editorTitle.textContent = readerTitle.textContent;
+      state.dirty = true;
       refreshBuilderPreview();
-      autoSaveToFirebase();
     });
   });
 
@@ -1496,8 +1501,8 @@ function wireMediaForCurrentForm() {
     container: formContainer,
     formData: state.formData,
     onMutate: () => {
+      state.dirty = true;
       renderFormWithoutResubscribe();
-      autoSaveToFirebase();
     },
     getFocusedField: () => lastFocusedProseField,
     listImages: () => state.imageIndex.listImages(),
@@ -1552,12 +1557,13 @@ previewRendered.addEventListener('click', (e) => {
   loadEntry(link.dataset.refType, link.dataset.refId);
 });
 
-function loadEntry(type, id) {
+async function loadEntry(type, id) {
   const entry = findEntryByTypeId(type, id);
   if (!entry) {
     showToast('Entry not found');
     return;
   }
+  if (!(await confirmDiscardIfDirty())) return;
   state.formData = { ...entry };
   state.navExpanded.add(type); // keep the selected entry's section open
   // Open an entry in read mode (preserve edit if the author was already editing this type).
@@ -1573,10 +1579,11 @@ function loadEntry(type, id) {
 // A new entry is a blank-from-schema form in edit mode; its id is assigned from the title on
 // the first Save (deriveEntryId). Archive/restore is a `status` flip persisted like any edit.
 
-function newEntry(type) {
+async function newEntry(type) {
   if (!state.caps.canEdit) return;
   const schema = getSchema(type);
   if (!schema) return;
+  if (!(await confirmDiscardIfDirty())) return;
   state.navExpanded.add(type);
   state.formData = blankEntry(schema);
   state.view = normalize(toEdit(selectType(state.view, type)), viewCtx());
@@ -1601,8 +1608,14 @@ function setEntryStatus(type, id, status) {
   if (!state.caps.canEdit) return;
   const entry = findEntryByTypeId(type, id);
   if (!entry) return;
-  const updated = { ...entry, status };
-  persistEntry(type, updated);
+  const scope = codexScope();
+  if (scope && scope.isConfigured()) {
+    // Version-bumping status flip (reads current in-transaction) so it never clobbers a concurrent
+    // field edit — see CodexScope.saveEntryStatus.
+    scope.saveEntryStatus(type, id, status).catch((err) => showToast('Save error: ' + err.message));
+  } else {
+    upsertLocalEntry({ ...entry, status });
+  }
   if (status === 'archived' && state.formData.id === id && curType() === type) {
     const remaining = activeEntries(state.entryIndex, type).filter((e) => e.id !== id);
     state.formData = remaining[0] ? { ...remaining[0] } : { type };
@@ -1620,16 +1633,6 @@ function archiveCurrentEntry() {
   if (state.formData.id) setEntryStatus(curType(), state.formData.id, 'archived');
 }
 
-// Persist an entry to the active codex (Firestore) or the local index (local-only mode).
-function persistEntry(type, entry) {
-  const scope = codexScope();
-  if (scope && scope.isConfigured()) {
-    scope.saveDoc(type, entry.id, entry).catch((err) => showToast('Save error: ' + err.message));
-  } else {
-    upsertLocalEntry(entry);
-  }
-}
-
 function updateRawJson(jsonText) {
   // Editable only in the admin Types editor (the Raw JSON power tool). Builder entries no longer
   // surface Raw JSON in the content-edit path.
@@ -1640,19 +1643,20 @@ function updateRawJson(jsonText) {
   clearJsonError();
 }
 
-// Persist the current entry to Firebase — used by autosave-on-input and the form Save button.
-function autoSaveToFirebase() {
-  if (!state.caps.canEdit) return; // read-only users never write (rules also enforce)
-  if (!state.formData.id) return; // a new entry persists on explicit Save (which assigns its id)
-  const scope = codexScope();
-  if (scope && scope.isConfigured()) {
-    scope.saveDoc(curType(), state.formData.id, state.formData);
-  }
+// Return to the reader after a successful save (shared by the cloud + local paths).
+function finishSaveToRead() {
+  state.dirty = false;
+  state.view = normalize(toRead(state.view), viewCtx());
+  refreshBuilderPreview();
+  renderTypeNav(); // a newly-created entry shows up in the nav
+  applyViewChrome();
+  highlightNav();
 }
 
-// Explicit per-entry Save (form header): assign a new entry's id from its title, persist, then
-// return to the reader.
-function saveEntry() {
+// Explicit per-entry Save (form header): assign a new entry's id from its title, then write it under a
+// version guard. A matched version does a full-doc write (deletions persist); a stale version raises the
+// conflict modal — keep the user's edits and let them overwrite or reload. `force` is the overwrite path.
+async function saveEntry({ force = false } = {}) {
   if (!state.caps.canEdit) {
     showToast('Read-only — you don’t have edit access.');
     return;
@@ -1671,20 +1675,36 @@ function saveEntry() {
   if (!state.formData.status) state.formData.status = 'active';
 
   const scope = codexScope();
-  if (scope && scope.isConfigured()) {
-    scope
-      .saveDoc(curType(), state.formData.id, state.formData)
-      .then(() => showToast('Saved entry'))
-      .catch((err) => showToast('Save error: ' + err.message));
-  } else {
+  if (!(scope && scope.isConfigured())) {
     upsertLocalEntry(state.formData);
     showToast('Saved locally');
+    finishSaveToRead();
+    return;
   }
-  state.view = normalize(toRead(state.view), viewCtx());
-  refreshBuilderPreview();
-  renderTypeNav(); // a newly-created entry shows up in the nav
-  applyViewChrome();
-  highlightNav();
+
+  try {
+    const nextVersion = await scope.saveEntry(curType(), state.formData.id, state.formData, state.baseVersion, { force });
+    state.formData.version = nextVersion;
+    state.baseVersion = nextVersion;
+    showToast('Saved entry');
+    finishSaveToRead();
+  } catch (err) {
+    if (err.code !== 'version-conflict') {
+      showToast('Save error: ' + err.message);
+      return;
+    }
+    const choice = await openConflictModal();
+    if (choice === 'overwrite') {
+      await saveEntry({ force: true });
+    } else if (choice === 'reload') {
+      const theirs = err.current || {};
+      state.formData = { ...theirs };
+      state.baseVersion = theirs.version ?? 0;
+      finishSaveToRead();
+      showToast('Reloaded the latest version');
+    }
+    // dismiss (null) → stay in edit with the unsaved edits intact
+  }
 }
 
 // Apply a live edit from the Raw JSON editor (admin Types power tool) back into the schema.
@@ -1721,7 +1741,7 @@ function renderSyncStatus() {
 
   let label;
   if (configured) {
-    label = state.liveDocId ? `Live sync · ${state.liveDocId}` : 'Cloud sync on';
+    label = 'Cloud sync on';
   } else {
     label = 'Local only — saved in this browser';
   }

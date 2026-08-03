@@ -100,9 +100,9 @@ export function attachMediaControls({ container, formData, onMutate, getFocusedF
           onMutate();
         }
       } else if (action === 'hero-clear') {
-        // Empty string, not `delete` — saveDoc writes with merge:true, which never removes a
-        // key, so a deleted field silently resurrects on reload. '' is the entry-draft's own
-        // canonical "no hero" value, and the read-side treats it as unset.
+        // '' is the entry-draft's canonical "no hero" value (the read-side treats it as unset), which
+        // reads cleaner than deleting the key. Entry Save now full-replaces the doc under a version
+        // guard, so a genuine key deletion would persist too — but '' keeps the field explicit.
         formData.heroImage = '';
         onMutate();
       } else if (action === 'gallery-add') {

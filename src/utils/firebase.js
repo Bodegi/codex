@@ -20,6 +20,7 @@ import {
   query,
   where,
   onSnapshot,
+  runTransaction,
   arrayUnion,
   arrayRemove
 } from 'firebase/firestore';
@@ -40,6 +41,7 @@ import {
   atlasDocPath
 } from './codexPaths.js';
 import { buildUserDoc } from './userDoc.js';
+import { resolveSave } from '../schema/saveResolve.js';
 
 const now = () => new Date().toISOString();
 
@@ -240,14 +242,48 @@ export class CodexScope {
     return this.db !== null;
   }
 
-  /** Save an entry (Civilization, Mod, Region, Decision Log). */
-  async saveDoc(type, id, data) {
+  /**
+   * Save an entry from the form, guarded by its version. Runs a transaction: read the live
+   * version, and via `resolveSave` either write the full doc at `version + 1` (a full replace,
+   * so dropped fields actually disappear) or reject with a `version-conflict` error carrying the
+   * current doc. `force` is the "overwrite mine" path — write regardless of a stale base version.
+   * Returns the new version. Full replace (not merge) is why deletions persist.
+   */
+  async saveEntry(type, id, data, baseVersion, { force = false } = {}) {
     if (!this.db) throw new Error('Firebase DB is not initialized');
-    await setDoc(
-      doc(this.db, ...entryDocPath(this.codexId, type, id)),
-      { ...data, type, id, updatedAt: now() },
-      { merge: true }
-    );
+    const ref = doc(this.db, ...entryDocPath(this.codexId, type, id));
+    return runTransaction(this.db, async (tx) => {
+      const snap = await tx.get(ref);
+      const currentVersion = snap.exists() ? snap.data().version : undefined;
+      const { action, nextVersion } = resolveSave({ currentVersion, baseVersion, force });
+      if (action === 'conflict') {
+        const err = new Error('version-conflict');
+        err.code = 'version-conflict';
+        err.current = snap.exists() ? snap.data() : null;
+        throw err;
+      }
+      tx.set(ref, { ...data, type, id, version: nextVersion, updatedAt: now() });
+      return nextVersion;
+    });
+  }
+
+  /**
+   * Flip an entry's status (archive/restore) without clobbering a concurrent field edit: read the
+   * live doc, set `status` on that fresh copy, and bump `version` so it stays monotonic (which is
+   * what keeps a concurrent editor's form-Save conflict check honest). Always applies — this is a
+   * deliberate action, not a guarded save. No-op if the doc is gone.
+   */
+  async saveEntryStatus(type, id, status) {
+    if (!this.db) throw new Error('Firebase DB is not initialized');
+    const ref = doc(this.db, ...entryDocPath(this.codexId, type, id));
+    return runTransaction(this.db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return undefined;
+      const current = snap.data();
+      const nextVersion = (current.version ?? 0) + 1;
+      tx.set(ref, { ...current, status, version: nextVersion, updatedAt: now() });
+      return nextVersion;
+    });
   }
 
   /**
@@ -259,14 +295,6 @@ export class CodexScope {
     const col = collection(this.db, ...entriesCollectionPath(this.codexId));
     return onSnapshot(col, (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
-    });
-  }
-
-  /** Subscribe to real-time updates for a specific entry. */
-  subscribeToDoc(type, id, callback) {
-    if (!this.db) return () => {};
-    return onSnapshot(doc(this.db, ...entryDocPath(this.codexId, type, id)), (snapshot) => {
-      if (snapshot.exists()) callback(snapshot.data());
     });
   }
 

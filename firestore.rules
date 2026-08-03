@@ -57,9 +57,20 @@ service cloud.firestore {
       allow list:  if isAdmin();                                  // only an admin enumerates all codices
       allow write: if isAdmin();                                  // codex metadata: admin only
 
+      // Entries carry a monotonic integer `version`. The app writes under a transaction that reads the
+      // live version and writes version+1 (a full-doc replace, so field deletions persist); this rule is
+      // the data-layer backstop that no write skips or rolls back the version. Conflict *detection* is
+      // client-side (only the client knows the base version it started from) — see the write-path spec.
       match /entries/{entryId} {
-        allow read:  if isAdmin() || hasPerm(codexId);
-        allow write: if isAdmin() || isEditor(codexId);
+        function canWriteEntry() { return isAdmin() || isEditor(codexId); }
+        allow read:   if isAdmin() || hasPerm(codexId);
+        allow create: if canWriteEntry()
+          && request.resource.data.version is int
+          && request.resource.data.version == 1;
+        allow update: if canWriteEntry()
+          && request.resource.data.version is int
+          && request.resource.data.version == (('version' in resource.data ? resource.data.version : 0) + 1);
+        allow delete: if canWriteEntry();
       }
       match /atlas/{docId} {
         allow read:  if isAdmin() || hasPerm(codexId);
