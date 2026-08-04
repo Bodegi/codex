@@ -10,10 +10,10 @@
  * can never drift.
  */
 
-import { fieldKinds, MEDIA_KINDS } from './fieldKinds.js';
+import { fieldKinds } from './fieldKinds.js';
 
-/** Every kind the app can render: the pure registry kinds plus the media kinds. */
-const KNOWN_KINDS = new Set([...Object.keys(fieldKinds), ...MEDIA_KINDS]);
+/** Every kind the app can render — the one registry now holds media alongside the pure kinds. */
+const KNOWN_KINDS = new Set(Object.keys(fieldKinds));
 
 /**
  * Validate a working schema. Returns `{ ok, errors }` — `ok` is true only when

@@ -16,11 +16,11 @@
  */
 
 import { escapeHtml } from '../schema/inlineText.js';
-import { fieldKinds, MEDIA_KINDS } from '../schema/fieldKinds.js';
+import { fieldKinds } from '../schema/fieldKinds.js';
 import { slugify, uniqueSlug } from '../schema/slug.js';
 
-/** Field kinds the editor's picker offers: pure registry kinds first, then media. */
-export const FIELD_KIND_OPTIONS = [...Object.keys(fieldKinds), ...MEDIA_KINDS];
+/** Field kinds the editor's picker offers — the one registry, in declaration order. */
+export const FIELD_KIND_OPTIONS = Object.keys(fieldKinds);
 
 /** Kinds that take a free-text placeholder (media/reference don't). */
 const PLACEHOLDER_KINDS = new Set(['text', 'prose', 'list']);

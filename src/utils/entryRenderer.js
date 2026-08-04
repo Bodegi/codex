@@ -8,13 +8,14 @@
  *
  *   metadata callout (showInMetadata fields) -> <h1> title -> hero image -> sections
  *
- * Media fields (hero/gallery) are not rendered by the generic section loop: the hero
- * renders once at the top, and the gallery carousel is appended by the caller.
+ * The hero keeps its special top-of-body placement (above the sections), but that placement
+ * is now driven by the registered `hero` component's `renderRead` rather than a bespoke helper.
+ * Every other component — the gallery carousel included — renders inline where its field sits,
+ * driven off `layout`: a 'break' component (gallery) emits its own block with no field heading.
  */
 
 import { getSchema } from '../schema/schemaStore.js';
-import { notFoundImage } from '../schema/notFoundImage.js';
-import { getKind, MEDIA_KINDS, displayValue, unknownKindPlaceholder } from '../schema/fieldKinds.js';
+import { getKind, getLayout, displayValue, unknownKindPlaceholder } from '../schema/fieldKinds.js';
 import { escapeHtml, formatInline } from '../schema/inlineText.js';
 
 // Re-exported for callers that still import it from here (e.g. main.js).
@@ -42,27 +43,29 @@ function metadataBox(schema, d, ctx) {
   return `<div class="metadata-box"><strong>Metadata</strong>${items}</div>`;
 }
 
-// The hero image (top of body), or '' when unset/unresolved.
+// The hero image (top of body), driven by the registered `hero` component's read view.
+// '' when the type has no hero field or none is set — the layout stays the renderer's call.
 function heroImage(schema, d, ctx) {
   const field = allFields(schema).find((f) => f.kind === 'hero');
   if (!field) return '';
-  const id = d[field.key];
-  if (!id) return '';                                     // no hero set → render nothing
-  const url = ctx?.resolveImage ? ctx.resolveImage(id) : null;
-  if (!url) return notFoundImage('image-missing-hero');   // set but unresolved → placeholder, never a broken page
-  return `<img class="entry-hero" src="${url}" alt="${escapeHtml(d[schema.titleField] || '')}">`;
+  return getKind('hero').renderRead(field, d[field.key], ctx);
 }
 
 function renderSection(section, d, skip, ctx) {
-  const fields = (section.fields || []).filter((f) => !MEDIA_KINDS.has(f.kind) && !skip.has(f.key));
+  // Hero is top-placed above the sections (see heroImage); everything else renders in place.
+  const fields = (section.fields || []).filter((f) => f.kind !== 'hero' && !skip.has(f.key));
   if (fields.length === 0) return '';
   const body = fields
     .map((field) => {
       const kind = getKind(field.kind);
-      const value = kind ? kind.renderRead(field, d[field.key], ctx) : unknownKindPlaceholder(field.kind);
-      return `<h3>${escapeHtml(field.label)}</h3>${value}`;
+      if (!kind) return `<h3>${escapeHtml(field.label)}</h3>${unknownKindPlaceholder(field.kind)}`;
+      const html = kind.renderRead(field, d[field.key], ctx);
+      // Break components (gallery) render as their own block, with no field heading.
+      return getLayout(field.kind) === 'break' ? html : `<h3>${escapeHtml(field.label)}</h3>${html}`;
     })
     .join('');
+  // A section whose only content is an empty break component (e.g. an empty gallery) collapses.
+  if (body.trim() === '') return '';
   return `<h2>${escapeHtml(section.title)}</h2>${body}`;
 }
 

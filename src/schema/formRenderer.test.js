@@ -39,10 +39,25 @@ test('renderForm renders each field label and a control carrying its field-key',
   assert.match(html, /data-field-key="tags"/);
 });
 
-test('renderForm skips media fields and all-media sections', () => {
+test('renderForm renders media fields inline as break blocks carrying their field-key', () => {
   const html = renderForm(SCHEMA, {});
-  assert.doesNotMatch(html, /Imagery/);
-  assert.doesNotMatch(html, /data-field-key="heroImage"/);
+  assert.match(html, /class="section-header">Imagery</);
+  assert.match(html, /data-field-key="heroImage"/);
+  assert.match(html, /data-media="hero-pick"/);
+});
+
+test('renderForm places a break component outside the .form-grid', () => {
+  // The Imagery section is hero-only: its block sits directly in the section, not wrapped in a grid.
+  const html = renderForm(SCHEMA, {});
+  const imagery = html.slice(html.indexOf('>Imagery<'));
+  assert.doesNotMatch(imagery.slice(0, imagery.indexOf('</div></div>')), /form-grid/);
+});
+
+test('renderForm gives prose/list the full-width grid cell', () => {
+  const html = renderForm(SCHEMA, {});
+  assert.match(html, /class="form-group form-grid-full"><label>Notes</);
+  assert.match(html, /class="form-group form-grid-full"><label>Tags</);
+  assert.match(html, /class="form-group"><label>Name</); // text stays a plain grid cell
 });
 
 test('renderForm shows a placeholder for an unknown field kind', () => {
@@ -50,10 +65,11 @@ test('renderForm shows a placeholder for an unknown field kind', () => {
   assert.match(renderForm(schema, {}), /unknown field kind/);
 });
 
-test('renderForm drives a real loaded schema without the Imagery section', () => {
+test('renderForm drives a real loaded schema including its Imagery section', () => {
   const html = renderForm(getSchema('note'), { id: 'welcome', tags: ['demo'] });
   assert.match(html, /class="section-header">Note</);
   assert.match(html, /data-field-key="id"[^>]*value="welcome"/);
   assert.match(html, /data-field-key="tags"/);
-  assert.doesNotMatch(html, /Imagery/);
+  assert.match(html, /class="section-header">Imagery</);
+  assert.match(html, /data-field-key="heroImage"/);
 });

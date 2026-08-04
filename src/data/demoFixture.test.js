@@ -12,9 +12,9 @@ import assert from 'node:assert/strict';
 
 import { demoCodexId, demoSchemas, demoEntriesByType } from './demoFixture.js';
 import { validateSchema } from '../schema/schemaValidate.js';
-import { fieldKinds, MEDIA_KINDS } from '../schema/fieldKinds.js';
+import { fieldKinds } from '../schema/fieldKinds.js';
 
-const ALL_KINDS = [...Object.keys(fieldKinds), ...MEDIA_KINDS];
+const ALL_KINDS = Object.keys(fieldKinds);
 
 test('the demo codex has a non-empty id', () => {
   assert.equal(typeof demoCodexId, 'string');

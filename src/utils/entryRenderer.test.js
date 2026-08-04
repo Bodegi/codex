@@ -68,7 +68,16 @@ test('an unset hero renders neither an image nor a placeholder', () => {
   assert.doesNotMatch(html, /entry-hero|image-missing/);
 });
 
-test('gallery is not rendered inline (handled by the appended carousel)', () => {
-  const html = renderEntryHTML('note', { ...NOTE, gallery: ['a.png'] });
-  assert.doesNotMatch(html, /<h3>Gallery<\/h3>/);
+test('gallery renders inline as a carousel in its section, with no field heading', () => {
+  const ctx = { resolveImage: (id) => `/i/${id}` };
+  const html = renderEntryHTML('note', { ...NOTE, gallery: ['a.png'] }, ctx);
+  assert.match(html, /<h2>Imagery<\/h2>/);   // the section it lives in
+  assert.match(html, /carousel/);
+  assert.match(html, /src="\/i\/a.png"/);
+  assert.doesNotMatch(html, /<h3>Gallery<\/h3>/); // break components carry no field heading
+});
+
+test('an Imagery section with an empty gallery (and no hero) collapses entirely', () => {
+  const html = renderEntryHTML('note', { ...NOTE, gallery: [] });
+  assert.doesNotMatch(html, /<h2>Imagery<\/h2>/);
 });

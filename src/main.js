@@ -64,17 +64,14 @@ import {
   renderIconsPanel,
 } from './components/adminView.js';
 import { resolveCapabilities, isAdminEmail } from './utils/capabilities.js';
-import { renderMediaControls, attachMediaControls } from './components/mediaControls.js';
-import { renderCarousel, initCarousel } from './components/carousel.js';
+import { getKind } from './schema/fieldKinds.js';
+import { initCarousel } from './components/carousel.js';
 import { createImageIndex, publicUrl } from './schema/imageIndex.js';
 import { createImageStore } from './utils/imageStore.js';
 import { uploadImage } from './schema/imageUpload.js';
 import { attachLightbox } from './components/lightbox.js';
 import { openConfirm } from './components/confirmModal.js';
 import { openConflictModal } from './components/conflictModal.js';
-
-// Last-focused prose textarea, target for inline-image insertion
-let lastFocusedProseField = null;
 
 // localStorage key persisting the active codex across reloads.
 const CURRENT_CODEX_KEY = 'codex_current_id';
@@ -89,12 +86,6 @@ const supabaseConfig = resolveSupabaseConfig(appConfig.supabase, localStorage.ge
 // The codex shown first: a configured build defaults to the baked codex; local-only mode is the
 // single demo-fixture codex (no switcher, no Firestore).
 const DEFAULT_CODEX_ID = firebaseConfig ? (appConfig.defaultCodexId || 'atm10') : demoCodexId;
-
-// Whether a type's schema declares imagery fields (hero/gallery) → show the media controls.
-const schemaHasMedia = (type) => {
-  const schema = getSchema(type);
-  return !!schema && schema.sections.some((s) => s.fields.some((f) => f.kind === 'hero' || f.kind === 'gallery'));
-};
 
 // Application State
 const state = {
@@ -1641,17 +1632,14 @@ function renderForm() {
 // re-render (e.g. a media mutation): renderForm resets state.baseVersion and clears state.dirty, which
 // mid-edit would silently disarm the unsaved-changes guard AND re-baseline the conflict check.
 function renderFormWithoutResubscribe() {
-  lastFocusedProseField = null;
-
   const title = entryTitle(state.formData, curType());
   readerTitle.textContent = title;
   editorTitle.textContent = title;
 
-  const mediaBlock = schemaHasMedia(curType()) ? renderMediaControls(state.formData, renderCtx.resolveImage) : '';
-  formContainer.innerHTML = renderSchemaForm(getSchema(curType()), state.formData, renderCtx) + mediaBlock;
+  formContainer.innerHTML = renderSchemaForm(getSchema(curType()), state.formData, renderCtx);
 
   attachFormInputListeners();
-  wireMediaForCurrentForm();
+  wireComponentMounts();
   refreshBuilderPreview();
 }
 
@@ -1669,10 +1657,11 @@ function readFieldValue(el) {
   return el.value;
 }
 
-// Attach Input Listeners & Auto-Sync to Firebase. Schema fields carry data-field-key
-// (+ data-field-kind); media buttons carry neither and are wired separately.
+// Attach input listeners to the scrape-able controls (text/prose/list/reference), which carry
+// data-field-kind. Break components (hero/gallery) carry data-field-key on their root but no
+// data-field-kind — they report through their mount's onChange, not this scrape (see wireComponentMounts).
 function attachFormInputListeners() {
-  formContainer.querySelectorAll('[data-field-key]').forEach((input) => {
+  formContainer.querySelectorAll('[data-field-kind]').forEach((input) => {
     const sync = (e) => {
       const el = e.target;
       const key = el.dataset.fieldKey;
@@ -1689,24 +1678,13 @@ function attachFormInputListeners() {
     input.addEventListener('input', sync);
     input.addEventListener('change', sync);
   });
-
-  // Track the last-focused prose field for inline-image insertion
-  formContainer.querySelectorAll('textarea[data-field-kind="prose"]').forEach((ta) => {
-    ta.addEventListener('focus', () => { lastFocusedProseField = ta; });
-  });
 }
 
-// Wire the imagery controls (hero / carousel / inline) for media-capable tabs
-function wireMediaForCurrentForm() {
-  if (!schemaHasMedia(curType())) return;
-  attachMediaControls({
-    container: formContainer,
-    formData: state.formData,
-    onMutate: () => {
-      state.dirty = true;
-      renderFormWithoutResubscribe();
-    },
-    getFocusedField: () => lastFocusedProseField,
+// The mount-time context: renderCtx (image/reference resolution) plus the picker seam every
+// media component's mount needs — the live image list and the editor upload/remove affordances.
+function mountCtx() {
+  return {
+    ...renderCtx,
     listImages: () => state.imageIndex.listImages(),
     pickerOptions: {
       // Editors of the current codex may upload into it and remove images from it, inline in the picker.
@@ -1714,6 +1692,35 @@ function wireMediaForCurrentForm() {
       onUpload: uploadImageToCurrentCodex,
       onRemove: removeImageFromCurrentCodex,
     },
+  };
+}
+
+// Generic imperative-wiring pass: after the form HTML is in the DOM, every component that
+// declares a `mount` (hero/gallery imagery, prose inline-insert) gets wired. Components report
+// edits through onChange → data[field.key], the single value path (§2.2 of the composition spec).
+function wireComponentMounts() {
+  const schema = getSchema(curType());
+  if (!schema) return;
+  const byKey = new Map();
+  for (const section of schema.sections || []) {
+    for (const field of section.fields || []) byKey.set(field.key, field);
+  }
+  const ctx = mountCtx();
+  formContainer.querySelectorAll('[data-field-key]').forEach((el) => {
+    const field = byKey.get(el.dataset.fieldKey);
+    if (!field) return;
+    const component = getKind(field.kind);
+    if (!component?.mount) return;
+    component.mount(el, {
+      field,
+      value: state.formData[field.key],
+      onChange: (v) => {
+        state.formData[field.key] = v;
+        state.dirty = true;
+        renderFormWithoutResubscribe();
+      },
+      ctx,
+    });
   });
 }
 
@@ -1729,9 +1736,10 @@ function entryHasContent() {
   );
 }
 
-// Entry HTML + carousel composed after it (carousel is never part of the entry body)
+// The rendered entry. Media (hero at top, the gallery carousel in its section) is now part of
+// the entry HTML via the registered components — no separately-appended carousel.
 function currentPreviewHTML() {
-  return renderEntryHTML(curType(), state.formData, renderCtx) + renderCarousel(state.formData.gallery, renderCtx.resolveImage);
+  return renderEntryHTML(curType(), state.formData, renderCtx);
 }
 
 // Re-render the current builder entry & refresh both preview panels

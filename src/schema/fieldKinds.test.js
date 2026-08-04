@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   fieldKinds,
   getKind,
-  MEDIA_KINDS,
+  getLayout,
   toList,
   displayValue,
   unknownKindPlaceholder,
@@ -216,12 +216,67 @@ test('displayValue joins lists and resolves reference labels', () => {
   assert.equal(displayValue({ kind: 'text' }, 'plain'), 'plain');
 });
 
-test('MEDIA_KINDS marks hero and gallery; getKind returns null for them and unknowns', () => {
-  assert.ok(MEDIA_KINDS.has('hero'));
-  assert.ok(MEDIA_KINDS.has('gallery'));
-  assert.equal(getKind('hero'), null);
-  assert.equal(getKind('bogus'), null);
+test('the registry holds media alongside the pure kinds; getKind resolves them', () => {
+  assert.equal(getKind('hero'), fieldKinds.hero);
+  assert.equal(getKind('gallery'), fieldKinds.gallery);
   assert.equal(getKind('text'), fieldKinds.text);
+  assert.equal(getKind('bogus'), null);
+});
+
+// --- layout contract ---
+
+test('getLayout: pure text/reference are grid, prose/list are full, media is break', () => {
+  assert.equal(getLayout('text'), 'grid');
+  assert.equal(getLayout('reference'), 'grid');
+  assert.equal(getLayout('prose'), 'full');
+  assert.equal(getLayout('list'), 'full');
+  assert.equal(getLayout('hero'), 'break');
+  assert.equal(getLayout('gallery'), 'break');
+  assert.equal(getLayout('bogus'), 'grid'); // unknown kinds fall back to grid
+});
+
+// --- hero (break component) ---
+
+test('hero renderInput carries data-field-key on its root and a pick control', () => {
+  const html = fieldKinds.hero.renderInput({ key: 'heroImage', label: 'Hero', kind: 'hero' }, '');
+  assert.match(html, /data-field-key="heroImage"/);
+  assert.match(html, /data-media="hero-pick"/);
+  assert.match(html, /No hero image/);
+  assert.doesNotMatch(html, /data-field-kind=/); // break roots are not scraped
+});
+
+test('hero renderInput shows a thumb + remove when a hero is set', () => {
+  const ctx = { resolveImage: (id) => (id === 'h.png' ? '/i/h.png' : null) };
+  const html = fieldKinds.hero.renderInput({ key: 'heroImage', label: 'Hero', kind: 'hero' }, 'h.png', ctx);
+  assert.match(html, /src="\/i\/h.png"/);
+  assert.match(html, /data-media="hero-clear"/);
+});
+
+test('hero renderRead: unset → empty, resolved → entry-hero img, unresolved → placeholder', () => {
+  assert.equal(fieldKinds.hero.renderRead({ key: 'heroImage' }, ''), '');
+  const ok = { resolveImage: (id) => (id === 'h.png' ? '/i/h.png' : null) };
+  assert.match(fieldKinds.hero.renderRead({ key: 'heroImage' }, 'h.png', ok), /class="entry-hero" src="\/i\/h.png"/);
+  const gone = { resolveImage: () => null };
+  assert.match(fieldKinds.hero.renderRead({ key: 'heroImage' }, 'gone.png', gone), /image-missing-hero/);
+});
+
+// --- gallery (break component) ---
+
+test('gallery renderInput carries data-field-key, renders thumbs + actions, and an add button', () => {
+  const ctx = { resolveImage: (id) => `/i/${id}` };
+  const html = fieldKinds.gallery.renderInput({ key: 'gallery', label: 'Gallery', kind: 'gallery' }, ['a.png', 'b.png'], ctx);
+  assert.match(html, /data-field-key="gallery"/);
+  assert.match(html, /data-media="gallery-add"/);
+  assert.match(html, /data-media="gallery-remove" data-index="0"/);
+  assert.match(html, /src="\/i\/a.png"/);
+  assert.doesNotMatch(html, /data-field-kind=/);
+});
+
+test('gallery renderRead renders a carousel of the ids; empty → nothing', () => {
+  const ctx = { resolveImage: (id) => `/i/${id}` };
+  assert.match(fieldKinds.gallery.renderRead({ key: 'gallery' }, ['a.png'], ctx), /carousel/);
+  assert.match(fieldKinds.gallery.renderRead({ key: 'gallery' }, ['a.png'], ctx), /src="\/i\/a.png"/);
+  assert.equal(fieldKinds.gallery.renderRead({ key: 'gallery' }, [], ctx), '');
 });
 
 test('unknownKindPlaceholder names the offending kind', () => {

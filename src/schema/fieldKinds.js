@@ -1,27 +1,46 @@
 /**
- * Codex — Field-kind registry.
+ * Codex — Component registry (the one registry).
  *
- * One entry per pure field kind: `{ renderInput(field, value, ctx), renderRead(field, value, ctx) }`.
- * `renderInput` returns the form CONTROL (the caller wraps it in a labelled group);
- * `renderRead` returns the read-view BODY (the caller wraps it in an <h3> heading).
+ * One entry per renderable component a type can compose. Each entry is:
  *
- * Only the four pure kinds live here so this module carries no build-tool coupling
- * and is unit-testable under plain Node. Media kinds (hero/gallery) are Vite/DOM
- * coupled and are handled by the dedicated media components (see MEDIA_KINDS) — the
- * generic renderers skip them.
+ *   {
+ *     renderInput(field, value, ctx) -> html   // builder CONTROL (caller wraps grid kinds in a group)
+ *     renderRead(field, value, ctx)  -> html   // read-view BODY  (caller wraps grid kinds in an <h3>)
+ *     layout?  'grid' | 'full' | 'break'       // wrapper the walkers apply; default 'grid'
+ *     mount?(el, { field, value, onChange, ctx }) // imperative wiring for components that need it
+ *   }
+ *
+ * Layout drives both walkers (formRenderer / entryRenderer) instead of the old hard-coded
+ * `FULL_WIDTH` / `MEDIA_KINDS` sets:
+ *   - 'grid'  — a `.form-group` cell in the section `.form-grid` (default).
+ *   - 'full'  — a `.form-group` spanning the grid (tall controls: prose, list).
+ *   - 'break' — the component escapes the grid as its own block (media: hero, gallery).
+ *
+ * `mount` is the imperative seam. Called after the component's `renderInput` HTML is in the
+ * DOM, it wires events / a live canvas and reports edits back through `onChange(newValue)`,
+ * which the builder writes to `data[field.key]` — the single value path for every component
+ * (no more fixed `heroImage` / `gallery` write keys). The pure kinds omit it and are scraped
+ * from `data-field-key` as before.
+ *
+ * The four pure kinds (text / prose / list / reference) stay free of build-tool coupling and
+ * are unit-testable under plain Node. The media components need the image picker (mount only)
+ * and the carousel (read only); both imports are side-effect-free at load, so this module
+ * still imports cleanly under Node — `mount` is browser-only and never runs there.
  *
  * `ctx` (optional) is the edge adapter for data this module must not import directly:
- *   ctx.resolveImage(id)      -> url | null      (pool images inside prose)
- *   ctx.listEntries(type)     -> [{ id, label }] (reference <select> options)
+ *   ctx.resolveImage(id)      -> url | null       (pool images: prose inline, hero, gallery)
+ *   ctx.listEntries(type)     -> [{ id, label }]  (reference <select> options)
  *   ctx.resolveRef(type, id)  -> { label, exists }(reference read-view link)
+ *   ctx.listImages()          -> [{ id, label, url }] (picker grid; mount only)
+ *   ctx.pickerOptions         -> { canManage, onUpload, onRemove } (picker; mount only)
  */
 
 import { escapeHtml, formatInline } from './inlineText.js';
+import { notFoundImage } from './notFoundImage.js';
+import { openImagePicker } from '../components/imagePicker.js';
+import { renderCarousel } from '../components/carousel.js';
 
 const MUTED_EMPTY = '<p class="muted">Not specified.</p>';
-
-/** Media kinds handled outside the registry, by the dedicated media components. */
-export const MEDIA_KINDS = new Set(['hero', 'gallery']);
 
 /** Normalize a list value: array as-is, comma-string split, blank -> []. */
 export function toList(value) {
@@ -30,6 +49,29 @@ export function toList(value) {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/** A resolved image thumb, or the not-found placeholder when the id can't resolve. */
+function thumb(id, resolveImage) {
+  const url = resolveImage ? resolveImage(id) : null;
+  return url
+    ? `<img src="${url}" alt="" class="media-thumb">`
+    : `<span class="media-thumb media-thumb-missing" title="image not found">${notFoundImage('image-missing-thumb')}</span>`;
+}
+
+/** Insert `text` at the caret of a textarea/input, then leave the caret after it. */
+function insertAtCursor(field, text) {
+  const start = field.selectionStart ?? field.value.length;
+  const end = field.selectionEnd ?? field.value.length;
+  field.value = field.value.slice(0, start) + text + field.value.slice(end);
+  const pos = start + text.length;
+  field.setSelectionRange(pos, pos);
+  field.focus();
+}
+
+/** Open the image picker for a mount, honoring the ctx-supplied list + editor affordances. */
+function pickImage(ctx) {
+  return openImagePicker(ctx?.listImages ? ctx.listImages() : [], ctx?.pickerOptions || {});
 }
 
 export const fieldKinds = {
@@ -45,15 +87,32 @@ export const fieldKinds = {
   },
 
   prose: {
+    layout: 'full',
     renderInput(field, value, _ctx) {
       return `<textarea class="form-control" data-field-key="${field.key}" data-field-kind="prose" rows="3">${escapeHtml(value)}</textarea>`;
     },
     renderRead(_field, value, ctx) {
       return formatInline(value, ctx?.resolveImage) || MUTED_EMPTY;
     },
+    // Per-field inline-image affordance: inserts `![](pool:id)` at the caret and lets the
+    // scrape listener pick up the change. Replaces the old single global "focused field" button.
+    mount(el, { ctx }) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-secondary btn-sm prose-insert-image';
+      btn.textContent = '＋ Insert image';
+      el.insertAdjacentElement('afterend', btn);
+      btn.addEventListener('click', async () => {
+        const id = await pickImage(ctx);
+        if (!id) return;
+        insertAtCursor(el, `![](pool:${id})`);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    },
   },
 
   list: {
+    layout: 'full',
     // One item per line. Kept deliberately simple: the value reader splits on
     // newlines, so there is no per-row DOM to wire.
     renderInput(field, value, _ctx) {
@@ -97,6 +156,90 @@ export const fieldKinds = {
       if (field.multi) return referenceMultiRead(field, value, ctx);
       if (value == null || String(value).trim() === '') return '<span class="muted">None</span>';
       return refLink(field.targetType, value, ctx);
+    },
+  },
+
+  hero: {
+    layout: 'break',
+    renderInput(field, value, ctx) {
+      const hero = value || '';
+      const block = hero
+        ? `${thumb(hero, ctx?.resolveImage)}<button type="button" class="btn btn-secondary btn-sm" data-media="hero-clear">Remove</button>`
+        : `<span class="media-empty">No hero image</span>`;
+      return `<div class="form-group form-media" data-field-key="${escapeHtml(field.key)}">
+        <label>${escapeHtml(field.label)}</label>
+        <div class="media-hero-row">
+          <button type="button" class="btn btn-primary btn-sm" data-media="hero-pick">Pick Hero</button>
+          ${block}
+        </div>
+      </div>`;
+    },
+    renderRead(_field, value, ctx) {
+      if (!value) return '';                                  // no hero set → render nothing
+      const url = ctx?.resolveImage ? ctx.resolveImage(value) : null;
+      if (!url) return notFoundImage('image-missing-hero');   // set but unresolved → placeholder, never a broken page
+      return `<img class="entry-hero" src="${url}" alt="">`;
+    },
+    mount(el, { onChange, ctx }) {
+      el.querySelector('[data-media="hero-pick"]')?.addEventListener('click', async () => {
+        const id = await pickImage(ctx);
+        if (id) onChange(id);
+      });
+      // '' is the canonical "no hero" value (read-side treats it as unset), which reads
+      // cleaner than deleting the key and full-replace Save persists it explicitly.
+      el.querySelector('[data-media="hero-clear"]')?.addEventListener('click', () => onChange(''));
+    },
+  },
+
+  gallery: {
+    layout: 'break',
+    renderInput(field, value, ctx) {
+      const gallery = toList(value);
+      const items = gallery
+        .map(
+          (id, i) => `
+          <div class="media-gallery-item">
+            ${thumb(id, ctx?.resolveImage)}
+            <div class="media-gallery-actions">
+              <button type="button" data-media="gallery-left" data-index="${i}" title="Move left">◀</button>
+              <button type="button" data-media="gallery-remove" data-index="${i}" title="Remove">×</button>
+              <button type="button" data-media="gallery-right" data-index="${i}" title="Move right">▶</button>
+            </div>
+          </div>`
+        )
+        .join('');
+      return `<div class="form-group form-media" data-field-key="${escapeHtml(field.key)}">
+        <label>${escapeHtml(field.label)}</label>
+        <div class="media-gallery-row">
+          ${items || '<span class="media-empty">No carousel images</span>'}
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" data-media="gallery-add">＋ Add Image</button>
+      </div>`;
+    },
+    renderRead(_field, value, ctx) {
+      return renderCarousel(toList(value), ctx?.resolveImage);
+    },
+    mount(el, { value, onChange, ctx }) {
+      el.querySelectorAll('[data-media]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const action = btn.dataset.media;
+          const idx = Number(btn.dataset.index);
+          const g = toList(value).slice();
+          if (action === 'gallery-add') {
+            const id = await pickImage(ctx);
+            if (id) { g.push(id); onChange(g); }
+          } else if (action === 'gallery-remove') {
+            g.splice(idx, 1);
+            onChange(g);
+          } else if (action === 'gallery-left' && idx > 0) {
+            [g[idx - 1], g[idx]] = [g[idx], g[idx - 1]];
+            onChange(g);
+          } else if (action === 'gallery-right' && idx < g.length - 1) {
+            [g[idx + 1], g[idx]] = [g[idx], g[idx + 1]];
+            onChange(g);
+          }
+        });
+      });
     },
   },
 };
@@ -148,9 +291,14 @@ function referenceMultiRead(field, value, ctx) {
   return `<p class="ref-list">${ids.map((id) => refLink(field.targetType, id, ctx)).join(', ')}</p>`;
 }
 
-/** The registry entry for a kind, or null for media/unknown kinds. */
+/** The registry entry for a kind, or null for unknown kinds. */
 export function getKind(kind) {
   return fieldKinds[kind] || null;
+}
+
+/** A component's layout ('grid' | 'full' | 'break'), defaulting to 'grid' (incl. unknown kinds). */
+export function getLayout(kind) {
+  return fieldKinds[kind]?.layout || 'grid';
 }
 
 /** A plain string for a field's value, for the metadata callout. */
