@@ -1476,7 +1476,7 @@ function renderFormWithoutResubscribe() {
 // (+ data-field-kind); media buttons carry neither and are wired separately.
 function attachFormInputListeners() {
   formContainer.querySelectorAll('[data-field-key]').forEach((input) => {
-    input.addEventListener('input', (e) => {
+    const sync = (e) => {
       const el = e.target;
       const key = el.dataset.fieldKey;
       state.formData[key] =
@@ -1488,7 +1488,12 @@ function attachFormInputListeners() {
       editorTitle.textContent = readerTitle.textContent;
       state.dirty = true;
       refreshBuilderPreview();
-    });
+    };
+    // `input` drives live text/textarea updates; `change` is the reliable event
+    // for the reference <select> (Safari long omitted `input` on selects). The
+    // handler is idempotent, so a select firing both is harmless.
+    input.addEventListener('input', sync);
+    input.addEventListener('change', sync);
   });
 
   // Track the last-focused prose field for inline-image insertion
