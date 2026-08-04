@@ -6,10 +6,11 @@
  * looks it up here. `fill="currentColor"` lets CSS drive colour; sizing is CSS too — no
  * icon library, pure markup.
  *
- * `bundledIcons` is the always-present baseline (works with no Firebase). A future,
+ * `bundledIcons` is the always-present baseline (works with no Firebase). The
  * app-global Firestore `icons` collection is concatenated onto it via `mergeIcons`
- * (extra wins per key; the bundled baseline is never removed) — that side is not built
- * yet, but the merge is here so it is unit-testable and ready.
+ * (extra wins per key; the bundled baseline is never removed). The app installs that
+ * overlay through `setOverlayIcons` when the `icons` subscription fires; `getIcon`
+ * renders against the merged result by default, so callers pass no registry.
  */
 
 const svg = (body) =>
@@ -35,10 +36,34 @@ export const bundledIcons = [
 ];
 
 /**
- * Resolve an icon key to its SVG markup against a registry (bundled by default).
- * Unknown/empty keys fall back to the default glyph — never a broken icon.
+ * The live registry the app renders against: the bundled baseline plus any installed
+ * Firestore overlay. Starts as the bundled set (so icons work with no Firebase);
+ * `setOverlayIcons` swaps in the merged set when the icons subscription fires.
  */
-export function getIcon(key, registry = bundledIcons) {
+let activeRegistry = bundledIcons;
+
+/**
+ * Install the Firestore icon overlay: rebuild the active registry as
+ * `mergeIcons(bundledIcons, extra)`. `extra` is the active (non-archived) icon
+ * records as `[{ key, svg }]`. Always rebuilt from the bundled baseline, so it is
+ * idempotent and passing `[]` restores the bundled-only set. Returns the new registry.
+ */
+export function setOverlayIcons(extra) {
+  activeRegistry = mergeIcons(bundledIcons, extra);
+  return activeRegistry;
+}
+
+/** The registry the app currently renders against (bundled + overlay). */
+export function activeIcons() {
+  return activeRegistry;
+}
+
+/**
+ * Resolve an icon key to its SVG markup against a registry (the active bundled+overlay
+ * registry by default). Unknown/empty keys fall back to the default glyph — never a
+ * broken icon. The default is read at call time, so it reflects the latest overlay.
+ */
+export function getIcon(key, registry = activeRegistry) {
   if (!key) return DEFAULT_ICON;
   const entry = registry.find((e) => e.key === key);
   return entry ? entry.svg : DEFAULT_ICON;
@@ -54,4 +79,30 @@ export function mergeIcons(bundled, extra) {
   for (const e of bundled || []) map.set(e.key, e);
   for (const e of extra || []) map.set(e.key, e);
   return [...map.values()];
+}
+
+/** A valid icon key: lowercase letters/digits in hyphen-separated words (matches type-key slugs). */
+export const ICON_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Max icon-key length, mirrored by the create input's maxlength. Keys are short slugs. */
+export const ICON_KEY_MAX_LENGTH = 32;
+
+/**
+ * Validate a candidate icon for the admin form. Returns a list of human-readable
+ * problems ([] when valid). Pure — no DOM, so it is unit-testable and the same gate
+ * can guard both the form and (belt-and-suspenders) a write. `existingKeys` flags a
+ * duplicate on create; pass the key being edited's own key out of it (or omit) so an
+ * edit-in-place is not rejected as a duplicate of itself.
+ */
+export function validateIcon({ key, svg } = {}, existingKeys = []) {
+  const problems = [];
+  const k = String(key ?? '').trim();
+  if (!k) problems.push('Key is required.');
+  else if (!ICON_KEY_PATTERN.test(k)) problems.push('Key must be lowercase letters, digits, and hyphens.');
+  else if (k.length > ICON_KEY_MAX_LENGTH) problems.push(`Key must be ${ICON_KEY_MAX_LENGTH} characters or fewer.`);
+  else if (existingKeys.includes(k)) problems.push(`An icon "${k}" already exists.`);
+  const s = String(svg ?? '').trim();
+  if (!s) problems.push('SVG markup is required.');
+  else if (!/<svg[\s>]/i.test(s)) problems.push('SVG must contain an <svg> element.');
+  return problems;
 }

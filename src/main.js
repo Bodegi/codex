@@ -26,7 +26,7 @@ import { slugify, isSlugTaken, deriveEntryId } from './schema/slug.js';
 import { blankEntry } from './schema/entryDraft.js';
 import { validateSchema } from './schema/schemaValidate.js';
 import { escapeHtml } from './schema/inlineText.js';
-import { getIcon } from './schema/iconRegistry.js';
+import { getIcon, setOverlayIcons, bundledIcons, validateIcon } from './schema/iconRegistry.js';
 import { buildNavModel } from './schema/navModel.js';
 import {
   selectType,
@@ -59,6 +59,7 @@ import {
   renderAccessPanel,
   renderCodicesPanel,
   renderImagesPanel,
+  renderIconsPanel,
 } from './components/adminView.js';
 import { resolveCapabilities, isAdminEmail } from './utils/capabilities.js';
 import { renderMediaControls, attachMediaControls } from './components/mediaControls.js';
@@ -136,7 +137,10 @@ const state = {
   adminUsers: [],
   adminPerms: [],
   // Global-admin Images gallery: every image record, all statuses (subscribeAllImages).
-  adminImages: []
+  adminImages: [],
+  // App-global icon overlay: every icon record, all statuses (subscribeIcons). Active ones are
+  // pushed into iconRegistry via setOverlayIcons; the admin Icons panel reads the full list.
+  icons: []
 };
 
 // ── View-state helpers ───────────────────────────────────────────────────────
@@ -464,6 +468,7 @@ function showWorkspace() {
   if (!state.workspaceReady) {
     state.workspaceReady = true;
     subscribeCodexRegistry();      // populate the switcher (app-global, not codex-scoped)
+    subscribeIconOverlay();        // app-global icon overlay (nav renders it for every user)
     subscribeCodexContent();       // deferred schema + entry subscriptions (now that canRead is true)
     renderCodexSwitcher();
     state.view = normalize(state.view, viewCtx());
@@ -484,6 +489,8 @@ function teardownWorkspace() {
   if (imagesUnsubscribe) { imagesUnsubscribe(); imagesUnsubscribe = null; }
   if (codicesUnsub) { codicesUnsub(); codicesUnsub = null; }
   if (ownPermsUnsub) { ownPermsUnsub(); ownPermsUnsub = null; }
+  if (iconsUnsub) { iconsUnsub(); iconsUnsub = null; }
+  setOverlayIcons([]); // drop the overlay so a re-auth starts from the bundled baseline
   if (adminUsersUnsub) { adminUsersUnsub(); adminUsersUnsub = null; }
   if (adminPermsUnsub) { adminPermsUnsub(); adminPermsUnsub = null; }
   if (adminImagesUnsub) { adminImagesUnsub(); adminImagesUnsub = null; }
@@ -564,6 +571,7 @@ document.addEventListener('click', (e) => {
 const codexSwitcherWrap = codexSwitcher.parentElement;
 let codicesUnsub = null;
 let ownPermsUnsub = null;
+let iconsUnsub = null;
 
 // The codices to show in the switcher, per the pure registry rules.
 function visibleCodices() {
@@ -598,6 +606,23 @@ function subscribeCodexRegistry() {
       renderCodexSwitcher();
     });
   }
+}
+
+// App-global icon overlay: one subscription for the whole session (icons are readable by any
+// signed-in user — the nav renders them). Each snapshot installs the active icons into the
+// registry so getIcon reflects them everywhere, and refreshes the nav + the Icons admin panel.
+// Inert in local-only mode (subscribeIcons no-ops without Firebase).
+function subscribeIconOverlay() {
+  if (iconsUnsub || !(state.fbManager && state.fbManager.isConfigured())) return;
+  iconsUnsub = state.fbManager.subscribeIcons((icons) => {
+    state.icons = icons;
+    const active = icons
+      .filter((i) => i && i.key && i.svg && i.status !== 'archived')
+      .map((i) => ({ key: i.key, svg: i.svg }));
+    setOverlayIcons(active);
+    renderNav(); // type icons pick up the overlay live
+    if (inGlobalAdmin() && state.view.panel === 'icons') renderAdminPanel();
+  });
 }
 
 function renderCodexSwitcher() {
@@ -742,6 +767,7 @@ function renderAdminNav() {
       ${item('access', 'Users & Access')}
       ${item('codices', 'Codices')}
       ${item('images', 'Images')}
+      ${item('icons', 'Icons')}
     </div>`;
   typeNav.querySelector('[data-admin-back]')?.addEventListener('click', exitAdmin);
   typeNav.querySelectorAll('[data-admin-nav]').forEach((btn) => {
@@ -1029,6 +1055,11 @@ function renderAdminPanel() {
     wireImagesPanel();
     updateRenderedPreview('<div class="admin-blurb">Admin — the shared image library across all codices.</div>');
     updateRawJson('');
+  } else if (state.view.panel === 'icons') {
+    formContainer.innerHTML = renderIconsPanelHtml();
+    wireIconsPanel();
+    updateRenderedPreview('<div class="admin-blurb">Admin — the app-global icon overlay.</div>');
+    updateRawJson('');
   } else {
     formContainer.innerHTML = renderAccessPanel({ codexId: state.currentCodexId, rows: buildRosterRows() });
     wireAccessPanel();
@@ -1147,6 +1178,136 @@ function wireImagesPanel() {
       if (ok) guard(fb.setImageStatus(btn.dataset.imageArchive, 'archived'));
     });
   });
+}
+
+// ── Icons admin panel (create / edit markup / archive-restore) ───────────────
+// The app-global icon overlay. Icons are SVG-as-text; the live overlay subscription
+// (subscribeIconOverlay) keeps the nav in sync, so this panel only mutates — writes flow
+// back through that subscription. All writes are admin-only (firestore.rules). Inert local-only.
+
+function renderIconsPanelHtml() {
+  if (!(state.fbManager && state.fbManager.isConfigured())) {
+    return '<div class="admin-section"><div class="admin-muted">Icon management needs cloud mode (Firebase).</div></div>';
+  }
+  const bundledKeys = new Set(bundledIcons.map((i) => i.key));
+  const overlayRows = state.icons
+    .map((i) => ({
+      key: i.key,
+      label: i.label || '',
+      svg: i.svg || '',
+      status: i.status || 'active',
+      bundled: bundledKeys.has(i.key),
+    }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  // Bundled icons the overlay is NOT actively overriding — shown as read-only reference rows. An
+  // active overlay of the same key is represented by its overlay row (badged "overrides bundled").
+  const activeOverrides = new Set(
+    state.icons.filter((i) => (i.status || 'active') !== 'archived').map((i) => i.key)
+  );
+  const bundledRows = bundledIcons
+    .filter((i) => !activeOverrides.has(i.key))
+    .map((i) => ({ key: i.key, svg: i.svg }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  return renderIconsPanel({ overlayRows, bundledRows });
+}
+
+function wireIconsPanel() {
+  const fb = state.fbManager;
+  if (!fb) return;
+  const guard = (p) => Promise.resolve(p).catch((err) => showToast('Icon error: ' + err.message));
+
+  // Live preview of the create form's SVG (admin-authored, trusted markup — same as the nav injects)
+  // plus the Add button's disabled gate: key and SVG are required (label is optional), so the button
+  // stays disabled until both carry a non-empty value.
+  const createKey = document.getElementById('icon-create-key');
+  const createSvg = document.getElementById('icon-create-svg');
+  const createPreview = document.getElementById('icon-create-preview');
+  const createBtn = document.getElementById('icon-create-btn');
+  const syncCreateState = () => {
+    if (createPreview) createPreview.innerHTML = /<svg[\s>]/i.test(createSvg?.value || '') ? createSvg.value : '';
+    if (createBtn) createBtn.disabled = !(createKey?.value.trim() && createSvg?.value.trim());
+  };
+  createKey?.addEventListener('input', syncCreateState);
+  createSvg?.addEventListener('input', syncCreateState);
+  syncCreateState();
+
+  document.getElementById('icon-create-btn')?.addEventListener('click', createIcon);
+
+  // Clear the add-icon card (handy after an Override seeds it, or to abandon a draft).
+  document.getElementById('icon-create-clear')?.addEventListener('click', () => {
+    ['icon-create-key', 'icon-create-label', 'icon-create-svg'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    // Re-fire input so the live preview empties too.
+    document.getElementById('icon-create-svg')?.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('icon-create-key')?.focus();
+  });
+
+  // "Override…" on a bundled icon seeds the create form with that key + its baseline markup, so the
+  // admin edits from the current glyph. Creating an overlay with a bundled key is exactly an override.
+  formContainer.querySelectorAll('[data-icon-override]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.iconOverride;
+      const bundled = bundledIcons.find((i) => i.key === key);
+      const keyInput = document.getElementById('icon-create-key');
+      const svgInput = document.getElementById('icon-create-svg');
+      if (keyInput) keyInput.value = key;
+      if (svgInput) {
+        svgInput.value = bundled ? bundled.svg : '';
+        svgInput.dispatchEvent(new Event('input', { bubbles: true })); // refresh the live preview
+      }
+      keyInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      keyInput?.focus();
+    });
+  });
+
+  // Label + markup save together (the SVG textarea is multiline → an explicit Save, not on-change).
+  formContainer.querySelectorAll('[data-icon-save]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.iconSave;
+      const label = formContainer.querySelector(`[data-icon-label="${CSS.escape(key)}"]`)?.value.trim() || '';
+      const svg = formContainer.querySelector(`[data-icon-svg="${CSS.escape(key)}"]`)?.value.trim() || '';
+      const problems = validateIcon({ key, svg }); // key is fixed here; svg is the real gate
+      if (problems.length) return showToast(problems[0]);
+      guard(fb.updateIcon(key, { label, svg }).then(() => showToast(`Saved icon “${key}”`)));
+    });
+  });
+
+  formContainer.querySelectorAll('[data-icon-restore]').forEach((btn) => {
+    btn.addEventListener('click', () =>
+      guard(fb.setIconStatus(btn.dataset.iconRestore, 'active').then(() => showToast('Restored icon')))
+    );
+  });
+
+  formContainer.querySelectorAll('[data-icon-archive]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const ok = await openConfirm({
+        title: 'Archive this icon?',
+        message: 'It drops out of the overlay; types using its key fall back to the bundled or default glyph. You can restore it.',
+        confirmLabel: 'Archive',
+      });
+      if (ok) guard(fb.setIconStatus(btn.dataset.iconArchive, 'archived').then(() => showToast('Archived icon')));
+    });
+  });
+}
+
+// Add a new icon: validated (key shape + uniqueness, svg markup), then created. The overlay
+// subscription re-renders the panel with the new card.
+async function createIcon() {
+  const fb = state.fbManager;
+  if (!fb) return;
+  const key = (document.getElementById('icon-create-key')?.value || '').trim();
+  const label = (document.getElementById('icon-create-label')?.value || '').trim();
+  const svg = (document.getElementById('icon-create-svg')?.value || '').trim();
+  const problems = validateIcon({ key, svg }, state.icons.map((i) => i.key));
+  if (problems.length) return showToast(problems[0]);
+  try {
+    await fb.createIcon(key, { label, svg });
+    showToast(`Added icon “${key}”`);
+  } catch (err) {
+    showToast('Add failed: ' + err.message);
+  }
 }
 
 // Create a codex: slug from the name (rejected on collision), meta + creator grant, optional

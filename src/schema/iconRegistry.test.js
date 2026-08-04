@@ -5,6 +5,9 @@ import {
   bundledIcons,
   getIcon,
   mergeIcons,
+  setOverlayIcons,
+  activeIcons,
+  validateIcon,
   DEFAULT_ICON,
   DEFAULT_ICON_KEY,
 } from './iconRegistry.js';
@@ -79,4 +82,56 @@ test('mergeIcons treats a missing/empty extra as just the bundled set', () => {
   assert.deepEqual(mergeIcons(bundled, []), bundled);
   assert.deepEqual(mergeIcons(bundled), bundled);
   assert.deepEqual(mergeIcons(bundled, null), bundled);
+});
+
+// --- overlay (setOverlayIcons / activeIcons / getIcon default) ---
+
+test('setOverlayIcons installs an overlay getIcon renders against by default', (t) => {
+  t.after(() => setOverlayIcons([])); // restore bundled-only for other tests
+  setOverlayIcons([{ key: 'star', svg: '<svg id="star"></svg>' }]);
+  assert.match(getIcon('star'), /id="star"/); // overlay key resolves with no registry arg
+  assert.match(getIcon('civilization'), /<svg/); // bundled baseline still present
+});
+
+test('setOverlayIcons lets an overlay override a bundled key', (t) => {
+  t.after(() => setOverlayIcons([]));
+  setOverlayIcons([{ key: 'civilization', svg: '<svg id="custom-civ"></svg>' }]);
+  assert.match(getIcon('civilization'), /id="custom-civ"/);
+});
+
+test('setOverlayIcons([]) restores the bundled-only registry', () => {
+  setOverlayIcons([{ key: 'star', svg: '<svg id="star"></svg>' }]);
+  setOverlayIcons([]);
+  assert.equal(getIcon('star'), DEFAULT_ICON); // overlay gone
+  assert.deepEqual(activeIcons(), bundledIcons);
+});
+
+// --- validateIcon ---
+
+test('validateIcon accepts a well-formed key + svg', () => {
+  assert.deepEqual(validateIcon({ key: 'dragon-lair', svg: '<svg viewBox="0 0 24 24"></svg>' }), []);
+});
+
+test('validateIcon requires a key and rejects a malformed one', () => {
+  assert.ok(validateIcon({ key: '', svg: '<svg></svg>' }).some((m) => /Key is required/.test(m)));
+  assert.ok(validateIcon({ key: 'Bad Key', svg: '<svg></svg>' }).some((m) => /lowercase/.test(m)));
+  assert.ok(validateIcon({ key: 'trailing-', svg: '<svg></svg>' }).some((m) => /lowercase/.test(m)));
+});
+
+test('validateIcon requires svg markup', () => {
+  assert.ok(validateIcon({ key: 'ok', svg: '' }).some((m) => /SVG markup is required/.test(m)));
+  assert.ok(validateIcon({ key: 'ok', svg: 'not markup' }).some((m) => /<svg> element/.test(m)));
+});
+
+test('validateIcon rejects a key longer than the max length', () => {
+  const longKey = 'a'.repeat(33);
+  assert.ok(validateIcon({ key: longKey, svg: '<svg></svg>' }).some((m) => /32 characters or fewer/.test(m)));
+  // exactly at the limit is fine
+  assert.deepEqual(validateIcon({ key: 'a'.repeat(32), svg: '<svg></svg>' }), []);
+});
+
+test('validateIcon flags a duplicate key on create but not an edit-in-place', () => {
+  assert.ok(validateIcon({ key: 'dot', svg: '<svg></svg>' }, ['dot']).some((m) => /already exists/.test(m)));
+  // editing 'dot' itself: caller omits it from existingKeys → no duplicate complaint
+  assert.deepEqual(validateIcon({ key: 'dot', svg: '<svg></svg>' }, ['star']), []);
 });

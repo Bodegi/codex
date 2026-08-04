@@ -34,6 +34,8 @@ import {
   permissionDocPath,
   imagesCollectionPath,
   imageDocPath,
+  iconsCollectionPath,
+  iconDocPath,
   entriesCollectionPath,
   entryDocPath,
   schemasCollectionPath,
@@ -224,6 +226,44 @@ export class FirebaseManager {
   async updateImageLabel(id, label) {
     if (!this.db) return;
     await updateDoc(doc(this.db, ...imageDocPath(id)), { label, updatedAt: now() });
+  }
+
+  // ── Icon overlay (app-global `icons` collection; SVG-as-text, admin-curated) ──
+  // Concatenated onto the bundled baseline via iconRegistry.mergeIcons so a type's `icon`
+  // key can resolve to an admin-added glyph. Readable by any signed-in user (the nav needs
+  // it); all writes are admin-only (see firestore.rules). The doc id is the icon key.
+
+  /** Live view of every icon record, all statuses, on each change. No-op when unconfigured. */
+  subscribeIcons(callback) {
+    if (!this.db) return () => {};
+    return onSnapshot(collection(this.db, ...iconsCollectionPath()), (snapshot) => {
+      callback(snapshot.docs.map((d) => d.data()));
+    });
+  }
+
+  /** Create an icon record (admin). Stamps status active + createdAt/updatedAt; id is the key. */
+  async createIcon(key, data) {
+    if (!this.db) return;
+    const ts = now();
+    await setDoc(doc(this.db, ...iconDocPath(key)), {
+      ...data,
+      key,
+      status: 'active',
+      createdAt: ts,
+      updatedAt: ts,
+    });
+  }
+
+  /** Edit an icon's markup and/or label (admin). Merge so unrelated fields are untouched. */
+  async updateIcon(key, fields) {
+    if (!this.db) return;
+    await setDoc(doc(this.db, ...iconDocPath(key)), { ...fields, updatedAt: now() }, { merge: true });
+  }
+
+  /** Set the icon soft-delete flag ('active' | 'archived') — archived icons drop out of the overlay. */
+  async setIconStatus(key, status) {
+    if (!this.db) return;
+    await updateDoc(doc(this.db, ...iconDocPath(key)), { status, updatedAt: now() });
   }
 }
 

@@ -1,8 +1,9 @@
 /**
- * Global-admin panels (admin-only): the Users & Access roster, the Codices manager, and the
- * Images gallery. Panel switching + a way back out live in the sidebar (main.js renderAdminNav),
- * not here. Pure HTML builders; main.js owns the wiring (roster subscriptions, grant/revoke, codex
- * create/rename/archive, image label/cross-assign/archive/restore).
+ * Global-admin panels (admin-only): the Users & Access roster, the Codices manager, the
+ * Images gallery, and the Icons overlay editor. Panel switching + a way back out live in the
+ * sidebar (main.js renderAdminNav), not here. Pure HTML builders; main.js owns the wiring
+ * (roster subscriptions, grant/revoke, codex create/rename/archive, image label/cross-assign/
+ * archive/restore, icon create/edit/archive/restore).
  */
 
 import { notFoundImage } from '../schema/notFoundImage.js';
@@ -200,5 +201,86 @@ export function renderImagesPanel({ rows = [], codices = [] }) {
       <h3>Images</h3>
       <p class="admin-muted">Every image across all codices. Archiving hides an image everywhere; its bytes are retained.</p>
       ${body}
+    </div>`;
+}
+
+/**
+ * Icons overlay panel: create/edit the app-global icon set that concatenates onto the bundled
+ * baseline. An icon is a `key` (its identity + a type's `icon` reference) and inline SVG markup.
+ * The SVG is rendered directly as a preview — it is admin-authored, trusted content (same markup
+ * the nav injects via getIcon). main.js owns the wiring.
+ *
+ *   overlayRows — [{ key, label, svg, status, bundled }] the editable Firestore overlay, sorted by
+ *                 key; `bundled` marks a baseline key this overlay is overriding (informational).
+ *   bundledRows — [{ key, svg }] the code-resident baseline NOT currently overridden by an active
+ *                 overlay, sorted by key. Read-only reference; "Override…" seeds the create form.
+ */
+export function renderIconsPanel({ overlayRows = [], bundledRows = [] }) {
+  const preview = (svg) => `<div class="icon-card-preview">${svg || ''}</div>`;
+
+  const overlayCard = (icon) => {
+    const isArchived = icon.status === 'archived';
+    const statusAction = isArchived
+      ? `<button type="button" class="btn btn-secondary btn-sm" data-icon-restore="${escapeHtml(icon.key)}">Restore</button>`
+      : `<button type="button" class="btn btn-danger btn-sm" data-icon-archive="${escapeHtml(icon.key)}">Archive</button>`;
+    const overriding = icon.bundled
+      ? '<span class="admin-badge" title="Overrides a bundled icon of the same key">overrides bundled</span>'
+      : '';
+    return `
+      <div class="icon-card${isArchived ? ' is-archived' : ''}" data-icon-id="${escapeHtml(icon.key)}">
+        <div class="icon-card-media">${preview(icon.svg)}</div>
+        <div class="icon-card-key"><code title="${escapeHtml(icon.key)}">${escapeHtml(icon.key)}</code> ${overriding}</div>
+        <input class="admin-input icon-card-label" data-icon-label="${escapeHtml(icon.key)}" value="${escapeHtml(icon.label || '')}" placeholder="Label (optional)" aria-label="Icon label">
+        <textarea class="admin-input icon-card-svg" data-icon-svg="${escapeHtml(icon.key)}" rows="3" spellcheck="false" aria-label="SVG markup">${escapeHtml(icon.svg || '')}</textarea>
+        <div class="icon-card-footer">
+          <span class="admin-badge status-badge status-${isArchived ? 'archived' : 'active'}">${isArchived ? 'archived' : 'active'}</span>
+          <button type="button" class="btn btn-primary btn-sm" data-icon-save="${escapeHtml(icon.key)}">Save</button>
+          ${statusAction}
+        </div>
+      </div>`;
+  };
+
+  const bundledCard = (icon) => `
+    <div class="icon-card is-bundled" data-icon-id="${escapeHtml(icon.key)}">
+      <div class="icon-card-media">${preview(icon.svg)}</div>
+      <div class="icon-card-key">
+        <code title="${escapeHtml(icon.key)}">${escapeHtml(icon.key)}</code>
+        <span class="admin-badge">bundled</span>
+        <button type="button" class="btn btn-secondary btn-sm" data-icon-override="${escapeHtml(icon.key)}">Override</button>
+      </div>
+    </div>`;
+
+  const overlayBody = overlayRows.length
+    ? `<div class="icon-grid">${overlayRows.map(overlayCard).join('')}</div>`
+    : '<div class="admin-muted">No custom icons yet. Add one above, or override a bundled icon below.</div>';
+
+  const bundledBody = bundledRows.length
+    ? `<div class="icon-grid">${bundledRows.map(bundledCard).join('')}</div>`
+    : '<div class="admin-muted">Every bundled icon is currently overridden above.</div>';
+
+  return `
+    <div class="admin-section">
+      <h3>Icons</h3>
+      <p class="admin-muted">App-global icons layered onto the bundled set. A type's icon key resolves here first; archiving an icon drops it from the overlay (types fall back to the bundled or default glyph).</p>
+
+      <div class="icon-create">
+        <div class="icon-create-fields">
+          <input class="admin-input" id="icon-create-key" placeholder="key (e.g. dragon-lair)" maxlength="32" aria-label="New icon key">
+          <input class="admin-input" id="icon-create-label" placeholder="label (optional)" aria-label="New icon label">
+        </div>
+        <textarea class="admin-input" id="icon-create-svg" rows="3" spellcheck="false" placeholder="&lt;svg viewBox=&quot;0 0 24 24&quot; fill=&quot;currentColor&quot;&gt;…&lt;/svg&gt;" aria-label="New icon SVG markup"></textarea>
+        <div class="icon-create-actions">
+          <div class="icon-card-preview" id="icon-create-preview" aria-hidden="true"></div>
+          <button type="button" class="btn btn-secondary" id="icon-create-clear">Clear</button>
+          <button type="button" class="btn btn-primary" id="icon-create-btn" disabled>Add icon</button>
+        </div>
+      </div>
+
+      <h4 class="icon-subhead">Custom</h4>
+      ${overlayBody}
+
+      <h4 class="icon-subhead">Bundled baseline</h4>
+      <p class="admin-muted">Always available and defined in code — can't be deleted. Override one to replace its glyph everywhere it's used.</p>
+      ${bundledBody}
     </div>`;
 }

@@ -13,6 +13,7 @@
  *   codices/{codexId}/schemas/{type}
  *   codices/{codexId}/atlas/{docId}
  *   images/{contentHash}                     (shared image library; membership via codices[])
+ *   icons/{key}                              (app-global icon overlay; SVG-as-text, admin-curated)
  */
 
 /** The deterministic entry doc id — keeps the `${type}_${id}` convention. */
@@ -37,6 +38,10 @@ export const codexMetaPath = (codexId) => ['codices', codexId];
 
 export const imagesCollectionPath = () => ['images'];
 export const imageDocPath = (id) => ['images', id];
+
+// App-global icon overlay: SVG-as-text records keyed by icon key (the doc id).
+export const iconsCollectionPath = () => ['icons'];
+export const iconDocPath = (key) => ['icons', key];
 
 // ── Per-codex subcollections ────────────────────────────────────────────────
 export const entriesCollectionPath = (codexId) => ['codices', codexId, 'entries'];

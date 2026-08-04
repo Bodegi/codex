@@ -1892,3 +1892,125 @@ textarea.form-control {
   align-items: center;
   justify-content: center;
 }
+
+/* ── Icons admin panel ─────────────────────────────────────────────────────── */
+.icon-create {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 18px;
+  padding: 12px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+}
+.icon-create-fields {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.icon-create-fields .admin-input {
+  flex: 1 1 160px;
+}
+.icon-create-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#icon-create-clear {
+  margin-left: auto;
+}
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.icon-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+}
+.icon-card.is-archived {
+  opacity: 0.6;
+}
+.icon-card.is-bundled {
+  border-style: dashed;
+}
+/* Bundled card: key + badge + Override on one row. The key truncates so a long key never
+   pushes Override to a second line; the badge and button hold their size. Full key on hover. */
+.icon-card.is-bundled .icon-card-key {
+  flex-wrap: nowrap;
+}
+.icon-card.is-bundled .icon-card-key code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.icon-card.is-bundled .icon-card-key .admin-badge,
+.icon-card.is-bundled .icon-card-key .btn {
+  flex-shrink: 0;
+}
+.icon-card.is-bundled .icon-card-key .btn {
+  margin-left: auto;
+}
+.icon-subhead {
+  margin: 18px 0 6px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.icon-card-media {
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+}
+.icon-card-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-card-preview svg {
+  width: 40px;
+  height: 40px;
+}
+.icon-card-key {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.icon-card-key code {
+  font-size: 12px;
+}
+.icon-card-label {
+  width: 100%;
+  font-size: 13px;
+}
+.icon-card-svg {
+  width: 100%;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  resize: vertical;
+}
+.icon-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+}
+.icon-card-footer .status-badge {
+  margin-right: auto;
+}

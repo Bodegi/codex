@@ -137,5 +137,15 @@ service cloud.firestore {
       // Soft-delete is a status flag, not a document delete. Hard delete is an admin break-glass.
       allow delete: if isAdmin();
     }
+
+    // App-global icon overlay. SVG-as-text records concatenated onto the bundled baseline
+    // (iconRegistry.mergeIcons) so a type's `icon` key can resolve to an admin-added glyph. Any
+    // signed-in user reads it (the nav renders icons); curation is admin-only. Soft-delete via a
+    // `status` flag mirrors images/entries — an archived icon just drops from the overlay. The doc
+    // id is the icon key.
+    match /icons/{key} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
   }
 }
