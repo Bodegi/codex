@@ -76,6 +76,33 @@ test('reference renderInput builds a select from ctx.listEntries with the curren
   assert.match(html, /<option value="dwarves" selected>Dwarves<\/option>/);
 });
 
+test('reference renderInput preserves a set id when the target type has no entries', () => {
+  // Empty list is truthy — the select would otherwise render as "— none —" and
+  // the next save would wipe the stored id.
+  const ctx = { listEntries: () => [] };
+  const html = fieldKinds.reference.renderInput(
+    { key: 'civilization', kind: 'reference', targetType: 'civilization' },
+    'dwarves',
+    ctx
+  );
+  assert.match(html, /<select/);
+  assert.match(html, /<option value="dwarves" selected>dwarves \(unavailable\)<\/option>/);
+});
+
+test('reference renderInput preserves a dangling id not present in the entry list', () => {
+  const ctx = {
+    listEntries: () => [{ id: 'elves', label: 'Elves' }],
+    resolveRef: (_type, id) => ({ label: id, exists: false }),
+  };
+  const html = fieldKinds.reference.renderInput(
+    { key: 'civilization', kind: 'reference', targetType: 'civilization' },
+    'dwarves',
+    ctx
+  );
+  assert.match(html, /<option value="dwarves" selected>dwarves \(unavailable\)<\/option>/);
+  assert.match(html, /<option value="elves">Elves<\/option>/);
+});
+
 test('reference renderInput without ctx falls back to a text input carrying the id', () => {
   const html = fieldKinds.reference.renderInput({ key: 'civilization', kind: 'reference' }, 'dwarves');
   assert.match(html, /<input/);

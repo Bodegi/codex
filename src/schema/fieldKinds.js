@@ -73,14 +73,24 @@ export const fieldKinds = {
         // No entry index available — keep the id editable rather than lose it.
         return `<input type="text" class="form-control" data-field-key="${field.key}" data-field-kind="reference" value="${escapeHtml(value)}">`;
       }
-      const options = [`<option value="">— none —</option>`]
-        .concat(
-          entries.map(
-            (e) => `<option value="${escapeHtml(e.id)}"${e.id === value ? ' selected' : ''}>${escapeHtml(e.label)}</option>`
-          )
+      const current = value == null ? '' : String(value);
+      const options = [`<option value="">— none —</option>`];
+      // A set-but-unlisted id (the target type has no entries yet, or the
+      // referenced entry was deleted/archived) has no matching <option>, so the
+      // select would render as "— none —" and the next save would silently wipe
+      // it. Carry it as a selected option so the stored value survives edit → save.
+      if (current !== '' && !entries.some((e) => e.id === current)) {
+        const label = ctx?.resolveRef ? ctx.resolveRef(field.targetType, current).label : current;
+        options.push(
+          `<option value="${escapeHtml(current)}" selected>${escapeHtml(label)} (unavailable)</option>`
+        );
+      }
+      options.push(
+        ...entries.map(
+          (e) => `<option value="${escapeHtml(e.id)}"${e.id === current ? ' selected' : ''}>${escapeHtml(e.label)}</option>`
         )
-        .join('');
-      return `<select class="form-control" data-field-key="${field.key}" data-field-kind="reference" data-ref-target="${escapeHtml(field.targetType || '')}">${options}</select>`;
+      );
+      return `<select class="form-control" data-field-key="${field.key}" data-field-kind="reference" data-ref-target="${escapeHtml(field.targetType || '')}">${options.join('')}</select>`;
     },
     renderRead(field, value, ctx) {
       if (value == null || String(value).trim() === '') return '<span class="muted">None</span>';
