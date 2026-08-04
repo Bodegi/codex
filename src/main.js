@@ -357,7 +357,23 @@ function initAuth() {
   renderAppState();
   if (state.authManager) {
     state.authManager.onChange(onAuthChanged);
+    maybeDevSignIn();
   }
+}
+
+// Dev-only: if a custom token is staged in localStorage (minted by scripts/dev-mint-token.mjs), exchange
+// it for a session so an automated browser can sign in as a real user without the Google popup. Single-use
+// — the key is cleared after reading; Firebase then persists the session normally across reloads. Inert for
+// every real user (no such key is ever set in production).
+function maybeDevSignIn() {
+  let token = null;
+  try { token = localStorage.getItem('codex_dev_custom_token'); } catch { /* storage unavailable */ }
+  if (!token) return;
+  try { localStorage.removeItem('codex_dev_custom_token'); } catch { /* ignore */ }
+  state.authManager.loginWithCustomToken(token).catch((err) => {
+    console.error('dev custom-token sign-in failed', err);
+    showToast('Dev sign-in failed: ' + err.message);
+  });
 }
 
 function onAuthChanged() {

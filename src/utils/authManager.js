@@ -8,7 +8,14 @@
  * editor / viewer / none) is resolved separately by capabilities.js.
  */
 
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithCustomToken,
+  signOut,
+  onAuthStateChanged,
+} from 'firebase/auth';
 import { toAuthProfile } from './authProfile.js';
 
 export class AuthManager {
@@ -31,6 +38,16 @@ export class AuthManager {
 
   async login() {
     await signInWithPopup(this.auth, this.provider);
+  }
+
+  /**
+   * Dev-only: sign in with an Admin-SDK custom token (see scripts/dev-mint-token.mjs), bypassing the
+   * Google popup so an automated browser can act as a real user for testing. Never used in the normal
+   * flow — main.js only calls this when the `codex_dev_custom_token` localStorage key is set, which no
+   * production user ever has. The minted token is short-lived and exchanged for a normal session.
+   */
+  async loginWithCustomToken(token) {
+    await signInWithCustomToken(this.auth, token);
   }
 
   async logout() {
