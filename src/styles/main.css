@@ -462,6 +462,22 @@ button.user-badge { cursor: pointer; }
   font-size: 12px;
 }
 
+/* Disabled: dim out and drop the affordances. `.btn`'s transition makes toggling the
+   attribute fade in/out rather than snap. Higher specificity than the variant rules so it
+   also flattens the primary button's shadow. */
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn:disabled:hover,
+.btn[disabled]:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 /* Dialog Modal */
 .gh-dialog-card {
   margin: auto;
