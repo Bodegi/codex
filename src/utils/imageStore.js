@@ -16,9 +16,9 @@
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * Supabase Storage RLS the `codex-images` bucket depends on — it lives ONLY in the Supabase dashboard
- * (there is no SQL/policy file in this repo), recorded here as the sole Supabase-touching module. Two
- * write-policy pins are load-bearing and BOTH fail SILENTLY if "hardened" the wrong way:
+ * Supabase Storage RLS the `codex-images` bucket depends on. The version-controlled SSOT is
+ * supabase/migrations/ (deploy recipe in supabase/config.toml), reconciled against the live project.
+ * Two write-policy pins are load-bearing and BOTH fail SILENTLY if "hardened" the wrong way:
  *   - Granted `to public`, NOT `to authenticated`: Storage's RLS context can't read the Firebase
  *     `iss`/`aud` claims on the authenticated-role path, and we mint no per-user `role:'authenticated'`
  *     claim — so `to authenticated` (which looks stricter) silently denies every new user's first upload.

@@ -1,0 +1,23 @@
+# Supabase CLI config — Codex image byte store.
+#
+# Mirrors the Firebase CLI scaffolding (firebase.json + .firebaserc): points the CLI at the
+# remote project so the Storage bucket + RLS can be deployed from here. Auth is a gitignored
+# personal access token, NOT committed — see .gitignore and the deploy recipe below.
+#
+# `project_id` is the project ref (the subdomain in appConfig.supabase.url:
+# https://mdvkrumxjunrpabgeamy.supabase.co). `supabase link` writes the linked ref to the
+# gitignored supabase/.temp/, so linking is a local step; this file is the tracked pointer.
+#
+# Deploy recipe (mirrors `firebase deploy --only firestore:rules`):
+#   export SUPABASE_ACCESS_TOKEN=$(cat .secrets/supabase-access-token.json)   # gitignored PAT (raw sbp_ token)
+#   npx supabase link --project-ref mdvkrumxjunrpabgeamy                 # one-time, prompts DB pw
+#   npx supabase db push                                                 # applies migrations/
+#
+# BEFORE the first `db push`: the live Storage RLS was authored in the dashboard, so the
+# migration under migrations/ is a RECONSTRUCTION from the invariants documented in
+# src/utils/imageStore.js — reconcile it against the real state first with:
+#   npx supabase db pull --schema storage
+# and diff, so a push can never silently replace a working policy with a wrong one (the exact
+# to-public / iss-aud-pin trap that 403s every upload). See the migration header for detail.
+
+project_id = "mdvkrumxjunrpabgeamy"
