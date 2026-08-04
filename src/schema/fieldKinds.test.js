@@ -279,6 +279,46 @@ test('gallery renderRead renders a carousel of the ids; empty → nothing', () =
   assert.equal(fieldKinds.gallery.renderRead({ key: 'gallery' }, [], ctx), '');
 });
 
+// --- map (break component) ---
+
+test('map is a break, self-render component the registry resolves', () => {
+  assert.equal(getKind('map'), fieldKinds.map);
+  assert.equal(getLayout('map'), 'break');
+  assert.equal(fieldKinds.map.selfRender, true);
+});
+
+test('map renderInput carries data-field-key + tools, resolves the backdrop, and is not scraped', () => {
+  const ctx = { resolveImage: (id) => (id === 'm.png' ? '/i/m.png' : null) };
+  const html = fieldKinds.map.renderInput(
+    { key: 'map', label: 'World Map', kind: 'map' },
+    { mapImageId: 'm.png', waypoints: [], roads: [], territories: [] },
+    ctx
+  );
+  assert.match(html, /data-field-key="map"/);
+  assert.match(html, /data-map-tool="waypoint"/);
+  assert.match(html, /class="map-canvas-overlay"/);
+  assert.match(html, /src="\/i\/m.png"/);
+  assert.match(html, /World Map/);
+  assert.doesNotMatch(html, /data-field-kind=/); // break roots report via mount, not scrape
+});
+
+test('map renderRead: empty → nothing, populated → a .map-read canvas carrying the value', () => {
+  assert.equal(fieldKinds.map.renderRead({ key: 'map', label: 'Map' }, undefined), '');
+  assert.equal(
+    fieldKinds.map.renderRead({ key: 'map', label: 'Map' }, { mapImageId: '', waypoints: [], roads: [], territories: [] }),
+    ''
+  );
+  const ctx = { resolveImage: (id) => `/i/${id}` };
+  const html = fieldKinds.map.renderRead(
+    { key: 'map', label: 'Map' },
+    { mapImageId: 'm.png', waypoints: [{ id: '1', kind: 'waypoint', x: 5, y: 6, label: 'Pin' }], roads: [], territories: [] },
+    ctx
+  );
+  assert.match(html, /class="map-wrapper map-read"/);
+  assert.match(html, /data-map-value=/);
+  assert.match(html, /src="\/i\/m.png"/);
+});
+
 test('unknownKindPlaceholder names the offending kind', () => {
   assert.match(unknownKindPlaceholder('bogus'), /unknown field kind/);
   assert.match(unknownKindPlaceholder('bogus'), /bogus/);

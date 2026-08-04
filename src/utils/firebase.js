@@ -39,8 +39,7 @@ import {
   entriesCollectionPath,
   entryDocPath,
   schemasCollectionPath,
-  schemaDocPath,
-  atlasDocPath
+  schemaDocPath
 } from './codexPaths.js';
 import { buildUserDoc } from './userDoc.js';
 import { resolveSave } from '../schema/saveResolve.js';
@@ -381,22 +380,4 @@ export class CodexScope {
     await deleteDoc(doc(this.db, ...schemaDocPath(this.codexId, type)));
   }
 
-  /** Subscribe to real-time updates for the Interactive World Map vector data. */
-  subscribeToMapData(callback) {
-    if (!this.db) return () => {};
-    const mapRef = doc(this.db, ...atlasDocPath(this.codexId, 'world_vector_data'));
-    return onSnapshot(mapRef, (snapshot) => {
-      if (snapshot.exists()) callback(snapshot.data());
-    });
-  }
-
-  /** Save Interactive World Map vector data (Waypoints, Roads, Territories). */
-  async saveMapData(mapData) {
-    if (!this.db) return;
-    await setDoc(
-      doc(this.db, ...atlasDocPath(this.codexId, 'world_vector_data')),
-      { ...mapData, updatedAt: now() },
-      { merge: true }
-    );
-  }
 }

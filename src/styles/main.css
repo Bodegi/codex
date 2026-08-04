@@ -1444,15 +1444,14 @@ select[multiple].form-control option {
   margin-bottom: 4px;
 }
 
-/* World Atlas Canvas */
-.atlas-container {
+/* Map component canvas */
+.map-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: 100%;
 }
 
-.atlas-map-wrapper {
+.map-wrapper {
   position: relative;
   width: 100%;
   height: 420px;
@@ -1463,14 +1462,14 @@ select[multiple].form-control option {
   cursor: crosshair;
 }
 
-.atlas-map-img {
+.map-bg-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   opacity: 0.85;
 }
 
-.atlas-canvas-overlay {
+.map-canvas-overlay {
   position: absolute;
   top: 0;
   left: 0;
@@ -1479,7 +1478,12 @@ select[multiple].form-control option {
   pointer-events: all;
 }
 
-.atlas-toolbar {
+/* Read-only map: no authoring affordances. */
+.map-read {
+  cursor: default;
+}
+
+.map-toolbar {
   display: flex;
   align-items: center;
   gap: 12px;

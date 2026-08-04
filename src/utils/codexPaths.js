@@ -49,5 +49,3 @@ export const entryDocPath = (codexId, type, id) => ['codices', codexId, 'entries
 
 export const schemasCollectionPath = (codexId) => ['codices', codexId, 'schemas'];
 export const schemaDocPath = (codexId, type) => ['codices', codexId, 'schemas', type];
-
-export const atlasDocPath = (codexId, docId) => ['codices', codexId, 'atlas', docId];

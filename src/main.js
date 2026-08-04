@@ -66,6 +66,7 @@ import {
 import { resolveCapabilities, isAdminEmail } from './utils/capabilities.js';
 import { getKind } from './schema/fieldKinds.js';
 import { initCarousel } from './components/carousel.js';
+import { initMapReadCanvases } from './components/mapComponent.js';
 import { createImageIndex, publicUrl } from './schema/imageIndex.js';
 import { createImageStore } from './utils/imageStore.js';
 import { uploadImage } from './schema/imageUpload.js';
@@ -171,7 +172,7 @@ if (state.firebaseConfig) {
   state.authManager = new AuthManager(state.fbManager.app);
 }
 
-// The active codex's Firestore scope (entries / schemas / atlas under codices/${id}/…), or null in
+// The active codex's Firestore scope (entries / schemas under codices/${id}/…), or null in
 // local-only mode. Every Firestore read/write goes through this so nothing is hardwired to one codex.
 function codexScope() {
   return state.fbManager ? state.fbManager.codex(state.currentCodexId) : null;
@@ -1717,7 +1718,11 @@ function wireComponentMounts() {
       onChange: (v) => {
         state.formData[field.key] = v;
         state.dirty = true;
-        renderFormWithoutResubscribe();
+        // selfRender components (map) own a live DOM/canvas a full form rebuild would reset;
+        // they redraw themselves, so we only refresh the read preview. Others rebuild the form
+        // (that's how hero/gallery thumbnails refresh).
+        if (component.selfRender) refreshBuilderPreview();
+        else renderFormWithoutResubscribe();
       },
       ctx,
     });
@@ -1746,6 +1751,7 @@ function currentPreviewHTML() {
 function refreshBuilderPreview() {
   updateRenderedPreview(currentPreviewHTML());
   initCarousel(previewRendered);
+  initMapReadCanvases(previewRendered);
   updateRawJson(currentEntryJson());
 }
 

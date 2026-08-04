@@ -22,6 +22,11 @@
  * (no more fixed `heroImage` / `gallery` write keys). The pure kinds omit it and are scraped
  * from `data-field-key` as before.
  *
+ * `selfRender` (optional) tells the builder's onChange NOT to rebuild the whole form after a
+ * commit. hero/gallery rely on that rebuild to refresh their thumbnails; the map does not — it
+ * owns a live canvas with ephemeral pan/zoom a teardown would reset, so it redraws itself and
+ * only the read preview refreshes (see main.js `wireComponentMounts`).
+ *
  * The four pure kinds (text / prose / list / reference) stay free of build-tool coupling and
  * are unit-testable under plain Node. The media components need the image picker (mount only)
  * and the carousel (read only); both imports are side-effect-free at load, so this module
@@ -39,6 +44,7 @@ import { escapeHtml, formatInline } from './inlineText.js';
 import { notFoundImage } from './notFoundImage.js';
 import { openImagePicker } from '../components/imagePicker.js';
 import { renderCarousel } from '../components/carousel.js';
+import { renderMapInput, renderMapRead, mountMap } from '../components/mapComponent.js';
 
 const MUTED_EMPTY = '<p class="muted">Not specified.</p>';
 
@@ -241,6 +247,16 @@ export const fieldKinds = {
         });
       });
     },
+  },
+
+  // The map component lives in its own module (canvas engine); the registry just delegates.
+  // `selfRender` keeps its live canvas from being torn down on every commit (see header).
+  map: {
+    layout: 'break',
+    selfRender: true,
+    renderInput: renderMapInput,
+    renderRead: renderMapRead,
+    mount: mountMap,
   },
 };
 

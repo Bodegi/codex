@@ -4,7 +4,7 @@
  * The single codex shown in local-only mode (no Firebase) and the shared content for
  * headless smoke tests + unit-test fixtures. Deliberately generic (no ATM10 lore): a
  * `note` type and a `person` type, chosen so the two schemas between them exercise every
- * field kind (text / prose / list / reference / hero / gallery) and a real cross-entry
+ * field kind (text / prose / list / reference / hero / gallery / map) and a real cross-entry
  * reference (`person.favoriteNote` → a `note`).
  *
  * This is NOT "the app's data" — it is demo/test content. Real codices live in Firestore.
@@ -46,6 +46,10 @@ export const demoSchemas = [
           { key: 'gallery', label: 'Gallery', kind: 'gallery' },
         ],
       },
+      {
+        title: 'Map',
+        fields: [{ key: 'map', label: 'Map', kind: 'map' }],
+      },
     ],
   },
   {
@@ -84,6 +88,7 @@ export const demoEntriesByType = {
       tags: ['demo', 'fixture'],
       heroImage: '',
       gallery: [],
+      map: { mapImageId: '', waypoints: [], roads: [], territories: [] },
     },
     {
       type: 'note',
@@ -94,6 +99,7 @@ export const demoEntriesByType = {
       tags: ['reference'],
       heroImage: '',
       gallery: [],
+      map: { mapImageId: '', waypoints: [], roads: [], territories: [] },
     },
   ],
   person: [

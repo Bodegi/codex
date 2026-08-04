@@ -13,7 +13,6 @@ import {
   entryDocPath,
   schemasCollectionPath,
   schemaDocPath,
-  atlasDocPath,
   imagesCollectionPath,
   imageDocPath,
   iconsCollectionPath,
@@ -54,15 +53,6 @@ test('entries are scoped under codices/{id}/entries', () => {
 test('schemas are scoped under codices/{id}/schemas, keyed by type', () => {
   assert.deepEqual(schemasCollectionPath('atm10'), ['codices', 'atm10', 'schemas']);
   assert.deepEqual(schemaDocPath('atm10', 'region'), ['codices', 'atm10', 'schemas', 'region']);
-});
-
-test('atlas is scoped under codices/{id}/atlas', () => {
-  assert.deepEqual(atlasDocPath('atm10', 'world_vector_data'), [
-    'codices',
-    'atm10',
-    'atlas',
-    'world_vector_data',
-  ]);
 });
 
 test('paths re-scope cleanly for a different codex', () => {

@@ -76,10 +76,6 @@ service cloud.firestore {
           && request.resource.data.version == (('version' in resource.data ? resource.data.version : 0) + 1);
         allow delete: if canWriteEntry();
       }
-      match /atlas/{docId} {
-        allow read:  if isAdmin() || hasPerm(codexId);
-        allow write: if isAdmin() || isEditor(codexId);
-      }
       match /schemas/{type} {
         allow read:  if isAdmin() || hasPerm(codexId);
         allow write: if isAdmin();                                // Types editing is admin-only
