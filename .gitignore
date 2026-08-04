@@ -9,6 +9,10 @@ dist/
 .env.*
 *.token
 token.txt
+# Firebase service-account key for CLI deploys — never commit
+.secrets/
+*firebase-adminsdk*.json
+serviceAccount*.json
 
 # Local-only orientation docs — never published to the public repo
 HANDOFF.md
