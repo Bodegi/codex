@@ -9,10 +9,12 @@ import {
   removeField,
   updateField,
   moveField,
+  moveFieldTo,
   addSection,
   removeSection,
   renameSection,
   moveSection,
+  moveSectionTo,
   newTypeSchema,
 } from './schemaEditor.js';
 import { validateSchema } from '../schema/schemaValidate.js';
@@ -76,6 +78,31 @@ test('moveField reorders within a section and clamps at the ends', () => {
   assert.deepEqual(clamped.sections[0].fields.map((f) => f.key), ['id', 'name']); // no-op
 });
 
+test('moveFieldTo reorders within a section (drag downward past a peer)', () => {
+  const before = schema();
+  const after = moveFieldTo(before, 0, 0, 0, 2); // id → end of Core
+  assert.deepEqual(after.sections[0].fields.map((f) => f.key), ['name', 'id']);
+  assert.deepEqual(before.sections[0].fields.map((f) => f.key), ['id', 'name']); // input untouched
+});
+
+test('moveFieldTo treats a same-slot / adjacent-below drop as a no-op', () => {
+  const before = schema();
+  assert.equal(moveFieldTo(before, 0, 0, 0, 0), before); // onto itself
+  assert.equal(moveFieldTo(before, 0, 0, 0, 1), before); // just below itself
+});
+
+test('moveFieldTo moves a field across sections', () => {
+  const after = moveFieldTo(schema(), 0, 0, 1, 0); // Core.id → front of Extra
+  assert.deepEqual(after.sections[0].fields.map((f) => f.key), ['name']);
+  assert.deepEqual(after.sections[1].fields.map((f) => f.key), ['id', 'notes']);
+});
+
+test('moveFieldTo ignores out-of-range source/target sections', () => {
+  const before = schema();
+  assert.equal(moveFieldTo(before, 5, 0, 0, 0), before);
+  assert.equal(moveFieldTo(before, 0, 9, 1, 0), before);
+});
+
 test('addSection appends an empty section', () => {
   const after = addSection(schema(), 'Imagery');
   assert.equal(after.sections.length, 3);
@@ -97,6 +124,16 @@ test('moveSection reorders and clamps', () => {
   assert.deepEqual(down.sections.map((s) => s.title), ['Extra', 'Core']);
   const clamped = moveSection(schema(), 1, 1);
   assert.deepEqual(clamped.sections.map((s) => s.title), ['Core', 'Extra']); // no-op
+});
+
+test('moveSectionTo reorders to an arbitrary index and no-ops on same/adjacent', () => {
+  const toEnd = moveSectionTo(schema(), 0, 2); // Core → end
+  assert.deepEqual(toEnd.sections.map((s) => s.title), ['Extra', 'Core']);
+  const toFront = moveSectionTo(schema(), 1, 0); // Extra → front
+  assert.deepEqual(toFront.sections.map((s) => s.title), ['Extra', 'Core']);
+  const before = schema();
+  assert.equal(moveSectionTo(before, 0, 0), before); // onto itself
+  assert.equal(moveSectionTo(before, 0, 1), before); // just below itself
 });
 
 // --- newTypeSchema ----------------------------------------------------------

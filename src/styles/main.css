@@ -552,10 +552,10 @@ button.user-badge { cursor: pointer; }
 .editor-header { display: none; }
 .app-workspace.view-content-edit .editor-header { display: flex; }
 
-/* Raw JSON is an admin/power tool — the Preview/Raw switch shows only on the admin surfaces. */
-.preview-mode-switch { display: none; }
-.app-workspace.view-content-admin .preview-mode-switch,
-.app-workspace.view-global-admin .preview-mode-switch { display: flex; }
+/* Raw JSON is an advanced escape hatch — its disclosure toggle shows only in the
+   per-type Structure editor (admin-only ground), never in the reader or global admin. */
+.advanced-json-toggle { display: none; }
+.app-workspace.view-content-admin .advanced-json-toggle { display: inline-flex; }
 
 /* Honor the hidden attribute even on flex/inline-flex controls (nav + toolbar buttons). */
 [hidden] {
@@ -837,6 +837,21 @@ textarea.form-control {
   min-height: 80px;
 }
 
+/* Multi-value reference picker — a native listbox. Ctrl/Cmd-click toggles targets. */
+select[multiple].form-control {
+  padding: 4px;
+}
+
+select[multiple].form-control option {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+
+/* Multi-value reference read view — comma-separated target links. */
+.ref-list {
+  margin: 0;
+}
+
 /* Reader / preview panel */
 .reader-panel {
   display: flex;
@@ -849,28 +864,15 @@ textarea.form-control {
   background: rgba(0, 0, 0, 0.2);
 }
 
-.preview-mode-switch {
-  /* display is owned by the .view-* rules above (admin surfaces only). */
-  gap: 4px;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 3px;
-  border-radius: var(--radius-sm);
+/* Advanced JSON toggle — a monospace-flavored escape hatch; lit gold when disclosed. */
+.advanced-json-toggle {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
 }
 
-.preview-tab-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 12px;
-  padding: 6px 14px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.preview-tab-btn.active {
-  background: var(--bg-surface-elevated);
-  color: #fff;
-  font-weight: 600;
+.advanced-json-toggle.active {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
 }
 
 .compliance-badge {
@@ -1705,6 +1707,43 @@ textarea.form-control {
   margin-top: 8px;
   border-style: dashed;
   color: var(--text-muted);
+}
+
+/* Drag-and-drop reordering: the grab handle and the drop-position indicators. */
+.se-drag {
+  flex: 0 0 auto;
+  cursor: grab;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px;
+  user-select: none;
+}
+
+.se-drag:hover {
+  color: var(--text-muted);
+}
+
+.se-drag:active {
+  cursor: grabbing;
+}
+
+.se-drop-before {
+  box-shadow: inset 0 2px 0 0 var(--accent-gold);
+}
+
+.se-drop-after {
+  box-shadow: inset 0 -2px 0 0 var(--accent-gold);
+}
+
+.se-drop-into {
+  outline: 2px dashed var(--accent-gold);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.se-fields.se-drop-into {
+  min-height: 24px; /* an empty section still offers a drop target */
 }
 
 /* ==========================================================================

@@ -124,6 +124,28 @@ export function moveField(schema, sectionIndex, fieldIndex, delta) {
   return next;
 }
 
+/**
+ * Move a field to an arbitrary position — within its section OR into another section
+ * (the drag-and-drop path; Up/Down handles the single-step within-section case).
+ * `toFi` is the insertion index in the destination section's ORIGINAL ordering; the
+ * splice math accounts for the source slot vanishing on a same-section downward move.
+ * A no-op move (same slot) returns the input unchanged.
+ */
+export function moveFieldTo(schema, fromSi, fromFi, toSi, toFi) {
+  const from = schema.sections?.[fromSi];
+  const to = schema.sections?.[toSi];
+  if (!from || !to || fromFi < 0 || fromFi >= from.fields.length) return schema;
+  if (fromSi === toSi && (toFi === fromFi || toFi === fromFi + 1)) return schema; // no-op
+  const next = clone(schema);
+  const [field] = next.sections[fromSi].fields.splice(fromFi, 1);
+  let idx = toFi;
+  if (fromSi === toSi && fromFi < toFi) idx -= 1; // the removed slot shifted everything after it
+  const dest = next.sections[toSi].fields;
+  idx = Math.max(0, Math.min(idx, dest.length));
+  dest.splice(idx, 0, field);
+  return next;
+}
+
 // --- Section transforms -----------------------------------------------------
 
 /** Append an empty section with the given title. */
@@ -153,6 +175,24 @@ export function moveSection(schema, sectionIndex, delta) {
   if (target < 0 || target >= schema.sections.length) return schema; // clamp
   const next = clone(schema);
   swap(next.sections, sectionIndex, target);
+  return next;
+}
+
+/**
+ * Move a section to an arbitrary position (the drag-and-drop path). `toSi` is the
+ * insertion index in the ORIGINAL ordering; the splice math accounts for the source
+ * slot vanishing on a downward move. A no-op move returns the input unchanged.
+ */
+export function moveSectionTo(schema, fromSi, toSi) {
+  const sections = schema.sections;
+  if (!Array.isArray(sections) || fromSi < 0 || fromSi >= sections.length) return schema;
+  if (toSi === fromSi || toSi === fromSi + 1) return schema; // no-op
+  const next = clone(schema);
+  const [section] = next.sections.splice(fromSi, 1);
+  let idx = toSi;
+  if (fromSi < toSi) idx -= 1;
+  idx = Math.max(0, Math.min(idx, next.sections.length));
+  next.sections.splice(idx, 0, section);
   return next;
 }
 
@@ -191,6 +231,9 @@ function fieldRow(field, si, fi, types) {
   }
   if (field.kind === 'reference') {
     extras.push(`<select class="se-input se-sub" data-se="field-target" ${at}>${targetOptions(types, field.targetType)}</select>`);
+    extras.push(
+      `<label class="se-meta"><input type="checkbox" data-se="field-multi" ${at}${field.multi ? ' checked' : ''}> multiple</label>`
+    );
   }
   if (field.kind === 'text') {
     extras.push(
@@ -202,8 +245,9 @@ function fieldRow(field, si, fi, types) {
   );
 
   return `
-    <div class="se-field" ${at}>
+    <div class="se-field" ${at} data-drop="field">
       <div class="se-field-main">
+        <span class="se-drag" ${at} draggable="true" data-drag="field" title="Drag to reorder" aria-hidden="true">⠿</span>
         <input class="se-input se-label" data-se="field-label" ${at} value="${escapeHtml(field.label || '')}" placeholder="Field label">
         <code class="se-key" title="storage key (fixed)">${escapeHtml(field.key)}</code>
         <select class="se-input se-kind" data-se="field-kind" ${at}>${kindOptions(field.kind)}</select>
@@ -220,8 +264,9 @@ function fieldRow(field, si, fi, types) {
 function sectionBlock(section, si, types) {
   const rows = section.fields.map((f, fi) => fieldRow(f, si, fi, types)).join('');
   return `
-    <div class="se-section" data-si="${si}">
+    <div class="se-section" data-si="${si}" data-drop="section">
       <div class="se-section-head">
+        <span class="se-drag" data-si="${si}" draggable="true" data-drag="section" title="Drag to reorder" aria-hidden="true">⠿</span>
         <input class="se-input se-section-title" data-se="section-title" data-si="${si}" value="${escapeHtml(section.title || '')}" placeholder="Section title">
         <span class="se-row-controls">
           <button type="button" class="se-btn" data-se="section-up" data-si="${si}" title="Move section up">Up</button>
@@ -229,7 +274,7 @@ function sectionBlock(section, si, types) {
           <button type="button" class="se-btn se-danger" data-se="section-remove" data-si="${si}" title="Remove section">×</button>
         </span>
       </div>
-      <div class="se-fields">${rows}</div>
+      <div class="se-fields" data-drop-fields="${si}">${rows}</div>
       <button type="button" class="se-btn se-add" data-se="field-add" data-si="${si}">+ add field</button>
     </div>`;
 }
@@ -331,8 +376,104 @@ export function attachSchemaEditor(root, onIntent) {
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { targetType: el.value } });
       case 'field-meta':
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { showInMetadata: el.checked } });
+      case 'field-multi':
+        return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { multi: el.checked } });
       default:
         return undefined;
+    }
+  });
+
+  wireDragAndDrop(root, onIntent);
+}
+
+// --- DOM: drag-and-drop reordering ------------------------------------------
+// Only the ⠿ handles are draggable, so form inputs keep native text selection and
+// there are no nested drag sources to disambiguate. A drop emits a single move-*-to
+// intent; the caller applies the pure transform and rebuilds the editor.
+
+const DROP_MARKERS = ['se-drop-before', 'se-drop-after', 'se-drop-into'];
+
+/** Is the pointer past the vertical midpoint of `el` (drop AFTER vs BEFORE)? */
+function isAfter(e, el) {
+  const rect = el.getBoundingClientRect();
+  return e.clientY > rect.top + rect.height / 2;
+}
+
+/**
+ * Resolve where the current drag would land: `{ el, marker, toSi[, toFi] }` or null
+ * when the pointer is not over a valid target. Field precedence: a specific row →
+ * its section's field container (append) → the section as a whole (append).
+ */
+function dropSpot(e, drag) {
+  if (drag.kind === 'section') {
+    const sec = e.target.closest('[data-drop="section"]');
+    if (!sec) return null;
+    const after = isAfter(e, sec);
+    return { el: sec, marker: after ? 'se-drop-after' : 'se-drop-before', toSi: +sec.dataset.si + (after ? 1 : 0) };
+  }
+  const fld = e.target.closest('[data-drop="field"]');
+  if (fld) {
+    const sec = fld.closest('[data-drop="section"]');
+    const after = isAfter(e, fld);
+    return {
+      el: fld,
+      marker: after ? 'se-drop-after' : 'se-drop-before',
+      toSi: +sec.dataset.si,
+      toFi: +fld.dataset.fi + (after ? 1 : 0),
+    };
+  }
+  const container = e.target.closest('[data-drop-fields]');
+  if (container) {
+    return { el: container, marker: 'se-drop-into', toSi: +container.dataset.dropFields, toFi: container.children.length };
+  }
+  const sec = e.target.closest('[data-drop="section"]');
+  const c = sec && sec.querySelector('[data-drop-fields]');
+  if (c) return { el: c, marker: 'se-drop-into', toSi: +sec.dataset.si, toFi: c.children.length };
+  return null;
+}
+
+function wireDragAndDrop(root, onIntent) {
+  let drag = null; // { kind: 'field'|'section', si, fi }
+  const clearMarkers = () =>
+    root.querySelectorAll('.' + DROP_MARKERS.join(', .')).forEach((el) => el.classList.remove(...DROP_MARKERS));
+
+  root.addEventListener('dragstart', (e) => {
+    const handle = e.target.closest('[data-drag]');
+    if (!handle) return;
+    drag = { kind: handle.dataset.drag, si: +handle.dataset.si, fi: handle.dataset.fi != null ? +handle.dataset.fi : -1 };
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', ''); // Firefox requires data for the drag to start
+    const ghost = handle.closest(drag.kind === 'field' ? '.se-field' : '.se-section');
+    if (ghost) e.dataTransfer.setDragImage(ghost, 12, 12);
+  });
+
+  root.addEventListener('dragend', () => {
+    drag = null;
+    clearMarkers();
+  });
+
+  root.addEventListener('dragover', (e) => {
+    if (!drag) return;
+    const spot = dropSpot(e, drag);
+    clearMarkers();
+    if (!spot) return;
+    e.preventDefault(); // signal a valid drop target
+    e.dataTransfer.dropEffect = 'move';
+    spot.el.classList.add(spot.marker);
+  });
+
+  root.addEventListener('drop', (e) => {
+    if (!drag) return;
+    const spot = dropSpot(e, drag);
+    clearMarkers();
+    const d = drag;
+    drag = null;
+    if (!spot) return;
+    e.preventDefault();
+    if (d.kind === 'section') {
+      onIntent({ action: 'move-section-to', fromSi: d.si, toSi: spot.toSi });
+    } else {
+      onIntent({ action: 'move-field-to', fromSi: d.si, fromFi: d.fi, toSi: spot.toSi, toFi: spot.toFi });
     }
   });
 }

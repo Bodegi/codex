@@ -9,13 +9,18 @@
 
 const ARRAY_KINDS = new Set(['list', 'gallery']);
 
+/** Whether a field's empty value is an array (list/gallery, or a multi-value reference). */
+function isArrayField(field) {
+  return ARRAY_KINDS.has(field.kind) || (field.kind === 'reference' && !!field.multi);
+}
+
 /** An empty, active entry shaped by `schema` — ready to bind to the form. */
 export function blankEntry(schema) {
   const entry = { type: schema.type, id: '', status: 'active' };
   for (const section of schema.sections || []) {
     for (const field of section.fields || []) {
       if (field.key === 'id' || field.key === 'type' || field.key === 'status') continue;
-      entry[field.key] = ARRAY_KINDS.has(field.kind) ? [] : '';
+      entry[field.key] = isArrayField(field) ? [] : '';
     }
   }
   return entry;

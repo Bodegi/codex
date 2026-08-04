@@ -47,10 +47,12 @@ import {
   removeField,
   updateField,
   moveField,
+  moveFieldTo,
   addSection,
   removeSection,
   renameSection,
   moveSection,
+  moveSectionTo,
   newTypeSchema,
 } from './components/schemaEditor.js';
 import { renderAuthGateway } from './components/authGateway.js';
@@ -338,6 +340,7 @@ const mainWorkspace = document.getElementById('main-workspace');
 const appBody = document.querySelector('.app-body');
 const editToggleBtn = document.getElementById('btn-edit-toggle');
 const structureBtn = document.getElementById('btn-structure');
+const advancedJsonBtn = document.getElementById('btn-advanced-json');
 const saveEntryBtn = document.getElementById('btn-save-entry');
 const archiveEntryBtn = document.getElementById('btn-archive-entry');
 const doneEditBtn = document.getElementById('btn-done-edit');
@@ -929,29 +932,26 @@ function highlightNav() {
   });
 }
 
-// View Mode Switcher (Preview / Raw JSON — Raw is an admin/power tool)
-document.querySelectorAll('.preview-tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.preview-tab-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    state.currentViewMode = btn.dataset.view;
+// Advanced JSON disclosure (Structure only). Reordering is now the visual editor's job
+// (Up/Down + drag-and-drop), so the schema-as-JSON editor is a de-emphasized escape hatch —
+// hidden behind this toggle rather than a co-equal Preview/Raw tab pair.
+function setPreviewMode(mode) {
+  state.currentViewMode = mode;
+  const raw = mode === 'raw';
+  previewRendered.classList.toggle('hidden', raw);
+  previewRawContainer.classList.toggle('hidden', !raw);
+  advancedJsonBtn.classList.toggle('active', raw);
+  advancedJsonBtn.setAttribute('aria-pressed', String(raw));
+}
 
-    if (state.currentViewMode === 'rendered') {
-      previewRendered.classList.remove('hidden');
-      previewRawContainer.classList.add('hidden');
-    } else {
-      previewRendered.classList.add('hidden');
-      previewRawContainer.classList.remove('hidden');
-    }
-  });
+advancedJsonBtn.addEventListener('click', () => {
+  setPreviewMode(state.currentViewMode === 'raw' ? 'rendered' : 'raw');
 });
 
-// Force the rendered pane (used when leaving the admin Raw JSON power tool for a builder entry).
+// Force the rendered pane (used on every surface entry/exit so the JSON hatch never
+// lingers open across navigations).
 function showRenderedPane() {
-  state.currentViewMode = 'rendered';
-  document.querySelectorAll('.preview-tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === 'rendered'));
-  previewRendered.classList.remove('hidden');
-  previewRawContainer.classList.add('hidden');
+  setPreviewMode('rendered');
 }
 
 // The single renderer: render the content area + chrome to match state.view. Used on navigation,
@@ -1534,6 +1534,9 @@ function handleSchemaIntent(intent) {
     case 'move-section':
       state.workingSchema = moveSection(s, intent.si, intent.delta);
       return renderTypesEditor();
+    case 'move-section-to':
+      state.workingSchema = moveSectionTo(s, intent.fromSi, intent.toSi);
+      return renderTypesEditor();
     case 'rename-section':
       state.workingSchema = renameSection(s, intent.si, intent.title);
       return refreshWorkingPreview();
@@ -1547,6 +1550,9 @@ function handleSchemaIntent(intent) {
       return renderTypesEditor();
     case 'move-field':
       state.workingSchema = moveField(s, intent.si, intent.fi, intent.delta);
+      return renderTypesEditor();
+    case 'move-field-to':
+      state.workingSchema = moveFieldTo(s, intent.fromSi, intent.fromFi, intent.toSi, intent.toFi);
       return renderTypesEditor();
     case 'change-kind':
       // Kind toggles which conditional controls show — rebuild the editor.
@@ -1649,6 +1655,20 @@ function renderFormWithoutResubscribe() {
   refreshBuilderPreview();
 }
 
+// Read a form control back into its stored value shape: list → array (one per line);
+// multi-value reference → array of ids (selected <option>s, or comma-split for the
+// no-index text fallback); everything else → the raw string.
+function readFieldValue(el) {
+  const kind = el.dataset.fieldKind;
+  if (kind === 'list') return el.value.split('\n').map((s) => s.trim()).filter(Boolean);
+  if (kind === 'reference' && el.dataset.multi) {
+    return el.multiple
+      ? [...el.selectedOptions].map((o) => o.value).filter(Boolean)
+      : el.value.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  return el.value;
+}
+
 // Attach Input Listeners & Auto-Sync to Firebase. Schema fields carry data-field-key
 // (+ data-field-kind); media buttons carry neither and are wired separately.
 function attachFormInputListeners() {
@@ -1656,10 +1676,7 @@ function attachFormInputListeners() {
     const sync = (e) => {
       const el = e.target;
       const key = el.dataset.fieldKey;
-      state.formData[key] =
-        el.dataset.fieldKind === 'list'
-          ? el.value.split('\n').map((s) => s.trim()).filter(Boolean)
-          : el.value;
+      state.formData[key] = readFieldValue(el);
       // Keep the header title live as the title field is edited.
       readerTitle.textContent = entryTitle(state.formData, curType());
       editorTitle.textContent = readerTitle.textContent;

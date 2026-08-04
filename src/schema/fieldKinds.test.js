@@ -126,6 +126,81 @@ test('reference renderRead with no value renders a muted None', () => {
   assert.match(fieldKinds.reference.renderRead({ targetType: 'civilization' }, ''), /class="muted"/);
 });
 
+// --- reference (multi) ---
+
+test('multi reference renderInput builds a <select multiple> with stored ids selected', () => {
+  const ctx = {
+    listEntries: () => [
+      { id: 'dwarves', label: 'Dwarves' },
+      { id: 'orcs', label: 'Orcs' },
+      { id: 'elves', label: 'Elves' },
+    ],
+  };
+  const html = fieldKinds.reference.renderInput(
+    { key: 'factions', kind: 'reference', targetType: 'civilization', multi: true },
+    ['dwarves', 'orcs'],
+    ctx
+  );
+  assert.match(html, /<select multiple/);
+  assert.match(html, /data-multi="true"/);
+  assert.match(html, /<option value="dwarves" selected>Dwarves<\/option>/);
+  assert.match(html, /<option value="orcs" selected>Orcs<\/option>/);
+  assert.match(html, /<option value="elves">Elves<\/option>/);
+});
+
+test('multi reference renderInput accepts a legacy comma string and preserves dangling ids', () => {
+  const ctx = {
+    listEntries: () => [{ id: 'elves', label: 'Elves' }],
+    resolveRef: (_type, id) => ({ label: id, exists: false }),
+  };
+  const html = fieldKinds.reference.renderInput(
+    { key: 'factions', kind: 'reference', targetType: 'civilization', multi: true },
+    'dwarves, orcs',
+    ctx
+  );
+  assert.match(html, /<option value="dwarves" selected>dwarves \(unavailable\)<\/option>/);
+  assert.match(html, /<option value="orcs" selected>orcs \(unavailable\)<\/option>/);
+  assert.match(html, /<option value="elves">Elves<\/option>/);
+});
+
+test('multi reference renderInput without ctx falls back to a comma text input carrying the ids', () => {
+  const html = fieldKinds.reference.renderInput(
+    { key: 'factions', kind: 'reference', targetType: 'civilization', multi: true },
+    ['dwarves', 'orcs']
+  );
+  assert.match(html, /<input/);
+  assert.match(html, /data-multi="true"/);
+  assert.match(html, /value="dwarves, orcs"/);
+});
+
+test('multi reference renderRead links each resolvable target and mutes missing ones', () => {
+  const ctx = {
+    resolveRef: (_type, id) =>
+      id === 'ghosts' ? { label: id, exists: false } : { label: id[0].toUpperCase() + id.slice(1), exists: true },
+  };
+  const html = fieldKinds.reference.renderRead(
+    { targetType: 'civilization', multi: true },
+    ['dwarves', 'ghosts'],
+    ctx
+  );
+  assert.match(html, /<a [^>]*data-ref-id="dwarves"[^>]*>Dwarves<\/a>/);
+  assert.match(html, /<span class="muted-ref"[^>]*>ghosts<\/span>/);
+  assert.match(html, /Dwarves<\/a>, <span/); // comma-separated
+});
+
+test('multi reference renderRead with no ids renders a muted None', () => {
+  assert.match(fieldKinds.reference.renderRead({ targetType: 'civilization', multi: true }, []), /class="muted"/);
+});
+
+test('displayValue joins multi-reference labels', () => {
+  const ctx = { resolveRef: (_t, id) => ({ label: id.toUpperCase(), exists: true }) };
+  assert.equal(
+    displayValue({ kind: 'reference', targetType: 'civilization', multi: true }, ['dwarves', 'orcs'], ctx),
+    'DWARVES, ORCS'
+  );
+  assert.equal(displayValue({ kind: 'reference', targetType: 'civilization', multi: true }, [], ctx), '');
+});
+
 // --- helpers ---
 
 test('toList splits comma strings and passes arrays through', () => {

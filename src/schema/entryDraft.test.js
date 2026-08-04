@@ -16,6 +16,7 @@ const schema = {
         { key: 'bio', kind: 'prose' },
         { key: 'tags', kind: 'list' },
         { key: 'favoriteNote', kind: 'reference', targetType: 'note' },
+        { key: 'factions', kind: 'reference', targetType: 'note', multi: true },
         { key: 'gallery', kind: 'gallery' },
         { key: 'heroImage', kind: 'hero' },
       ],
@@ -37,8 +38,9 @@ test('blankEntry initializes list and gallery fields to arrays, others to empty 
   const e = blankEntry(schema);
   assert.deepEqual(e.tags, []);
   assert.deepEqual(e.gallery, []);
+  assert.deepEqual(e.factions, []); // multi-value reference starts as an array
   assert.equal(e.name, '');
   assert.equal(e.bio, '');
-  assert.equal(e.favoriteNote, '');
+  assert.equal(e.favoriteNote, ''); // single-value reference stays an empty string
   assert.equal(e.heroImage, '');
 });
