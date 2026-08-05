@@ -8,9 +8,9 @@
  * Firestore doc (the retired `saveMapData` / `subscribeToMapData` / `atlasDocPath` path).
  *
  *   value = { mapImageId, waypoints, roads, territories }
- *   waypoint  = { id, kind:'waypoint',  x, y,        label, color? }
- *   road      = { id, kind:'road',      points:[{x,y}], label, color? }
- *   territory = { id, kind:'territory', points:[{x,y}], label, color? }
+ *   waypoint  = { id, kind:'waypoint',  x, y,        label, ref?, color? }
+ *   road      = { id, kind:'road',      points:[{x,y}], label, ref?, color? }
+ *   territory = { id, kind:'territory', points:[{x,y}], label, ref?, color? }
  *
  * All coordinates are in **image space** so a marker stays glued to the map as you pan/zoom.
  *
@@ -30,9 +30,11 @@
  * The pure helpers (`emptyMapValue` / `normalizeMapValue` / `markerColor` / `simplifyPoints`) are
  * unit-tested.
  *
- * Phase 1 (shipped): pins are colored dots painted on the canvas. Phase 2 (this): pins move to a
- * DOM overlay + freehand road/territory drawing with point simplification. Phase 3 adds the
- * per-field association config + scrub; Phase 4 emblem glyphs. Pins stay colored dots until Phase 4.
+ * Phase 1 (shipped): pins are colored dots painted on the canvas. Phase 2 (shipped): pins move to a
+ * DOM overlay + freehand road/territory drawing with point simplification. Phase 3 (this): the
+ * per-field `association` config (§4.1) + the inspector entry picker — a marker carries an optional
+ * `ref` (an entry id), and its display label resolves to the referenced entry's title (§7). Pins
+ * stay colored dots; emblem glyphs are Phase 4.
  */
 
 import { openImagePicker } from './imagePicker.js';
@@ -40,8 +42,9 @@ import { openImagePicker } from './imagePicker.js';
 /** Fallback pin/stroke color when a marker has none and the field declares no palette. */
 const DEFAULT_COLOR = '#f59e0b';
 
-/** Neutral default labels for freshly drawn shapes (no world-specific copy). */
-const NEUTRAL_LABELS = { waypoint: 'Pin', road: 'Road', territory: 'Area' };
+/** Neutral default labels for freshly drawn shapes (no world-specific copy). Pins start blank —
+ *  the inspector (label / association) opens on drop, so there's nothing to pre-fill. */
+const NEUTRAL_LABELS = { road: 'Road', territory: 'Area' };
 
 function escapeAttr(text) {
   return String(text ?? '')
@@ -70,6 +73,24 @@ export function normalizeMapValue(value) {
 /** A marker's color: its own → the field's first palette swatch → a neutral default. */
 export function markerColor(marker, field) {
   return (marker && marker.color) || field?.palette?.[0] || DEFAULT_COLOR;
+}
+
+/**
+ * A marker's display label under the field's association mode (§4.1). The referenced entry's title
+ * wins in `reference` mode (even over a stale free-text label); in `both` an explicit label wins and
+ * a bare marker falls back to the entry title; `label` mode ignores refs entirely. Resolution needs
+ * `ctx.resolveRef` — without it (the ctx-free read paint), the stored `label` stands in, which is why
+ * `renderMapRead` bakes the resolved title into `label` before serializing.
+ */
+export function markerLabel(marker, field, ctx) {
+  const assoc = field?.association || {};
+  const mode = assoc.mode || 'both';
+  const refTitle = () =>
+    marker && marker.ref && mode !== 'label' && ctx?.resolveRef
+      ? ctx.resolveRef(assoc.refType, marker.ref).label
+      : '';
+  if (mode === 'reference') return refTitle() || (marker && marker.label) || '';
+  return (marker && marker.label) || refTitle();
 }
 
 function hexToRgba(hex, alpha) {
@@ -133,9 +154,10 @@ export function simplifyPoints(points, tolerance = 2) {
 }
 
 /** HTML for one static pin marker (colored dot + optional label), centered at screen (sx, sy). */
-function pinMarkup(wp, field, sx, sy) {
+function pinMarkup(wp, field, sx, sy, ctx) {
   const color = markerColor(wp, field);
-  const label = wp.label ? `<span class="map-pin-label">${escapeAttr(wp.label)}</span>` : '';
+  const text = markerLabel(wp, field, ctx);
+  const label = text ? `<span class="map-pin-label">${escapeAttr(text)}</span>` : '';
   return (
     `<div class="map-pin" data-pin-id="${escapeAttr(wp.id)}" style="left:${sx}px; top:${sy}px;">` +
     `<span class="map-pin-dot" style="background:${escapeAttr(color)};"></span>${label}</div>`
@@ -242,9 +264,13 @@ export function renderMapInput(field, value, ctx) {
           <button type="button" class="btn btn-secondary btn-sm" data-map-action="delete" style="color:var(--accent-crimson);">Delete</button>
         </div>
         <div class="form-grid">
-          <div class="form-group">
+          <div class="form-group map-inspector-name-group">
             <label>Name / Label</label>
             <input type="text" class="form-control map-inspector-name" placeholder="Label">
+          </div>
+          <div class="form-group map-inspector-assoc-group hidden">
+            <label>Linked entry</label>
+            <select class="form-control map-inspector-assoc"></select>
           </div>
         </div>
       </div>
@@ -263,7 +289,13 @@ export function renderMapRead(field, value, ctx) {
   const label = field?.label || 'Map';
   const src = v.mapImageId && ctx?.resolveImage ? ctx.resolveImage(v.mapImageId) || '' : '';
   const palette = field?.palette ? ` data-map-palette="${escapeAttr(JSON.stringify(field.palette))}"` : '';
-  return `<div class="map-wrapper map-read" data-map-value="${escapeAttr(JSON.stringify(v))}"${palette}>
+  // Resolve reference labels here (the paint pass has no ctx): bake each waypoint's display title
+  // into `label` so `initMapReadCanvases` can render it self-contained (§7 / markerLabel).
+  const resolved = {
+    ...v,
+    waypoints: v.waypoints.map((wp) => ({ ...wp, label: markerLabel(wp, field, ctx) })),
+  };
+  return `<div class="map-wrapper map-read" data-map-value="${escapeAttr(JSON.stringify(resolved))}"${palette}>
       <img class="map-bg-img" src="${escapeAttr(src)}" alt="${escapeAttr(label)}">
       <canvas class="map-canvas-overlay"></canvas>
       <div class="map-pin-layer"></div>
@@ -378,7 +410,7 @@ export function mountMap(el, { field, value, onChange, ctx }) {
   function renderPins() {
     if (!pinLayer) return;
     pinLayer.innerHTML = waypoints
-      .map((wp) => pinMarkup(wp, field, toScreenX(wp.x), toScreenY(wp.y)))
+      .map((wp) => pinMarkup(wp, field, toScreenX(wp.x), toScreenY(wp.y), ctx))
       .join('');
     if (selected && selected.list === waypoints) {
       pinLayer.querySelectorAll('.map-pin').forEach((p) => {
@@ -421,10 +453,46 @@ export function mountMap(el, { field, value, onChange, ctx }) {
 
   const inspector = el.querySelector('.map-inspector');
   const nameInput = el.querySelector('.map-inspector-name');
+
+  // Association picker (§4.1 / §7): shown only when the field's mode allows a reference. The mode is
+  // fixed per field, so the label/picker visibility is set once at mount; the options come from
+  // ctx.listEntries(refType). A marker's ref rides `selected.obj.ref`.
+  const assoc = field?.association || {};
+  const assocMode = assoc.mode || 'both';
+  const refType = assoc.refType || '';
+  const allowsRef = assocMode !== 'label' && !!refType;
+  const assocSelect = el.querySelector('.map-inspector-assoc');
+  const assocGroup = el.querySelector('.map-inspector-assoc-group');
+  const nameGroup = el.querySelector('.map-inspector-name-group');
+  if (assocGroup) assocGroup.classList.toggle('hidden', !allowsRef);
+  // In pure `reference` mode the display label comes from the entry, so hide the free-text label.
+  if (nameGroup) nameGroup.classList.toggle('hidden', assocMode === 'reference');
+  if (allowsRef && assocSelect) {
+    const entries = ctx?.listEntries ? ctx.listEntries(refType) : [];
+    assocSelect.innerHTML = ['<option value="">— none —</option>']
+      .concat(entries.map((e) => `<option value="${escapeAttr(e.id)}">${escapeAttr(e.label)}</option>`))
+      .join('');
+  }
+  // Reflect a marker's stored ref into the picker, carrying an unlisted id (deleted/archived, or a
+  // type with no entries) as an "(unavailable)" option so the stored value survives edit → save.
+  function syncAssoc(obj) {
+    if (!allowsRef || !assocSelect) return;
+    const id = obj.ref || '';
+    if (id && !Array.from(assocSelect.options).some((o) => o.value === id)) {
+      const label = ctx?.resolveRef ? ctx.resolveRef(refType, id).label : id;
+      assocSelect.insertAdjacentHTML(
+        'beforeend',
+        `<option value="${escapeAttr(id)}">${escapeAttr(label)} (unavailable)</option>`
+      );
+    }
+    assocSelect.value = id;
+  }
+
   function openInspector(obj) {
     if (!inspector) return;
     inspector.classList.remove('hidden');
     if (nameInput) nameInput.value = obj.label || '';
+    syncAssoc(obj);
   }
   function closeInspector() {
     inspector?.classList.add('hidden');
@@ -433,6 +501,15 @@ export function mountMap(el, { field, value, onChange, ctx }) {
   nameInput?.addEventListener('input', () => {
     if (!selected) return;
     selected.obj.label = nameInput.value;
+    commit();
+    if (selected.list === waypoints) renderPins();
+    else redraw();
+  });
+  // Linking a marker to an entry: store (or clear) its ref and repaint — in reference/both mode the
+  // pin's label re-resolves to the entry title through markerLabel.
+  assocSelect?.addEventListener('change', () => {
+    if (!selected) return;
+    selected.obj.ref = assocSelect.value || undefined;
     commit();
     if (selected.list === waypoints) renderPins();
     else redraw();
@@ -553,12 +630,13 @@ export function mountMap(el, { field, value, onChange, ctx }) {
     const { x, y } = eventPoint(e);
 
     if (activeTool === 'waypoint') {
-      const label = prompt('Pin label:', NEUTRAL_LABELS.waypoint);
-      if (label != null) {
-        waypoints.push({ id: genId(), kind: 'waypoint', x, y, label, color: markerColor(null, field) });
-        commit();
-        renderPins();
-      }
+      // Drop the pin and open the inspector for label / association (§6.1) — no blocking prompt.
+      const wp = { id: genId(), kind: 'waypoint', x, y, label: '', color: markerColor(null, field) };
+      waypoints.push(wp);
+      selected = { list: waypoints, obj: wp };
+      commit();
+      renderPins();
+      openInspector(wp);
     } else if (activeTool === 'road' || activeTool === 'territory') {
       if (drawMode === 'freehand') {
         // Start a drag stroke; mousemove appends, mouseup commits.

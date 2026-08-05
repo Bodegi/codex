@@ -48,7 +48,9 @@ export const demoSchemas = [
       },
       {
         title: 'Map',
-        fields: [{ key: 'map', label: 'Map', kind: 'map' }],
+        fields: [
+          { key: 'map', label: 'Map', kind: 'map', association: { mode: 'both', refType: 'person' } },
+        ],
       },
     ],
   },

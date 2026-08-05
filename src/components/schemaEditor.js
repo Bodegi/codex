@@ -25,6 +25,9 @@ export const FIELD_KIND_OPTIONS = Object.keys(fieldKinds);
 /** Kinds that take a free-text placeholder (media/reference don't). */
 const PLACEHOLDER_KINDS = new Set(['text', 'prose', 'list']);
 
+/** Association modes a map marker can use (map-component.md §4.1); 'both' is the default. */
+const ASSOCIATION_MODES = ['both', 'reference', 'label'];
+
 /** Deep clone that keeps these helpers free of aliasing bugs. Schemas are JSON-able. */
 function clone(schema) {
   return structuredClone(schema);
@@ -111,6 +114,18 @@ export function updateField(schema, sectionIndex, fieldIndex, patch) {
   const field = next.sections[sectionIndex].fields[fieldIndex];
   const { key: _ignoredKey, ...safe } = patch;
   Object.assign(field, safe);
+  return next;
+}
+
+/**
+ * Merge a patch into a field's `association` config (the map kind — see map-component.md §4.1).
+ * Nested + merge-based so partial edits (mode alone, refType alone) compose without clobbering the
+ * sibling key, which a plain `updateField({ association })` would.
+ */
+export function updateFieldAssociation(schema, sectionIndex, fieldIndex, patch) {
+  const next = clone(schema);
+  const field = next.sections[sectionIndex].fields[fieldIndex];
+  field.association = { ...(field.association || {}), ...patch };
   return next;
 }
 
@@ -220,6 +235,13 @@ function targetOptions(types, selected) {
     .join('');
 }
 
+function assocModeOptions(selected) {
+  const mode = selected || 'both';
+  return ASSOCIATION_MODES.map(
+    (m) => `<option value="${m}"${m === mode ? ' selected' : ''}>link: ${m}</option>`
+  ).join('');
+}
+
 function fieldRow(field, si, fi, types) {
   const at = `data-si="${si}" data-fi="${fi}"`;
   // Second line holds only the controls relevant to this field's kind.
@@ -239,6 +261,18 @@ function fieldRow(field, si, fi, types) {
     extras.push(
       `<input class="se-input se-sub" data-se="field-inputType" ${at} placeholder="input type (e.g. date)" value="${escapeHtml(field.inputType || '')}">`
     );
+  }
+  if (field.kind === 'map') {
+    // Per-field association config (map-component.md §4.1): how a marker links to an entry. The
+    // target-type picker only applies when the mode allows a reference ('both' / 'reference').
+    const assoc = field.association || {};
+    const mode = assoc.mode || 'both';
+    extras.push(
+      `<select class="se-input se-sub" data-se="field-assoc-mode" ${at} title="marker association">${assocModeOptions(mode)}</select>`
+    );
+    if (mode !== 'label') {
+      extras.push(`<select class="se-input se-sub" data-se="field-assoc-target" ${at}>${targetOptions(types, assoc.refType)}</select>`);
+    }
   }
   extras.push(
     `<label class="se-meta"><input type="checkbox" data-se="field-meta" ${at}${field.showInMetadata ? ' checked' : ''}> in metadata</label>`
@@ -374,6 +408,10 @@ export function attachSchemaEditor(root, onIntent) {
         return onIntent({ action: 'change-kind', si: +d.si, fi: +d.fi, kind: el.value });
       case 'field-target':
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { targetType: el.value } });
+      case 'field-assoc-mode':
+        return onIntent({ action: 'edit-association', si: +d.si, fi: +d.fi, patch: { mode: el.value } });
+      case 'field-assoc-target':
+        return onIntent({ action: 'edit-association', si: +d.si, fi: +d.fi, patch: { refType: el.value } });
       case 'field-meta':
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { showInMetadata: el.checked } });
       case 'field-multi':

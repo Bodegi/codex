@@ -46,6 +46,7 @@ import {
   addField,
   removeField,
   updateField,
+  updateFieldAssociation,
   moveField,
   moveFieldTo,
   addSection,
@@ -1553,6 +1554,10 @@ function handleSchemaIntent(intent) {
     case 'edit-field':
       state.workingSchema = updateField(s, intent.si, intent.fi, intent.patch);
       return refreshWorkingPreview();
+    case 'edit-association':
+      // A mode change toggles whether the target picker shows — rebuild the editor (structural).
+      state.workingSchema = updateFieldAssociation(s, intent.si, intent.fi, intent.patch);
+      return renderTypesEditor();
     default:
       return undefined;
   }

@@ -5,6 +5,7 @@ import {
   emptyMapValue,
   normalizeMapValue,
   markerColor,
+  markerLabel,
   simplifyPoints,
   renderMapInput,
   renderMapRead,
@@ -33,6 +34,27 @@ test('markerColor: own color → field palette → neutral default', () => {
   assert.equal(markerColor({}, { palette: ['#abcdef'] }), '#abcdef');
   assert.equal(markerColor(null, {}), '#f59e0b');
   assert.equal(markerColor(null, undefined), '#f59e0b');
+});
+
+test('markerLabel resolves under the field association mode (§4.1)', () => {
+  const ctx = {
+    resolveRef: (type, id) => (id === 'ada' ? { label: 'Ada', exists: true } : { label: id, exists: false }),
+  };
+  const both = { association: { mode: 'both', refType: 'person' } };
+  const reference = { association: { mode: 'reference', refType: 'person' } };
+  const labelOnly = { association: { mode: 'label' } };
+
+  // both: an explicit label wins; a bare marker falls back to the referenced entry title.
+  assert.equal(markerLabel({ label: 'Home', ref: 'ada' }, both, ctx), 'Home');
+  assert.equal(markerLabel({ label: '', ref: 'ada' }, both, ctx), 'Ada');
+  // reference: the entry title wins even over a stale free-text label.
+  assert.equal(markerLabel({ label: 'stale', ref: 'ada' }, reference, ctx), 'Ada');
+  // label mode ignores refs entirely.
+  assert.equal(markerLabel({ label: 'Note', ref: 'ada' }, labelOnly, ctx), 'Note');
+  // no ctx (the read paint before baking) → the stored label stands in.
+  assert.equal(markerLabel({ label: 'x', ref: 'ada' }, both, undefined), 'x');
+  // default mode is 'both' when the field declares no association.
+  assert.equal(markerLabel({ label: '', ref: 'ada' }, {}, ctx), 'Ada');
 });
 
 // --- point simplification (Douglas–Peucker, §6.2) ---
@@ -104,4 +126,30 @@ test('renderMapRead embeds the normalized value + palette for the paint pass', (
   assert.ok(m, 'value attribute present');
   const decoded = m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&');
   assert.equal(JSON.parse(decoded).waypoints[0].label, 'A');
+});
+
+test('renderMapRead bakes the referenced entry title into the pin label (§7)', () => {
+  const field = { key: 'map', label: 'Map', association: { mode: 'reference', refType: 'person' } };
+  const value = {
+    mapImageId: 'm',
+    waypoints: [{ id: '1', kind: 'waypoint', x: 1, y: 2, label: '', ref: 'ada' }],
+    roads: [],
+    territories: [],
+  };
+  const ctx = { resolveImage: (id) => `/i/${id}`, resolveRef: () => ({ label: 'Ada', exists: true }) };
+  const html = renderMapRead(field, value, ctx);
+  const m = /data-map-value="([^"]*)"/.exec(html);
+  const decoded = m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+  assert.equal(JSON.parse(decoded).waypoints[0].label, 'Ada');
+});
+
+test('renderMapInput exposes the name + association inspector slots', () => {
+  const html = renderMapInput(
+    { key: 'map', kind: 'map', association: { mode: 'both', refType: 'person' } },
+    undefined,
+    null
+  );
+  assert.match(html, /map-inspector-name-group/);
+  assert.match(html, /map-inspector-assoc-group/);
+  assert.match(html, /class="form-control map-inspector-assoc"/);
 });

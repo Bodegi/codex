@@ -8,6 +8,7 @@ import {
   addField,
   removeField,
   updateField,
+  updateFieldAssociation,
   moveField,
   moveFieldTo,
   addSection,
@@ -69,6 +70,16 @@ test('updateField merges a patch but never changes the key', () => {
   assert.equal(field.label, 'Identifier');
   assert.equal(field.kind, 'prose');
   assert.equal(field.key, 'id'); // key is immutable
+});
+
+test('updateFieldAssociation merges into association without clobbering siblings', () => {
+  const base = { sections: [{ title: 'Map', fields: [{ key: 'map', kind: 'map' }] }] };
+  const withMode = updateFieldAssociation(base, 0, 0, { mode: 'reference' });
+  assert.deepEqual(withMode.sections[0].fields[0].association, { mode: 'reference' });
+  const withTarget = updateFieldAssociation(withMode, 0, 0, { refType: 'person' });
+  assert.deepEqual(withTarget.sections[0].fields[0].association, { mode: 'reference', refType: 'person' });
+  assert.equal(base.sections[0].fields[0].association, undefined); // input untouched (pure)
+  assert.notEqual(withTarget, withMode);
 });
 
 test('moveField reorders within a section and clamps at the ends', () => {
