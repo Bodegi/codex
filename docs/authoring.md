@@ -1,0 +1,158 @@
+# Authoring guide
+
+How to use Codex Studio to read, write, and design a codex. For running or building the app see
+[../README.md](../README.md); for the architecture see [../CLAUDE.md](../CLAUDE.md).
+
+- **Codex** — a self-contained world/dataset. You work in one codex at a time (switch with the
+  picker at the top of the sidebar).
+- **Type** — a content template you design (Note, Person, Place, …): a set of fields grouped
+  into sections.
+- **Entry** — one filled-in record of a type.
+
+## The workspace
+
+- **Header** — app title on the left; on the right, **Sign in with Google** or your user badge.
+  Admin tools live in the user-badge menu.
+- **Sidebar** — the **codex switcher** at the top, then the **navigation**: each type with its
+  entries beneath it. Click a type section to expand/collapse; click an entry to open it.
+- **Editor panel** (left of the workspace) — the form you fill in when editing. Buttons: **Save**,
+  **Archive**, **Done**.
+- **Reader panel** (right) — the rendered read view. Its header carries the mode toggles
+  (**Edit**, **Structure**, **Index**, **`</> Edit JSON`**) and a **status badge** showing
+  *Cloud sync on* or *Local only*.
+
+Which toggles appear depends on your role: viewers read, editors get **Edit**, admins also get
+**Structure** and **`</> Edit JSON`**.
+
+## Getting access
+
+Codex Studio (in cloud mode) is invite-only:
+
+1. Click **Sign in with Google**.
+2. If your account has no role on this codex yet, you'll see an **Awaiting Access** screen. You
+   now show up in the admin's roster automatically.
+3. An **admin** grants you a role from **Users & Access** (see [Admin tools](#admin-tools)):
+   - **Viewer** — read entries.
+   - **Editor** — read + create/edit/archive entries.
+   - **Admin** (baked super-admins only) — everything, plus design types and manage the codex,
+     images, icons, and access.
+
+Reload after being granted a role. Access is per-codex — a role on one codex doesn't carry to
+another.
+
+## Reading & navigating
+
+Pick a codex, expand a type, click an entry. The reader renders it from the schema: text and
+prose, lists, links to referenced entries, image galleries with a lightbox, and interactive
+maps.
+
+If a type declares a **summary card**, an **Index** toggle appears in the reader header —
+click it for a browsable grid of that type's entries as cards; click a card to open the entry.
+
+## Writing an entry (editors & admins)
+
+1. Open an entry (or start a new one from the type's **+ New** affordance in the sidebar).
+2. Click **Edit** in the reader header. The editor panel becomes a form.
+3. Fill in the fields (see [Field kinds](#field-kinds)).
+4. Click **Save**. Editing is **explicit-save** — nothing is written until you click Save.
+5. Click **Done** to leave edit mode.
+
+**Saving & sync.** In cloud mode each save writes to Firestore and bumps a version. If someone
+else saved the same entry since you started editing, you'll get a **conflict** prompt rather
+than silently overwriting their work — you can review and re-save. Other editors' changes to the
+open entry stream in live while you read.
+
+**Archive** hides an entry without deleting it (admins/editors can restore archived entries).
+There is no hard delete in the authoring UI.
+
+## Field kinds
+
+When designing a type you pick a **kind** per field. The palette:
+
+| Kind | For | Notes |
+| --- | --- | --- |
+| **text** | short single-line values (title, id, a label) | |
+| **prose** | long rich body text | supports inline **links** and **images** (see below) |
+| **list** | a set of short values (tags, aliases) | comma-separated or one per line |
+| **reference** | a link to another entry | pick a target type; toggle **multiple** for many |
+| **hero** | one banner image | full-width block |
+| **gallery** | several images | rendered as a carousel with a lightbox |
+| **map** | an interactive map | pins, roads, territories — see [Maps](#maps) |
+
+### Prose: links and inline images
+
+Prose fields accept lightweight markup:
+
+- **Images** — `![](img:<imageId>)` embeds an uploaded image inline. Use the insert-image button
+  on the prose field to pick one; it writes the markup for you. (Legacy `![](pool:<id>)` refs
+  still render.)
+- **Links** — standard `[label](target)` markup renders as a link in the read view.
+
+## Images
+
+- **Upload** — the image picker (from a hero/gallery field or the prose insert-image button)
+  takes **multiple files** at once: choose them or **drag-and-drop** onto the modal. Uploads run
+  with per-file progress and new thumbnails appear as they finish.
+- **Reuse** — every uploaded image lives in the codex's image library and can be used by any
+  entry (hero, gallery, or inline in prose).
+- **Where they live** — image bytes go to Supabase Storage; the metadata (id, label) to
+  Firestore. Admins manage labels and archiving from the **Images** admin panel.
+
+Images require cloud mode — in local-only mode there's no upload and image ids resolve to a
+"not found" placeholder.
+
+## Maps
+
+The `map` field is a mini Google-Maps-style canvas on an image you supply:
+
+- **Load a map image** for the field, then work on top of it.
+- **Pins** — click to drop a waypoint. Pins are DOM markers (constant size, clickable). Dropping
+  a pin opens the **inspector**, where you can name it, **link it to an entry**, and pick a
+  **glyph** (an emblem/icon that renders in place of the dot).
+- **Roads / territories** — draw **freehand** by dragging (the default), or switch to
+  **Vertex** mode to click corner-by-corner for precise borders. Strokes are simplified on save.
+- **Linking** — a field can be configured (in the Structure editor) so pins reference entries of
+  a chosen type; the pin then shows that entry's title (and its emblem, if it has one) and the
+  read view bakes the resolved label/glyph in.
+
+## Designing types (admins)
+
+Click **Structure** in the reader header while a type is selected to open the **Structure
+editor**:
+
+- **Fields** — add a field, give it a label, pick its **kind**. Group fields into **sections**.
+- **Reorder** — drag the `⠿` handles to reorder fields and sections, including moving a field to
+  another section (Up/Down buttons are the precision fallback).
+- **Per-field options** — e.g. `reference` fields choose a target type and a single/multiple
+  toggle; `map` fields configure pin **association** (reference / label / both) and target type;
+  `showInMetadata` surfaces a field in the entry's metadata strip.
+- **Summary card** — configure an optional card (title/subtitle field + badge/row fields) that
+  drives the **Index** grid; a live preview updates as you toggle.
+- **`</> Edit JSON`** — an "Advanced" disclosure to hand-edit the type's schema as raw JSON. A
+  power-tool escape hatch; the visual editor is the normal path.
+
+Schemas are data — adding or reordering fields takes effect immediately, no redeploy.
+
+## Admin tools
+
+From the header user-badge menu (admins only):
+
+- **Users & Access** — the roster of everyone who's signed in; grant/revoke **Viewer** / **Editor**
+  per person on the current codex. Super-admins are shown but not editable here.
+- **Codices** — create, rename, and archive codices.
+- **Images** — the uploaded-image gallery: relabel, cross-assign, archive/restore.
+- **Icons** — create and edit the icon overlay used for type icons and map glyphs.
+
+## Sync & local-only behavior
+
+The reader-header **status badge** tells you which mode you're in:
+
+- **Cloud sync on** — you're connected to Firestore. Saves persist and are shared; other editors'
+  changes stream in; conflicts are guarded.
+- **Local only** — no backend. The app serves the bundled **demo codex** (a Note and a Person
+  type). You can explore and edit, but changes are held **in the browser session only and are not
+  saved to any backend** — reloading restores the demo. There's no sign-in, no upload, and image
+  ids show the not-found placeholder.
+
+To try local-only mode without an account, set `localStorage.codex_firebase_override = 'local'`
+in the browser console and reload (see the [README](../README.md#run-it)).
