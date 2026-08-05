@@ -1962,7 +1962,7 @@ async function saveEntry({ force = false } = {}) {
   const scope = codexScope();
   if (!(scope && scope.isConfigured())) {
     upsertLocalEntry(state.formData);
-    showToast('Saved locally');
+    showToast('Saved (local only — resets on reload)');
     finishSaveToRead();
     return;
   }
@@ -2028,7 +2028,7 @@ function renderSyncStatus() {
   if (configured) {
     label = 'Cloud sync on';
   } else {
-    label = 'Local only — saved in this browser';
+    label = 'Local only — changes reset on reload';
   }
 
   activeFileIndicator.className = `compliance-badge${configured ? '' : ' is-local'}`;
