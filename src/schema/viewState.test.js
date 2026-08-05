@@ -6,6 +6,7 @@ import {
   toRead,
   toEdit,
   toSchemaAdmin,
+  toIndex,
   openGlobalAdmin,
   selectAdminPanel,
   closeGlobalAdmin,
@@ -29,11 +30,12 @@ test('selectType lands in that type, read mode, regardless of prior view', () =>
   assert.deepEqual(selectType({ kind: 'global-admin', panel: 'codices' }, 'mod'), typeView('mod', 'read'));
 });
 
-test('toEdit / toRead / toSchemaAdmin flip the mode of a type view', () => {
+test('toEdit / toRead / toSchemaAdmin / toIndex flip the mode of a type view', () => {
   const base = typeView('mod', 'read');
   assert.equal(toEdit(base).mode, 'edit');
   assert.equal(toSchemaAdmin(base).mode, 'admin');
-  assert.equal(toRead(typeView('mod', 'edit')).mode, 'read');
+  assert.equal(toIndex(base).mode, 'index');
+  assert.equal(toRead(typeView('mod', 'index')).mode, 'read');
 });
 
 test('mode transitions do not mutate their input', () => {
@@ -46,6 +48,7 @@ test('mode transitions are no-ops on a global-admin view', () => {
   const ga = { kind: 'global-admin', panel: 'access' };
   assert.deepEqual(toEdit(ga), ga);
   assert.deepEqual(toSchemaAdmin(ga), ga);
+  assert.deepEqual(toIndex(ga), ga);
 });
 
 test('openGlobalAdmin defaults to the access panel; honors an explicit panel', () => {
@@ -79,6 +82,11 @@ test('normalize keeps a valid type view and its mode under full caps', () => {
 test('normalize clamps edit/admin mode to read for a viewer', () => {
   assert.equal(normalize(typeView('mod', 'edit'), { caps: VIEWER, types: TYPES }).mode, 'read');
   assert.equal(normalize(typeView('mod', 'admin'), { caps: VIEWER, types: TYPES }).mode, 'read');
+});
+
+test('normalize preserves index mode for everyone — it needs no caps', () => {
+  assert.equal(normalize(typeView('mod', 'index'), { caps: VIEWER, types: TYPES }).mode, 'index');
+  assert.equal(normalize(typeView('mod', 'index'), { caps: ADMIN, types: TYPES }).mode, 'index');
 });
 
 test('normalize clamps schema-admin mode to read for a non-admin editor', () => {

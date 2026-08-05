@@ -25,6 +25,10 @@ export const FIELD_KIND_OPTIONS = Object.keys(fieldKinds);
 /** Kinds that take a free-text placeholder (media/reference don't). */
 const PLACEHOLDER_KINDS = new Set(['text', 'prose', 'list']);
 
+/** Summary-card badge fields become chips (multi-value kinds); row fields become labelled scalars. */
+const BADGE_KINDS = new Set(['list', 'reference']);
+const ROW_KINDS = new Set(['text', 'prose']);
+
 /** Association modes a map marker can use (map-component.md §4.1); 'both' is the default. */
 const ASSOCIATION_MODES = ['both', 'reference', 'label'];
 
@@ -126,6 +130,17 @@ export function updateFieldAssociation(schema, sectionIndex, fieldIndex, patch) 
   const next = clone(schema);
   const field = next.sections[sectionIndex].fields[fieldIndex];
   field.association = { ...(field.association || {}), ...patch };
+  return next;
+}
+
+/**
+ * Merge a patch into the type-level `summaryCard` descriptor (see summaryCard.js §5.1) — the
+ * fields shown when the type is browsed as an index. Nested + merge-based so partial edits
+ * (title alone, badges alone) compose without clobbering the sibling keys.
+ */
+export function updateSummaryCard(schema, patch) {
+  const next = clone(schema);
+  next.summaryCard = { ...(next.summaryCard || {}), ...patch };
   return next;
 }
 
@@ -295,6 +310,71 @@ function fieldRow(field, si, fi, types) {
     </div>`;
 }
 
+/** All fields across sections, flattened in order (field objects, not just keys). */
+function flatFields(schema) {
+  return (schema.sections || []).flatMap((s) => s.fields || []);
+}
+
+/** A field-key <select>'s options, with a leading "none/default" choice. */
+function fieldPickOptions(fields, selected, noneLabel) {
+  return [`<option value="">${escapeHtml(noneLabel)}</option>`]
+    .concat(
+      fields.map(
+        (f) =>
+          `<option value="${escapeHtml(f.key)}"${f.key === selected ? ' selected' : ''}>${escapeHtml(f.label || f.key)}</option>`
+      )
+    )
+    .join('');
+}
+
+/** A checkbox per eligible field, checked when its key is already selected. */
+function fieldCheckList(fields, selectedKeys, seType) {
+  if (fields.length === 0) return '<span class="se-summary-none">no eligible fields</span>';
+  const set = new Set(selectedKeys);
+  return fields
+    .map(
+      (f) =>
+        `<label class="se-summary-check"><input type="checkbox" data-se="${seType}" data-key="${escapeHtml(
+          f.key
+        )}" data-label="${escapeHtml(f.label || f.key)}"${set.has(f.key) ? ' checked' : ''}> ${escapeHtml(f.label || f.key)}</label>`
+    )
+    .join('');
+}
+
+/**
+ * The type-level "Summary card" config — which fields form the card face when the type is
+ * browsed as an index (summaryCard.js §5.1). Title/subtitle are single-field picks; badges
+ * (list/reference) and rows (text/prose) are multi-select checkbox groups.
+ */
+function summaryCardBlock(schema) {
+  const card = schema.summaryCard || {};
+  const fields = flatFields(schema);
+  const badgeFields = fields.filter((f) => BADGE_KINDS.has(f.kind));
+  const rowFields = fields.filter((f) => ROW_KINDS.has(f.kind));
+  const rowKeys = (card.rows || []).map((r) => r.key);
+  return `
+    <div class="se-summary">
+      <div class="se-summary-head">Summary card</div>
+      <p class="se-summary-hint">The fields shown when this type is browsed as an index — a grid of cards, one per entry.</p>
+      <div class="se-summary-picks">
+        <label class="se-summary-pick">Title
+          <select class="se-input" data-se="summary-title">${fieldPickOptions(fields, card.title || '', '— use title field —')}</select>
+        </label>
+        <label class="se-summary-pick">Subtitle
+          <select class="se-input" data-se="summary-subtitle">${fieldPickOptions(fields, card.subtitle || '', '— none —')}</select>
+        </label>
+      </div>
+      <div class="se-summary-group">
+        <span class="se-summary-label">Badges <em>(list / reference fields → chips)</em></span>
+        <div class="se-summary-checks">${fieldCheckList(badgeFields, card.badges || [], 'summary-badge')}</div>
+      </div>
+      <div class="se-summary-group">
+        <span class="se-summary-label">Rows <em>(text fields → labelled rows)</em></span>
+        <div class="se-summary-checks">${fieldCheckList(rowFields, rowKeys, 'summary-row')}</div>
+      </div>
+    </div>`;
+}
+
 function sectionBlock(section, si, types) {
   const rows = section.fields.map((f, fi) => fieldRow(f, si, fi, types)).join('');
   return `
@@ -340,6 +420,7 @@ export function renderSchemaEditor(schema, { types, editingType, errors = [] }) 
         </span>
       </div>
       ${errorBlock}
+      ${summaryCardBlock(schema)}
       <div class="se-sections">${sections}</div>
       <button type="button" class="se-btn se-add" data-se="section-add">+ add section</button>
     </div>`;
@@ -416,6 +497,23 @@ export function attachSchemaEditor(root, onIntent) {
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { showInMetadata: el.checked } });
       case 'field-multi':
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { multi: el.checked } });
+      case 'summary-title':
+        return onIntent({ action: 'edit-summary', patch: { title: el.value } });
+      case 'summary-subtitle':
+        return onIntent({ action: 'edit-summary', patch: { subtitle: el.value } });
+      case 'summary-badge': {
+        // A checkbox group: recompute the whole ordered key array from what's now checked.
+        const badges = [...root.querySelectorAll('[data-se="summary-badge"]')]
+          .filter((c) => c.checked)
+          .map((c) => c.dataset.key);
+        return onIntent({ action: 'edit-summary', patch: { badges } });
+      }
+      case 'summary-row': {
+        const rows = [...root.querySelectorAll('[data-se="summary-row"]')]
+          .filter((c) => c.checked)
+          .map((c) => ({ label: c.dataset.label, key: c.dataset.key }));
+        return onIntent({ action: 'edit-summary', patch: { rows } });
+      }
       default:
         return undefined;
     }

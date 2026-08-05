@@ -9,6 +9,7 @@ import {
   removeField,
   updateField,
   updateFieldAssociation,
+  updateSummaryCard,
   moveField,
   moveFieldTo,
   addSection,
@@ -80,6 +81,16 @@ test('updateFieldAssociation merges into association without clobbering siblings
   assert.deepEqual(withTarget.sections[0].fields[0].association, { mode: 'reference', refType: 'person' });
   assert.equal(base.sections[0].fields[0].association, undefined); // input untouched (pure)
   assert.notEqual(withTarget, withMode);
+});
+
+test('updateSummaryCard merges into the descriptor without clobbering siblings', () => {
+  const base = schema();
+  const withTitle = updateSummaryCard(base, { subtitle: 'name' });
+  assert.deepEqual(withTitle.summaryCard, { subtitle: 'name' });
+  const withBadges = updateSummaryCard(withTitle, { badges: ['name'] });
+  assert.deepEqual(withBadges.summaryCard, { subtitle: 'name', badges: ['name'] });
+  assert.equal(base.summaryCard, undefined); // input untouched (pure)
+  assert.notEqual(withBadges, withTitle);
 });
 
 test('moveField reorders within a section and clamps at the ends', () => {

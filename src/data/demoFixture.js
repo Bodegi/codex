@@ -29,6 +29,7 @@ export const demoSchemas = [
     idField: 'id',
     titleField: 'title',
     status: 'active',
+    summaryCard: { subtitle: 'body', badges: ['tags'] },
     sections: [
       {
         title: 'Note',
@@ -61,6 +62,7 @@ export const demoSchemas = [
     idField: 'id',
     titleField: 'name',
     status: 'active',
+    summaryCard: { subtitle: 'bio', badges: ['favoriteNote'], rows: [{ label: 'ID', key: 'id' }] },
     sections: [
       {
         title: 'Person',

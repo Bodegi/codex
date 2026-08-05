@@ -5,11 +5,12 @@
  * axes in `main.js` (`currentTab` being either a type or the literal `'admin'`, times a
  * `read`/`edit` `mode`) with one discriminated union:
  *
- *   { kind: 'type', type: <typeKey>|null, mode: 'read'|'edit'|'admin' }   // content surface
- *   { kind: 'global-admin', panel: 'access'|'codices'|'images'|'icons' }  // the separate door
+ *   { kind: 'type', type: <typeKey>|null, mode: 'read'|'edit'|'admin'|'index' }  // content surface
+ *   { kind: 'global-admin', panel: 'access'|'codices'|'images'|'icons' }         // the separate door
  *
  * `mode: 'admin'` on a type means "edit that type's schema" — the per-thing form state
- * (the UI labels it "Structure"). `type` is `null` only in the empty-content case.
+ * (the UI labels it "Structure"). `mode: 'index'` is the across-entries summary-card grid
+ * (a read-only view of the whole type). `type` is `null` only in the empty-content case.
  *
  * Transitions are pure (view -> view) and never mutate their input. `normalize` is the one
  * clamp that keeps a view valid & permitted (folding in the old `ensureTypeSelection` +
@@ -17,7 +18,7 @@
  * caps-aware only through `normalize`.
  */
 
-const MODES = new Set(['read', 'edit', 'admin']);
+const MODES = new Set(['read', 'edit', 'admin', 'index']);
 const PANELS = new Set(['access', 'codices', 'images', 'icons']);
 
 const typeView = (type, mode = 'read') => ({ kind: 'type', type: type ?? null, mode });
@@ -40,6 +41,11 @@ export function toEdit(view) {
 /** Flip a type view to schema-admin ("Structure") mode. No-op on a global-admin view. */
 export function toSchemaAdmin(view) {
   return view && view.kind === 'type' ? { ...view, mode: 'admin' } : view;
+}
+
+/** Flip a type view to the across-entries index (summary-card grid). No-op on a global-admin view. */
+export function toIndex(view) {
+  return view && view.kind === 'type' ? { ...view, mode: 'index' } : view;
 }
 
 /** Enter the global-admin door on the given panel (default access). */

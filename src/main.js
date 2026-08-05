@@ -4,6 +4,7 @@
 
 import { demoCodexId, demoCodexMeta, demoSchemas, demoEntriesByType } from './data/demoFixture.js';
 import { renderEntryHTML } from './utils/entryRenderer.js';
+import { renderTypeIndex, renderSummaryCard } from './utils/summaryCard.js';
 import { FirebaseManager } from './utils/firebase.js';
 import { AuthManager } from './utils/authManager.js';
 import { appConfig, resolveFirebaseConfig, resolveSupabaseConfig } from './config/appConfig.js';
@@ -33,6 +34,7 @@ import {
   toRead,
   toEdit,
   toSchemaAdmin,
+  toIndex,
   openGlobalAdmin,
   selectAdminPanel,
   closeGlobalAdmin,
@@ -47,6 +49,7 @@ import {
   removeField,
   updateField,
   updateFieldAssociation,
+  updateSummaryCard,
   moveField,
   moveFieldTo,
   addSection,
@@ -346,6 +349,7 @@ const mainWorkspace = document.getElementById('main-workspace');
 const appBody = document.querySelector('.app-body');
 const editToggleBtn = document.getElementById('btn-edit-toggle');
 const structureBtn = document.getElementById('btn-structure');
+const indexToggleBtn = document.getElementById('btn-index-toggle');
 const advancedJsonBtn = document.getElementById('btn-advanced-json');
 const saveEntryBtn = document.getElementById('btn-save-entry');
 const archiveEntryBtn = document.getElementById('btn-archive-entry');
@@ -970,6 +974,7 @@ function renderView() {
   if (v.kind === 'global-admin') enterGlobalAdmin();
   else if (!v.type) renderEmptyCodexState();
   else if (v.mode === 'admin') enterSchemaAdmin(v.type);
+  else if (v.mode === 'index') enterTypeIndex(v.type);
   else {
     // Ensure the open entry belongs to the current type (a type switch reselects its first entry).
     if (!state.formData || state.formData.type !== v.type) {
@@ -990,6 +995,7 @@ function applyViewChrome() {
   const canEdit = !!state.caps.canEdit;
   const canAdmin = !!state.caps.canAdmin;
 
+  // The index shares the read layout (full-width reader, form hidden) — it's a read-only surface.
   const cls =
     v.kind === 'global-admin' ? 'view-global-admin'
     : v.mode === 'edit' ? 'view-content-edit'
@@ -1002,9 +1008,15 @@ function applyViewChrome() {
   // is a toggle: "Structure" to enter from reading, "Done" to leave — so it's never a dead end.
   const inTypeRead = v.kind === 'type' && !!v.type && v.mode === 'read';
   const inStructure = v.kind === 'type' && !!v.type && v.mode === 'admin';
+  const inIndex = v.kind === 'type' && !!v.type && v.mode === 'index';
   editToggleBtn.hidden = !(canEdit && inTypeRead);
   structureBtn.hidden = !(canAdmin && (inTypeRead || inStructure));
   structureBtn.textContent = inStructure ? 'Done' : 'Structure';
+  // Index is a toggle (like Structure), offered only where the type declares a summary card:
+  // "Index" to browse the grid from a read view, "Done" to return to the entry.
+  const hasSummaryCard = !!(v.type && getSchema(v.type)?.summaryCard);
+  indexToggleBtn.hidden = !(hasSummaryCard && (inTypeRead || inIndex));
+  indexToggleBtn.textContent = inIndex ? 'Done' : 'Index';
   const editingEntry = v.kind === 'type' && v.mode === 'edit';
   saveEntryBtn.hidden = !(canEdit && editingEntry);
   // Archive only makes sense for an already-saved entry (a brand-new draft has no id yet).
@@ -1021,6 +1033,11 @@ editToggleBtn.addEventListener('click', () => {
 structureBtn.addEventListener('click', () => {
   if (!state.caps.canAdmin || state.view.kind !== 'type' || !state.view.type) return;
   goto(inSchemaAdmin() ? toRead(state.view) : toSchemaAdmin(state.view));
+});
+
+indexToggleBtn.addEventListener('click', () => {
+  if (state.view.kind !== 'type' || !state.view.type) return;
+  goto(state.view.mode === 'index' ? toRead(state.view) : toIndex(state.view));
 });
 
 doneEditBtn.addEventListener('click', async () => {
@@ -1083,6 +1100,16 @@ function enterSchemaAdmin(type) {
   editorTitle.textContent = readerTitle.textContent;
   showRenderedPane();
   setEditingType(type); // renders the schema editor into #form-container + refreshes the preview
+}
+
+// The across-entries index (Axis 2): the type's active entries rendered as a summary-card grid in
+// the (full-width) reader. A read-only surface — no open entry, no form; clicking a card opens that
+// entry in read mode (see the previewRendered click handler).
+function enterTypeIndex(type) {
+  const schema = getSchema(type);
+  readerTitle.textContent = (schema && schema.label) || type;
+  showRenderedPane();
+  updateRenderedPreview(renderTypeIndex(type, activeEntries(state.entryIndex, type), renderCtx));
 }
 
 // ── Codices admin panel (create / rename / archive-restore) ──────────────────
@@ -1510,7 +1537,16 @@ function renderTypesEditor() {
 // rebuild the editor DOM — safe to call from text-input handlers without losing focus.
 function refreshWorkingPreview() {
   setOverlaySchema(state.editingType, state.workingSchema);
-  updateRenderedPreview(renderEntryHTML(state.editingType, sampleForType(state.editingType), renderCtx));
+  const sample = sampleForType(state.editingType);
+  const entry = renderEntryHTML(state.editingType, sample, renderCtx);
+  // A live summary-card preview so the "Summary card" config gives visible feedback (the entry
+  // preview above never reflects it). The card is inert here — clicks navigate only in index mode.
+  const card = `<div class="se-card-preview"><div class="se-card-preview-label">Summary card preview</div>${renderSummaryCard(
+    state.workingSchema,
+    sample,
+    renderCtx
+  )}</div>`;
+  updateRenderedPreview(entry + card);
   updateRawJson(JSON.stringify(state.workingSchema, null, 2));
 }
 
@@ -1571,6 +1607,10 @@ function handleSchemaIntent(intent) {
       // A mode change toggles whether the target picker shows — rebuild the editor (structural).
       state.workingSchema = updateFieldAssociation(s, intent.si, intent.fi, intent.patch);
       return renderTypesEditor();
+    case 'edit-summary':
+      // Summary-card picks don't restructure the editor DOM — refresh the preview only (keeps focus).
+      state.workingSchema = updateSummaryCard(s, intent.patch);
+      return refreshWorkingPreview();
     default:
       return undefined;
   }
@@ -1785,6 +1825,14 @@ attachLightbox(formContainer);
 
 // Reference links in the reading view navigate to the target entry.
 previewRendered.addEventListener('click', (e) => {
+  // A summary card in the index opens its entry (read mode). Only the index's cards navigate —
+  // the Structure surface's card preview is inert.
+  const card = e.target.closest('[data-index-entry]');
+  if (card && state.view.kind === 'type' && state.view.type && state.view.mode === 'index') {
+    e.preventDefault();
+    loadEntry(state.view.type, card.dataset.indexEntry);
+    return;
+  }
   const link = e.target.closest('[data-ref-type]');
   if (!link) return;
   e.preventDefault();

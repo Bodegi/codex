@@ -1406,35 +1406,56 @@ select[multiple].form-control option {
   text-align: center;
 }
 
-/* World Matrix View */
-.matrix-container {
+/* Summary-card index (Axis 2): a type's entries as a grid of cards. Generalizes the old Matrix. */
+.summary-index {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 16px;
 }
 
-.matrix-card {
+.summary-index-empty {
+  margin-top: 8px;
+}
+
+/* The card is a button (whole-card click opens the entry) but must not look like one. */
+.summary-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
   background: var(--bg-surface);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-md);
   padding: 16px;
-  position: relative;
   transition: transform 0.2s, border-color 0.2s;
 }
 
-.matrix-card:hover {
+.summary-card:hover {
   transform: translateY(-2px);
   border-color: var(--accent-gold);
 }
 
-.matrix-title {
+.summary-card-title {
+  display: block;
   font-family: var(--font-heading);
   font-size: 16px;
   color: var(--accent-gold);
   margin-bottom: 6px;
 }
 
-.matrix-tag {
+.summary-card-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+}
+
+.summary-card-badges {
+  margin-bottom: 8px;
+}
+
+.summary-badge {
   display: inline-block;
   font-size: 11px;
   background: rgba(255, 255, 255, 0.08);
@@ -1442,6 +1463,120 @@ select[multiple].form-control option {
   border-radius: 12px;
   margin-right: 4px;
   margin-bottom: 4px;
+}
+
+.summary-card-row {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.summary-row-label {
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.summary-row-value {
+  color: var(--text-main);
+}
+
+/* Schema editor — the type-level "Summary card" config block. */
+.se-summary {
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: var(--bg-surface);
+}
+
+.se-summary-head {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  color: var(--accent-gold);
+  margin-bottom: 2px;
+}
+
+.se-summary-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+}
+
+.se-summary-picks {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.se-summary-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.se-summary-group {
+  margin-top: 8px;
+}
+
+.se-summary-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.se-summary-label em {
+  color: var(--text-muted);
+  font-style: normal;
+}
+
+.se-summary-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.se-summary-check {
+  font-size: 12px;
+  color: var(--text-main);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.se-summary-none {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Live summary-card preview under the entry preview in Structure mode. */
+.se-card-preview {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-dim);
+  max-width: 320px;
+}
+
+.se-card-preview-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+/* The preview card is a display-only sample — no lift/click affordance. */
+.se-card-preview .summary-card {
+  cursor: default;
+}
+
+.se-card-preview .summary-card:hover {
+  transform: none;
+  border-color: var(--border-dim);
 }
 
 /* Map component canvas */
