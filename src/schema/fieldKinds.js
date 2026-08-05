@@ -100,7 +100,7 @@ export const fieldKinds = {
     renderRead(_field, value, ctx) {
       return formatInline(value, ctx?.resolveImage) || MUTED_EMPTY;
     },
-    // Per-field inline-image affordance: inserts `![](pool:id)` at the caret and lets the
+    // Per-field inline-image affordance: inserts `![](img:id)` at the caret and lets the
     // scrape listener pick up the change. Replaces the old single global "focused field" button.
     mount(el, { ctx }) {
       const btn = document.createElement('button');
@@ -111,7 +111,7 @@ export const fieldKinds = {
       btn.addEventListener('click', async () => {
         const id = await pickImage(ctx);
         if (!id) return;
-        insertAtCursor(el, `![](pool:${id})`);
+        insertAtCursor(el, `![](img:${id})`);
         el.dispatchEvent(new Event('input', { bubbles: true }));
       });
     },

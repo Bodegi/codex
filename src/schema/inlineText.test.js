@@ -47,7 +47,15 @@ test('formatInline passes through non-pool image urls', () => {
   );
 });
 
-test('formatInline resolves pool images through the injected resolver', () => {
+test('formatInline resolves img: images through the injected resolver', () => {
+  const resolve = (id) => (id === 'a.png' ? '/hashed/a.png' : null);
+  assert.equal(
+    formatInline('![alt](img:a.png)', resolve),
+    '<p><img class="inline-img" src="/hashed/a.png" alt="alt"></p>'
+  );
+});
+
+test('formatInline still resolves the legacy pool: prefix', () => {
   const resolve = (id) => (id === 'a.png' ? '/hashed/a.png' : null);
   assert.equal(
     formatInline('![alt](pool:a.png)', resolve),
@@ -55,10 +63,10 @@ test('formatInline resolves pool images through the injected resolver', () => {
   );
 });
 
-test('formatInline shows the not-found placeholder for an unresolved pool image', () => {
+test('formatInline shows the not-found placeholder for an unresolved img: reference', () => {
   const resolve = () => null;
   assert.equal(
-    formatInline('![alt](pool:missing.png)', resolve),
+    formatInline('![alt](img:missing.png)', resolve),
     `<p>${notFoundImage('image-missing-inline')}</p>`
   );
 });

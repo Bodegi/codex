@@ -1278,6 +1278,16 @@ select[multiple].form-control option {
   flex-direction: column;
 }
 
+/* A drag hovering the modal arms the drop target: dashed frame over the whole picker. */
+.image-picker-modal.is-dragover {
+  outline: 2px dashed var(--accent-gold);
+  outline-offset: -6px;
+}
+
+.image-picker-modal.is-dragover .image-picker-grid {
+  pointer-events: none;
+}
+
 .image-picker-header {
   display: flex;
   align-items: center;
@@ -1373,6 +1383,11 @@ select[multiple].form-control option {
 .image-picker-upload {
   margin-left: auto;
   margin-right: 10px;
+}
+
+.image-picker-upload:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .image-picker-status {

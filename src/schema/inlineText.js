@@ -2,7 +2,7 @@
  * Codex — Inline rich-text (pure).
  *
  * The small amount of rich text that lives inside free-text field values. Pure and
- * dependency-free: pool-image resolution is passed in as `resolveImage(id) -> url`
+ * dependency-free: image resolution is passed in as `resolveImage(id) -> url`
  * so this module carries no build-tool (Vite) coupling and can be unit-tested under
  * plain Node.
  */
@@ -25,7 +25,8 @@ export function escapeHtml(text) {
  * Format a single free-text field value to HTML.
  * Supports (on HTML-escaped text): paragraphs / line breaks, **bold**, *italic*,
  * [links](url), ![images](url), and simple "- " unordered lists. `resolveImage`
- * turns `pool:<id>` refs into URLs; without it, pool refs render a placeholder.
+ * turns `img:<id>` refs into URLs (the legacy `pool:<id>` prefix still resolves);
+ * without it, those refs render a placeholder.
  */
 export function formatInline(raw, resolveImage) {
   if (raw == null || String(raw).trim() === '') return '';
@@ -58,11 +59,13 @@ function inlineMarks(text, resolveImage) {
     .replace(/\*(.+?)\*/g, '<em>$1</em>');
 }
 
-// An image mark. `pool:<id>` refs resolve through the injected resolver; other URLs
-// pass through. An unresolved pool ref renders the not-found placeholder, not a broken image.
+// An image mark. `img:<id>` refs (and the legacy `pool:<id>` alias) resolve through the
+// injected resolver; other URLs pass through. An unresolved ref renders the not-found
+// placeholder, not a broken image.
 function renderImageMark(alt, url, resolveImage) {
-  if (url.startsWith('pool:')) {
-    const id = url.slice(5);
+  const ref = /^(?:img|pool):(.*)$/.exec(url);
+  if (ref) {
+    const id = ref[1];
     const resolved = resolveImage ? resolveImage(id) : null;
     if (!resolved) return notFoundImage('image-missing-inline');
     return `<img class="inline-img" src="${resolved}" alt="${alt}">`;

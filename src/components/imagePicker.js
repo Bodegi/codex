@@ -10,8 +10,11 @@
  *
  * Editors of the current codex get two extra affordances, wired through injected callbacks
  * so the picker itself stays store-free:
- *   - an **Upload** button — `onUpload(file) → id` uploads into the current codex, then the
- *     picker resolves with the new id (upload-and-use is the natural authoring flow).
+ *   - **Upload** — `onUpload(file) → id | { id, label, url }` uploads one file into the current
+ *     codex. The Upload button and drag-and-drop both accept *multiple* files: they upload in
+ *     sequence (with progress) and append each new thumb to the grid. A *single* file is the
+ *     upload-and-use flow — the picker resolves with its id immediately; dropping several leaves
+ *     the picker open so the author can pick one.
  *   - a per-thumb **remove-from-this-codex** ✕ — `onRemove(id)` drops the image from the
  *     current codex (confirm + Firestore live in the caller); on success the thumb is pulled.
  * Both are shown only when `canManage` is true; without the callbacks the picker is pick-only.
@@ -41,7 +44,7 @@ function itemHtml(img, canManage) {
 /**
  * Open the picker over an injected image list ([{ id, label, url }], from the live index).
  * Resolves to the picked (or just-uploaded) image id, or null if cancelled.
- *   opts = { canManage, onUpload(file) → Promise<id>, onRemove(id) → Promise<boolean> }
+ *   opts = { canManage, onUpload(file) → Promise<id | {id,label,url}>, onRemove(id) → Promise<boolean> }
  */
 export function openImagePicker(images = [], { canManage = false, onUpload, onRemove } = {}) {
   return new Promise((resolve) => {
@@ -58,7 +61,7 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
       <div class="image-picker-modal" role="dialog" aria-modal="true" aria-label="Select an image">
         <div class="image-picker-header">
           <strong>Select an image</strong>
-          ${canManage && onUpload ? `<button type="button" class="btn btn-primary btn-sm image-picker-upload" data-upload>＋ Upload</button>` : ''}
+          ${canManage && onUpload ? `<button type="button" class="btn btn-primary btn-sm image-picker-upload" data-upload title="Upload images — pick several, or drag them onto this window">＋ Upload</button>` : ''}
           <button type="button" class="image-picker-close" aria-label="Close">×</button>
         </div>
         <div class="image-picker-status" data-status hidden></div>
@@ -70,8 +73,13 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*';
+    fileInput.multiple = true;
     fileInput.hidden = true;
     overlay.appendChild(fileInput);
+
+    const modal = overlay.querySelector('.image-picker-modal');
+    const uploadBtn = overlay.querySelector('[data-upload]');
+    const canUpload = canManage && !!onUpload;
 
     const setStatus = (msg, isError = false) => {
       statusEl.textContent = msg || '';
@@ -125,18 +133,80 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
       }
     }
 
-    fileInput.addEventListener('change', async () => {
-      const file = fileInput.files && fileInput.files[0];
-      if (!file || !onUpload) return;
-      setStatus(`Uploading ${file.name}…`);
-      try {
-        const id = await onUpload(file);
-        close(id);
-      } catch (err) {
-        setStatus(`Upload failed: ${err.message}`, true);
-        fileInput.value = '';
+    const setBusy = (busy) => {
+      if (uploadBtn) uploadBtn.disabled = busy;
+      overlay.classList.toggle('is-uploading', busy);
+    };
+
+    // Normalize onUpload's result: a bare id string, or a { id, label, url } descriptor.
+    const toImage = (res, file) =>
+      res && typeof res === 'object'
+        ? { id: res.id, label: res.label || file.name, url: res.url || null }
+        : { id: res, label: file.name, url: null };
+
+    // Append a just-uploaded thumb to the live grid (dedup hits already in view are skipped).
+    const addThumb = (img) => {
+      if (!img.id || list.some((x) => x.id === img.id)) return false;
+      if (!list.length) grid.innerHTML = ''; // clear the "no images" message
+      list.push(img);
+      grid.insertAdjacentHTML('beforeend', itemHtml(img, canManage && !!onRemove));
+      return true;
+    };
+
+    // Upload one or many files in sequence. A single file is upload-and-use (resolve immediately);
+    // several stay open with their new thumbs so the author can pick one.
+    async function uploadFiles(fileList) {
+      if (!onUpload) return;
+      const files = Array.from(fileList || []).filter((f) => (f.type || '').startsWith('image/'));
+      if (!files.length) return;
+      setBusy(true);
+      const uploaded = [];
+      let failed = 0;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setStatus(files.length > 1 ? `Uploading ${i + 1} of ${files.length}: ${file.name}…` : `Uploading ${file.name}…`);
+        try {
+          const img = toImage(await onUpload(file), file);
+          addThumb(img);
+          uploaded.push(img);
+        } catch (err) {
+          failed++;
+          setStatus(`Upload failed for ${file.name}: ${err.message}`, true);
+        }
       }
-    });
+      fileInput.value = '';
+      setBusy(false);
+      if (files.length === 1 && uploaded.length === 1) return close(uploaded[0].id);
+      if (uploaded.length) {
+        const n = uploaded.length;
+        setStatus(`Added ${n} image${n > 1 ? 's' : ''}${failed ? `, ${failed} failed` : ''}. Click one to use it.`);
+      }
+    }
+
+    fileInput.addEventListener('change', () => uploadFiles(fileInput.files));
+
+    // Drag-and-drop uploading (editors only). The dashed overlay shows while a drag hovers the modal.
+    if (canUpload) {
+      const stop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+      ['dragenter', 'dragover'].forEach((ev) =>
+        modal.addEventListener(ev, (e) => {
+          stop(e);
+          e.dataTransfer.dropEffect = 'copy';
+          modal.classList.add('is-dragover');
+        })
+      );
+      modal.addEventListener('dragleave', (e) => {
+        if (!modal.contains(e.relatedTarget)) modal.classList.remove('is-dragover');
+      });
+      modal.addEventListener('drop', (e) => {
+        stop(e);
+        modal.classList.remove('is-dragover');
+        uploadFiles(e.dataTransfer.files);
+      });
+    }
 
     document.addEventListener('keydown', onKey);
     document.body.appendChild(overlay);

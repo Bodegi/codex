@@ -73,7 +73,7 @@ import { initCarousel } from './components/carousel.js';
 import { initMapReadCanvases } from './components/mapComponent.js';
 import { createImageIndex, publicUrl } from './schema/imageIndex.js';
 import { createImageStore } from './utils/imageStore.js';
-import { uploadImage } from './schema/imageUpload.js';
+import { uploadImage, labelFromFilename } from './schema/imageUpload.js';
 import { attachLightbox } from './components/lightbox.js';
 import { openConfirm } from './components/confirmModal.js';
 import { openConflictModal } from './components/conflictModal.js';
@@ -202,12 +202,14 @@ const imageMetaPort = state.fbManager
   : null;
 
 // Editor upload: read the file to bytes, run the dedup/resurrect/create coordinator into the current
-// codex, and return the new image id (the picker resolves with it). Any failure propagates to the
-// picker's inline error. The live subscription refreshes the index, so the new image appears on its own.
+// codex, and return the new image as a { id, label, url } descriptor. The single-file flow resolves
+// the picker with `id`; multi-file/drag uploads use `label`/`url` to append a live thumb (the id's
+// public URL is deterministic, so the thumb shows before the subscription refreshes the index). Any
+// failure propagates to the picker's inline error.
 async function uploadImageToCurrentCodex(file) {
   if (!imageStore || !imageMetaPort) throw new Error('Image upload needs cloud mode.');
   const bytes = new Uint8Array(await file.arrayBuffer());
-  return uploadImage(
+  const id = await uploadImage(
     {
       bytes,
       filename: file.name,
@@ -217,6 +219,7 @@ async function uploadImageToCurrentCodex(file) {
     },
     { storage: imageStore, meta: imageMetaPort }
   );
+  return { id, label: labelFromFilename(file.name), url: publicUrl(supabaseConfig, id) };
 }
 
 // Editor remove-from-codex: confirm (destructive), then drop the current codex from the image's
