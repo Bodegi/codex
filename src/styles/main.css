@@ -1478,8 +1478,58 @@ select[multiple].form-control option {
   pointer-events: all;
 }
 
-/* Read-only map: no authoring affordances. */
+/* Pin overlay: DOM markers stacked over the canvas (spec §5.1). The layer is click-through so
+   empty-space clicks reach the canvas for drawing; individual pins opt back into pointer events. */
+.map-pin-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.map-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.map-pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  flex: 0 0 auto;
+}
+
+.map-pin.selected .map-pin-dot {
+  box-shadow: 0 0 0 3px var(--accent-gold), 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.map-pin-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+.map-hint {
+  color: var(--text-muted);
+}
+
+/* Read-only map: no authoring affordances; static pins don't invite clicks. */
 .map-read {
+  cursor: default;
+}
+
+.map-read .map-pin {
+  pointer-events: none;
   cursor: default;
 }
 

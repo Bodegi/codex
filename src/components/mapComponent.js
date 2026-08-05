@@ -14,6 +14,12 @@
  *
  * All coordinates are in **image space** so a marker stays glued to the map as you pan/zoom.
  *
+ * Rendering is **hybrid** (spec §5.1): roads/territories are vector strokes painted on the
+ * `<canvas>`; waypoints are DOM elements in a `.map-pin-layer` stacked over it — so a pin stays a
+ * crisp, clickable, constant-size on-screen marker at any zoom (the Google-Maps model, and the
+ * seam glyphs slot into in Phase 4). `positionPins()` keeps the overlay glued to the canvas
+ * transform; `redraw()` runs both passes.
+ *
  * `selfRender` (read by main.js `wireComponentMounts`): unlike hero/gallery — whose `onChange`
  * rebuilds the whole form to refresh their thumbnails — the map owns a live canvas with
  * ephemeral pan/zoom state that a form teardown would reset. So its `onChange` persists the
@@ -21,10 +27,12 @@
  *
  * This module imports cleanly under Node (no DOM access at import time) so `fieldKinds.js`
  * stays Node-testable; `mount` / `initMapReadCanvases` are browser-only and never run there.
- * The pure helpers (`emptyMapValue` / `normalizeMapValue` / `markerColor`) are unit-tested.
+ * The pure helpers (`emptyMapValue` / `normalizeMapValue` / `markerColor` / `simplifyPoints`) are
+ * unit-tested.
  *
- * Phase 1 scope: pins are colored dots (palette → default). Phase 2 adds the DOM pin overlay +
- * freehand drawing; Phase 3 the per-field association config + scrub; Phase 4 emblem glyphs.
+ * Phase 1 (shipped): pins are colored dots painted on the canvas. Phase 2 (this): pins move to a
+ * DOM overlay + freehand road/territory drawing with point simplification. Phase 3 adds the
+ * per-field association config + scrub; Phase 4 emblem glyphs. Pins stay colored dots until Phase 4.
  */
 
 import { openImagePicker } from './imagePicker.js';
@@ -71,11 +79,75 @@ function hexToRgba(hex, alpha) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 }
 
+/** Perpendicular distance² from point p to the segment a→b (a zero-length segment → distance to a). */
+function segDistSq(p, a, b) {
+  let x = a.x;
+  let y = a.y;
+  let dx = b.x - x;
+  let dy = b.y - y;
+  if (dx !== 0 || dy !== 0) {
+    const t = ((p.x - x) * dx + (p.y - y) * dy) / (dx * dx + dy * dy);
+    if (t > 1) {
+      x = b.x;
+      y = b.y;
+    } else if (t > 0) {
+      x += dx * t;
+      y += dy * t;
+    }
+  }
+  dx = p.x - x;
+  dy = p.y - y;
+  return dx * dx + dy * dy;
+}
+
+/**
+ * Douglas–Peucker simplification (spec §6.2): thin a freehand point stream down to the corners
+ * that carry the shape, so a dragged road/territory persists as a handful of points, not the raw
+ * mouse trail. Pure and unit-tested. `tolerance` is the max allowed deviation (image-space px);
+ * callers divide by `scale` so it stays a constant on-screen tolerance regardless of zoom.
+ */
+export function simplifyPoints(points, tolerance = 2) {
+  if (!Array.isArray(points) || points.length <= 2) return Array.isArray(points) ? points.slice() : [];
+  const sqTol = tolerance * tolerance;
+  const keep = new Array(points.length).fill(false);
+  keep[0] = true;
+  keep[points.length - 1] = true;
+  const stack = [[0, points.length - 1]];
+  while (stack.length) {
+    const [first, last] = stack.pop();
+    let maxDist = 0;
+    let index = -1;
+    for (let i = first + 1; i < last; i++) {
+      const d = segDistSq(points[i], points[first], points[last]);
+      if (d > maxDist) {
+        maxDist = d;
+        index = i;
+      }
+    }
+    if (maxDist > sqTol && index !== -1) {
+      keep[index] = true;
+      stack.push([first, index], [index, last]);
+    }
+  }
+  return points.filter((_, i) => keep[i]);
+}
+
+/** HTML for one static pin marker (colored dot + optional label), centered at screen (sx, sy). */
+function pinMarkup(wp, field, sx, sy) {
+  const color = markerColor(wp, field);
+  const label = wp.label ? `<span class="map-pin-label">${escapeAttr(wp.label)}</span>` : '';
+  return (
+    `<div class="map-pin" data-pin-id="${escapeAttr(wp.id)}" style="left:${sx}px; top:${sy}px;">` +
+    `<span class="map-pin-dot" style="background:${escapeAttr(color)};"></span>${label}</div>`
+  );
+}
+
 // ── Drawing (shared by the input canvas and the read paint) ──────────────────
 
 /**
- * Paint the vector scene onto a 2D context under a viewport transform. Pure over its inputs
- * (no module state); `extra.currentPoints` is the in-progress freehand/vertex path (input only).
+ * Paint the vector scene (roads + territories) onto a 2D context under a viewport transform. Pure
+ * over its inputs (no module state); `extra.currentPoints` is the in-progress freehand/vertex path
+ * (input only). Waypoints are NOT painted here — they live in the DOM pin overlay (§5.1).
  */
 function drawScene(c, data, transform, field, extra) {
   const canvas = c.canvas;
@@ -122,22 +194,6 @@ function drawScene(c, data, transform, field, extra) {
     c.setLineDash([]);
   }
 
-  for (const wp of data.waypoints) {
-    const color = markerColor(wp, field);
-    c.fillStyle = color;
-    c.beginPath();
-    c.arc(wp.x, wp.y, 7, 0, Math.PI * 2);
-    c.fill();
-    c.strokeStyle = '#ffffff';
-    c.lineWidth = 2;
-    c.stroke();
-    if (wp.label) {
-      c.fillStyle = '#ffffff';
-      c.font = 'bold 12px Inter';
-      c.fillText(wp.label, wp.x + 10, wp.y + 4);
-    }
-  }
-
   c.restore();
 }
 
@@ -160,6 +216,10 @@ export function renderMapInput(field, value, ctx) {
           <button type="button" class="btn btn-secondary btn-sm" data-map-tool="road">Road</button>
           <button type="button" class="btn btn-secondary btn-sm" data-map-tool="territory">Area</button>
         </div>
+        <div class="tool-group">
+          <label ${lbl}>Draw</label>
+          <button type="button" class="btn btn-secondary btn-sm" data-map-action="toggle-draw-mode">Freehand</button>
+        </div>
         <div class="tool-group" style="margin-left:auto;">
           <button type="button" class="btn btn-secondary btn-sm" data-map-action="choose-image">Choose map image</button>
         </div>
@@ -173,7 +233,9 @@ export function renderMapInput(field, value, ctx) {
       <div class="map-wrapper">
         <img class="map-bg-img" src="${escapeAttr(src)}" alt="${escapeAttr(label)}">
         <canvas class="map-canvas-overlay"></canvas>
+        <div class="map-pin-layer"></div>
       </div>
+      <div class="map-hint" ${lbl}>Shift-drag to pan · scroll to zoom · Freehand: drag to draw · Vertex: click corners, double-click to finish</div>
       <div class="form-section map-inspector hidden" style="margin-top:12px; background:rgba(0,0,0,0.4);">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
           <strong class="map-inspector-title" style="color:var(--accent-gold); font-size:13px;">Selected</strong>
@@ -204,6 +266,7 @@ export function renderMapRead(field, value, ctx) {
   return `<div class="map-wrapper map-read" data-map-value="${escapeAttr(JSON.stringify(v))}"${palette}>
       <img class="map-bg-img" src="${escapeAttr(src)}" alt="${escapeAttr(label)}">
       <canvas class="map-canvas-overlay"></canvas>
+      <div class="map-pin-layer"></div>
     </div>`;
 }
 
@@ -245,6 +308,9 @@ function paintReadMap(wrap, retried) {
   canvas.width = w;
   canvas.height = h;
   drawScene(canvas.getContext('2d'), data, { scale: 1, panX: 0, panY: 0 }, { palette }, null);
+  // Static pin overlay (§5.1): read view isn't pan/zoomed, so screen coords == image coords.
+  const layer = wrap.querySelector('.map-pin-layer');
+  if (layer) layer.innerHTML = data.waypoints.map((wp) => pinMarkup(wp, { palette }, wp.x, wp.y)).join('');
 }
 
 // ── Imperative wiring ────────────────────────────────────────────────────────
@@ -254,15 +320,24 @@ function pickImage(ctx) {
   return openImagePicker(ctx?.listImages ? ctx.listImages() : [], ctx?.pickerOptions || {});
 }
 
+// Freehand tuning. MIN_POINT_DIST is the on-screen gap (px) below which a dragged point is dropped
+// so a stroke doesn't store thousands of near-duplicates; SIMPLIFY_TOLERANCE is the Douglas–Peucker
+// deviation (px) applied on commit. Both are screen-space and divided by `scale` before use so they
+// behave the same at any zoom.
+const MIN_POINT_DIST = 4;
+const SIMPLIFY_TOLERANCE = 2;
+
 /**
- * Wire the authoring canvas: pan/zoom, tool switching, waypoint drop, road/territory drawing,
- * selection + label edit + delete, and the map-image chooser. Reports the whole value object
- * back through `onChange` on every commit — the single value path (§2.2 of the composition spec).
+ * Wire the authoring surface: pan/zoom, tool switching, waypoint drop (DOM pin overlay), freehand /
+ * vertex road+territory drawing with point simplification, selection + label edit + delete, and the
+ * map-image chooser. Reports the whole value object back through `onChange` on every commit — the
+ * single value path (§2.2 of the composition spec).
  */
 export function mountMap(el, { field, value, onChange, ctx }) {
   const canvas = el.querySelector('.map-canvas-overlay');
   const wrapper = el.querySelector('.map-wrapper');
   const bgImg = el.querySelector('.map-bg-img');
+  const pinLayer = el.querySelector('.map-pin-layer');
   if (!canvas || !wrapper) return;
   const c = canvas.getContext('2d');
 
@@ -281,12 +356,17 @@ export function mountMap(el, { field, value, onChange, ctx }) {
   let startY = 0;
 
   let activeTool = 'select';
+  let drawMode = 'freehand'; // 'freehand' (drag) | 'vertex' (click corners) — §6.1
   let currentPoints = [];
+  let isDrawing = false; // a freehand drag is in progress
   let selected = null; // { list, obj } for the selected marker
 
   // Stable, collision-free ids even for rapid clicks (Date.now() alone can repeat within a ms).
   let idSeq = Date.now();
   const genId = () => String(idSeq++);
+
+  const toScreenX = (ix) => ix * scale + panX;
+  const toScreenY = (iy) => iy * scale + panY;
 
   function buildValue() {
     return { mapImageId, waypoints, roads, territories };
@@ -294,8 +374,31 @@ export function mountMap(el, { field, value, onChange, ctx }) {
   function commit() {
     onChange(buildValue());
   }
+  // Rebuild the DOM pin overlay from the waypoint set (structural changes: drop/delete/label/select).
+  function renderPins() {
+    if (!pinLayer) return;
+    pinLayer.innerHTML = waypoints
+      .map((wp) => pinMarkup(wp, field, toScreenX(wp.x), toScreenY(wp.y)))
+      .join('');
+    if (selected && selected.list === waypoints) {
+      pinLayer.querySelectorAll('.map-pin').forEach((p) => {
+        if (String(selected.obj.id) === p.dataset.pinId) p.classList.add('selected');
+      });
+    }
+  }
+  // Reposition existing pins to the current transform (cheap; runs alongside every canvas redraw).
+  function positionPins() {
+    if (!pinLayer) return;
+    pinLayer.querySelectorAll('.map-pin').forEach((p) => {
+      const wp = waypoints.find((w) => String(w.id) === p.dataset.pinId);
+      if (!wp) return;
+      p.style.left = `${toScreenX(wp.x)}px`;
+      p.style.top = `${toScreenY(wp.y)}px`;
+    });
+  }
   function redraw() {
     drawScene(c, { waypoints, roads, territories }, { scale, panX, panY }, field, { currentPoints });
+    positionPins();
   }
 
   // The form often mounts before the wrapper is laid out (0×0 at mount) and can be resized later.
@@ -331,7 +434,20 @@ export function mountMap(el, { field, value, onChange, ctx }) {
     if (!selected) return;
     selected.obj.label = nameInput.value;
     commit();
-    redraw();
+    if (selected.list === waypoints) renderPins();
+    else redraw();
+  });
+
+  // Pin selection is native DOM (§6.1): a click on a pin element opens its inspector regardless of
+  // the active tool. Delegated on the layer so it survives renderPins() rebuilds.
+  pinLayer?.addEventListener('click', (e) => {
+    const pinEl = e.target.closest('.map-pin');
+    if (!pinEl) return;
+    const wp = waypoints.find((w) => String(w.id) === pinEl.dataset.pinId);
+    if (!wp) return;
+    selected = { list: waypoints, obj: wp };
+    openInspector(wp);
+    renderPins();
   });
 
   // Tool buttons.
@@ -346,6 +462,15 @@ export function mountMap(el, { field, value, onChange, ctx }) {
         b.classList.toggle('btn-secondary', b !== btn);
       });
     });
+  });
+
+  // Draw-mode toggle: freehand drag (default) ⇄ click-per-vertex precision (§6.1). Switching commits
+  // any pending vertex path so a half-drawn shape isn't stranded across modes.
+  const drawModeBtn = el.querySelector('[data-map-action="toggle-draw-mode"]');
+  drawModeBtn?.addEventListener('click', () => {
+    if (currentPoints.length) commitShape();
+    drawMode = drawMode === 'freehand' ? 'vertex' : 'freehand';
+    drawModeBtn.textContent = drawMode === 'freehand' ? 'Freehand' : 'Vertex';
   });
 
   // Zoom controls + wheel.
@@ -378,33 +503,46 @@ export function mountMap(el, { field, value, onChange, ctx }) {
   // Delete the selected marker.
   el.querySelector('[data-map-action="delete"]')?.addEventListener('click', () => {
     if (!selected) return;
+    const wasWaypoint = selected.list === waypoints;
     const i = selected.list.indexOf(selected.obj);
     if (i >= 0) selected.list.splice(i, 1);
     closeInspector();
     commit();
+    if (wasWaypoint) renderPins();
     redraw();
   });
 
+  // Commit the in-progress road/territory. Freehand strokes are simplified (§6.2) at a constant
+  // on-screen tolerance; vertex-clicked paths are already sparse, so they're kept verbatim.
   function commitShape() {
-    if (currentPoints.length < 2) {
-      currentPoints = [];
+    let pts = currentPoints;
+    currentPoints = [];
+    isDrawing = false;
+    if (pts.length < 2) {
+      redraw();
       return;
     }
+    if (drawMode === 'freehand') pts = simplifyPoints(pts, SIMPLIFY_TOLERANCE / scale);
     if (activeTool === 'road') {
-      roads.push({ id: genId(), kind: 'road', points: currentPoints.slice(), label: NEUTRAL_LABELS.road, color: markerColor(null, field) });
+      roads.push({ id: genId(), kind: 'road', points: pts, label: NEUTRAL_LABELS.road, color: markerColor(null, field) });
     } else if (activeTool === 'territory') {
-      territories.push({ id: genId(), kind: 'territory', points: currentPoints.slice(), label: NEUTRAL_LABELS.territory, color: markerColor(null, field) });
+      territories.push({ id: genId(), kind: 'territory', points: pts, label: NEUTRAL_LABELS.territory, color: markerColor(null, field) });
     }
-    currentPoints = [];
     commit();
     redraw();
   }
 
-  canvas.addEventListener('mousedown', (e) => {
+  // Image-space coordinate of a pointer event.
+  const eventPoint = (e) => {
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left - panX) / scale;
-    const y = (e.clientY - rect.top - panY) / scale;
+    return {
+      x: (e.clientX - rect.left - panX) / scale,
+      y: (e.clientY - rect.top - panY) / scale,
+    };
+  };
 
+  canvas.addEventListener('mousedown', (e) => {
+    // Shift- or middle-drag pans, in any tool.
     if (e.button === 1 || e.shiftKey) {
       isPanning = true;
       startX = e.clientX - panX;
@@ -412,40 +550,67 @@ export function mountMap(el, { field, value, onChange, ctx }) {
       return;
     }
 
+    const { x, y } = eventPoint(e);
+
     if (activeTool === 'waypoint') {
       const label = prompt('Pin label:', NEUTRAL_LABELS.waypoint);
       if (label != null) {
         waypoints.push({ id: genId(), kind: 'waypoint', x, y, label, color: markerColor(null, field) });
         commit();
-        redraw();
+        renderPins();
       }
     } else if (activeTool === 'road' || activeTool === 'territory') {
-      currentPoints.push({ x, y });
-      redraw();
-    } else if (activeTool === 'select') {
-      const hit = waypoints.find((w) => Math.hypot(w.x - x, w.y - y) < 12);
-      if (hit) {
-        selected = { list: waypoints, obj: hit };
-        openInspector(hit);
+      if (drawMode === 'freehand') {
+        // Start a drag stroke; mousemove appends, mouseup commits.
+        isDrawing = true;
+        currentPoints = [{ x, y }];
+        redraw();
       } else {
-        closeInspector();
+        // Vertex mode: each click drops a corner; double-click / tool switch finishes.
+        currentPoints.push({ x, y });
+        redraw();
       }
+    } else if (activeTool === 'select') {
+      // Pins select via the DOM overlay; an empty-canvas click clears the selection.
+      closeInspector();
+      renderPins();
     }
   });
 
   canvas.addEventListener('dblclick', () => {
-    if (currentPoints.length > 1) commitShape();
+    if (drawMode === 'vertex' && currentPoints.length > 1) commitShape();
   });
 
   canvas.addEventListener('mousemove', (e) => {
-    if (!isPanning) return;
-    panX = e.clientX - startX;
-    panY = e.clientY - startY;
-    redraw();
+    if (isPanning) {
+      panX = e.clientX - startX;
+      panY = e.clientY - startY;
+      redraw();
+      return;
+    }
+    if (isDrawing && drawMode === 'freehand') {
+      const { x, y } = eventPoint(e);
+      const last = currentPoints[currentPoints.length - 1];
+      // Distance-filter in screen space so the sampling density is zoom-independent.
+      const dxs = (x - last.x) * scale;
+      const dys = (y - last.y) * scale;
+      if (dxs * dxs + dys * dys >= MIN_POINT_DIST * MIN_POINT_DIST) {
+        currentPoints.push({ x, y });
+        redraw();
+      }
+    }
   });
-  canvas.addEventListener('mouseup', () => {
-    isPanning = false;
-  });
+  const endStroke = () => {
+    if (isPanning) {
+      isPanning = false;
+      return;
+    }
+    if (isDrawing) commitShape();
+  };
+  canvas.addEventListener('mouseup', endStroke);
+  // A drag that leaves the canvas still commits, so a stroke never gets stuck mid-draw.
+  canvas.addEventListener('mouseleave', endStroke);
 
+  renderPins();
   redraw();
 }
