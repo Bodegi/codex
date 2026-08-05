@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   bundledIcons,
   getIcon,
+  findIcon,
   mergeIcons,
   setOverlayIcons,
   activeIcons,
@@ -53,6 +54,21 @@ test('getIcon looks up against a supplied registry, not just the bundled one', (
   assert.match(getIcon('star', registry), /id="star"/);
   // a bundled-only key is absent from the supplied registry → default
   assert.equal(getIcon('civilization', registry), DEFAULT_ICON);
+});
+
+// --- findIcon (strict, null-returning — the map glyph chain depends on the null) ---
+
+test('findIcon returns the svg for a known key and null for unknown/empty', () => {
+  assert.match(findIcon('civilization'), /<svg/);
+  assert.equal(findIcon('not-a-real-icon'), null); // never the default glyph, unlike getIcon
+  assert.equal(findIcon(''), null);
+  assert.equal(findIcon(null), null);
+});
+
+test('findIcon looks up against a supplied registry', () => {
+  const registry = [{ key: 'star', svg: '<svg id="star"></svg>' }];
+  assert.match(findIcon('star', registry), /id="star"/);
+  assert.equal(findIcon('civilization', registry), null);
 });
 
 test('the default icon is valid svg and its key resolves to it', () => {

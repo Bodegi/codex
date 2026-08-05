@@ -1511,6 +1511,49 @@ select[multiple].form-control option {
   box-shadow: 0 0 0 3px var(--accent-gold), 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 
+/* Glyph pin (§5.2): the marker's emblem/icon SVG at a constant on-screen size. Icons inherit the
+   marker color via `currentColor`; emblems carry their own fills. A drop-shadow keeps it legible
+   over any backdrop. */
+.map-pin-glyph {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
+}
+.map-pin-glyph svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.map-pin.selected .map-pin-glyph {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.map-glyph-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.map-glyph-row .form-control {
+  flex: 1;
+}
+.map-inspector-glyph-preview {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-gold);
+}
+.map-inspector-glyph-preview svg {
+  width: 24px;
+  height: 24px;
+}
+
 .map-pin-label {
   font-size: 12px;
   font-weight: 600;

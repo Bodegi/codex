@@ -31,10 +31,15 @@
  * unit-tested.
  *
  * Phase 1 (shipped): pins are colored dots painted on the canvas. Phase 2 (shipped): pins move to a
- * DOM overlay + freehand road/territory drawing with point simplification. Phase 3 (this): the
+ * DOM overlay + freehand road/territory drawing with point simplification. Phase 3 (shipped): the
  * per-field `association` config (§4.1) + the inspector entry picker — a marker carries an optional
- * `ref` (an entry id), and its display label resolves to the referenced entry's title (§7). Pins
- * stay colored dots; emblem glyphs are Phase 4.
+ * `ref` (an entry id), and its display label resolves to the referenced entry's title (§7). Phase 4
+ * (this): glyph rendering (§5.2) — a marker carries an optional `glyph` (an emblem/icon key); a pin
+ * renders as that glyph's SVG when it resolves, else the palette dot. `resolveMarkerGlyph` is the
+ * pure fallback chain (explicit glyph → inherited entry emblem → null). It resolves through
+ * `ctx.resolveGlyph`, which consults the emblems collection then icons; emblems are post-launch, so
+ * today only icon keys light up and everything else degrades to the dot — zero rework when emblems
+ * land (spec §5.3, §10).
  */
 
 import { openImagePicker } from './imagePicker.js';
@@ -91,6 +96,33 @@ export function markerLabel(marker, field, ctx) {
       : '';
   if (mode === 'reference') return refTitle() || (marker && marker.label) || '';
   return (marker && marker.label) || refTitle();
+}
+
+/**
+ * A marker's on-map glyph as an SVG string, or `null` (spec §5.2). The fallback chain:
+ *   1. `marker.glyph`  → `ctx.resolveGlyph(marker.glyph)`   — the explicit author choice wins.
+ *   2. `marker.ref`    → the referenced entry's `emblem` key → `ctx.resolveGlyph(thatKey)`
+ *                        — inherit the linked entry's emblem (a default, not a lock).
+ *   3. → `null`        — fall through to the palette color dot (§5.3).
+ * A key that fails to resolve (unknown, or an emblem key before the emblems collection exists) is
+ * skipped, not fatal, so the chain always lands on a rendered pin. Pure over `ctx` — unit-tested.
+ */
+export function resolveMarkerGlyph(marker, field, ctx) {
+  if (!marker || !ctx || !ctx.resolveGlyph) return null;
+  if (marker.glyph) {
+    const svg = ctx.resolveGlyph(marker.glyph);
+    if (svg) return svg;
+  }
+  const assoc = field?.association || {};
+  const mode = assoc.mode || 'both';
+  if (marker.ref && mode !== 'label' && ctx.resolveRef) {
+    const emblemKey = ctx.resolveRef(assoc.refType, marker.ref)?.emblem;
+    if (emblemKey) {
+      const svg = ctx.resolveGlyph(emblemKey);
+      if (svg) return svg;
+    }
+  }
+  return null;
 }
 
 function hexToRgba(hex, alpha) {
@@ -153,14 +185,25 @@ export function simplifyPoints(points, tolerance = 2) {
   return points.filter((_, i) => keep[i]);
 }
 
-/** HTML for one static pin marker (colored dot + optional label), centered at screen (sx, sy). */
-function pinMarkup(wp, field, sx, sy, ctx) {
+/**
+ * HTML for one static pin marker, centered at screen (sx, sy). The pin wears its glyph (§5.2) when
+ * one resolves, else a palette-colored dot (§5.3). `glyph` may be passed pre-resolved (the ctx-free
+ * read paint bakes it in `renderMapRead`); otherwise it resolves live through `ctx`. Icon glyphs are
+ * `currentColor`, so the marker color tints them; emblems carry their own fills and ignore it. The
+ * glyph SVG comes from our own icon/emblem registry (same trust as the nav's `getIcon`), so it is
+ * injected unescaped like every other glyph in the app.
+ */
+function pinMarkup(wp, field, sx, sy, ctx, glyph) {
   const color = markerColor(wp, field);
   const text = markerLabel(wp, field, ctx);
   const label = text ? `<span class="map-pin-label">${escapeAttr(text)}</span>` : '';
+  const g = glyph !== undefined ? glyph : resolveMarkerGlyph(wp, field, ctx);
+  const marker = g
+    ? `<span class="map-pin-glyph" style="color:${escapeAttr(color)};">${g}</span>`
+    : `<span class="map-pin-dot" style="background:${escapeAttr(color)};"></span>`;
   return (
     `<div class="map-pin" data-pin-id="${escapeAttr(wp.id)}" style="left:${sx}px; top:${sy}px;">` +
-    `<span class="map-pin-dot" style="background:${escapeAttr(color)};"></span>${label}</div>`
+    `${marker}${label}</div>`
   );
 }
 
@@ -272,6 +315,13 @@ export function renderMapInput(field, value, ctx) {
             <label>Linked entry</label>
             <select class="form-control map-inspector-assoc"></select>
           </div>
+          <div class="form-group map-inspector-glyph-group">
+            <label>Glyph</label>
+            <div class="map-glyph-row">
+              <select class="form-control map-inspector-glyph"></select>
+              <span class="map-inspector-glyph-preview" aria-hidden="true"></span>
+            </div>
+          </div>
         </div>
       </div>
     </div>`;
@@ -289,11 +339,16 @@ export function renderMapRead(field, value, ctx) {
   const label = field?.label || 'Map';
   const src = v.mapImageId && ctx?.resolveImage ? ctx.resolveImage(v.mapImageId) || '' : '';
   const palette = field?.palette ? ` data-map-palette="${escapeAttr(JSON.stringify(field.palette))}"` : '';
-  // Resolve reference labels here (the paint pass has no ctx): bake each waypoint's display title
-  // into `label` so `initMapReadCanvases` can render it self-contained (§7 / markerLabel).
+  // Resolve reference labels + glyphs here (the paint pass has no ctx): bake each waypoint's display
+  // title into `label` and its resolved glyph SVG into `glyphSvg` so `initMapReadCanvases` can render
+  // it self-contained (§7 / markerLabel, §5.2 / resolveMarkerGlyph). `glyphSvg:''` means "no glyph".
   const resolved = {
     ...v,
-    waypoints: v.waypoints.map((wp) => ({ ...wp, label: markerLabel(wp, field, ctx) })),
+    waypoints: v.waypoints.map((wp) => ({
+      ...wp,
+      label: markerLabel(wp, field, ctx),
+      glyphSvg: resolveMarkerGlyph(wp, field, ctx) || '',
+    })),
   };
   return `<div class="map-wrapper map-read" data-map-value="${escapeAttr(JSON.stringify(resolved))}"${palette}>
       <img class="map-bg-img" src="${escapeAttr(src)}" alt="${escapeAttr(label)}">
@@ -342,7 +397,12 @@ function paintReadMap(wrap, retried) {
   drawScene(canvas.getContext('2d'), data, { scale: 1, panX: 0, panY: 0 }, { palette }, null);
   // Static pin overlay (§5.1): read view isn't pan/zoomed, so screen coords == image coords.
   const layer = wrap.querySelector('.map-pin-layer');
-  if (layer) layer.innerHTML = data.waypoints.map((wp) => pinMarkup(wp, { palette }, wp.x, wp.y)).join('');
+  // Labels + glyphs were baked into the value by renderMapRead (no ctx here); pass the baked glyph.
+  if (layer) {
+    layer.innerHTML = data.waypoints
+      .map((wp) => pinMarkup(wp, { palette }, wp.x, wp.y, undefined, wp.glyphSvg || ''))
+      .join('');
+  }
 }
 
 // ── Imperative wiring ────────────────────────────────────────────────────────
@@ -488,11 +548,39 @@ export function mountMap(el, { field, value, onChange, ctx }) {
     assocSelect.value = id;
   }
 
+  // Glyph picker (§5.2 / §7): the marker's on-map emblem/icon. Options come from ctx.listGlyphs()
+  // (emblems + icons); "— dot —" clears the glyph so the pin falls back to its palette color (§5.3).
+  // A marker's glyph rides `selected.obj.glyph`.
+  const glyphSelect = el.querySelector('.map-inspector-glyph');
+  const glyphPreview = el.querySelector('.map-inspector-glyph-preview');
+  const glyphs = ctx?.listGlyphs ? ctx.listGlyphs() : [];
+  if (glyphSelect) {
+    glyphSelect.innerHTML = ['<option value="">— dot —</option>']
+      .concat(glyphs.map((g) => `<option value="${escapeAttr(g.key)}">${escapeAttr(g.key)}</option>`))
+      .join('');
+  }
+  function updateGlyphPreview(obj) {
+    if (glyphPreview) glyphPreview.innerHTML = resolveMarkerGlyph(obj, field, ctx) || '';
+  }
+  // Reflect a marker's glyph into the picker, carrying an unlisted key (a glyph since removed, or an
+  // emblem key before the emblems collection exists) as an "(unavailable)" option so it survives edit.
+  function syncGlyph(obj) {
+    if (glyphSelect) {
+      const key = obj.glyph || '';
+      if (key && !Array.from(glyphSelect.options).some((o) => o.value === key)) {
+        glyphSelect.insertAdjacentHTML('beforeend', `<option value="${escapeAttr(key)}">${escapeAttr(key)} (unavailable)</option>`);
+      }
+      glyphSelect.value = key;
+    }
+    updateGlyphPreview(obj);
+  }
+
   function openInspector(obj) {
     if (!inspector) return;
     inspector.classList.remove('hidden');
     if (nameInput) nameInput.value = obj.label || '';
     syncAssoc(obj);
+    syncGlyph(obj);
   }
   function closeInspector() {
     inspector?.classList.add('hidden');
@@ -506,10 +594,28 @@ export function mountMap(el, { field, value, onChange, ctx }) {
     else redraw();
   });
   // Linking a marker to an entry: store (or clear) its ref and repaint — in reference/both mode the
-  // pin's label re-resolves to the entry title through markerLabel.
+  // pin's label re-resolves to the entry title through markerLabel. When the marker wears no explicit
+  // glyph, inherit the linked entry's emblem as a default (§5.2) — a pre-fill, not a lock; the author
+  // can still change it. (No entry carries an emblem yet, so this is dormant until that lands.)
   assocSelect?.addEventListener('change', () => {
     if (!selected) return;
     selected.obj.ref = assocSelect.value || undefined;
+    if (!selected.obj.glyph && selected.obj.ref && ctx?.resolveRef) {
+      const emblem = ctx.resolveRef(refType, selected.obj.ref).emblem;
+      if (emblem) {
+        selected.obj.glyph = emblem;
+        syncGlyph(selected.obj);
+      }
+    }
+    commit();
+    if (selected.list === waypoints) renderPins();
+    else redraw();
+  });
+  // Choosing a glyph: store (or clear) its key and repaint the pin (§5.2).
+  glyphSelect?.addEventListener('change', () => {
+    if (!selected) return;
+    selected.obj.glyph = glyphSelect.value || undefined;
+    updateGlyphPreview(selected.obj);
     commit();
     if (selected.list === waypoints) renderPins();
     else redraw();

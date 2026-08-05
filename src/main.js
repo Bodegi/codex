@@ -26,7 +26,7 @@ import { slugify, isSlugTaken, deriveEntryId } from './schema/slug.js';
 import { blankEntry } from './schema/entryDraft.js';
 import { validateSchema } from './schema/schemaValidate.js';
 import { escapeHtml } from './schema/inlineText.js';
-import { getIcon, setOverlayIcons, bundledIcons, validateIcon } from './schema/iconRegistry.js';
+import { getIcon, findIcon, activeIcons, setOverlayIcons, bundledIcons, validateIcon } from './schema/iconRegistry.js';
 import { buildNavModel } from './schema/navModel.js';
 import {
   selectType,
@@ -315,8 +315,21 @@ const renderCtx = {
   listEntries: (type) => entriesOfType(type),
   resolveRef: (type, id) => {
     const entry = findEntryByTypeId(type, id);
-    return entry ? { label: entryLabel(entry), exists: true } : { label: id, exists: false };
+    // `emblem` feeds the map's glyph-inheritance step (map-component §5.2): a marker linked to an
+    // entry inherits that entry's emblem as a default glyph. No entry carries an `emblem` field yet
+    // (the emblem editor is post-launch), so this is a forward seam that reads `undefined` today.
+    return entry
+      ? { label: entryLabel(entry), exists: true, emblem: entry.emblem }
+      : { label: id, exists: false };
   },
+  // Glyph resolution for map markers (map-component §5.2). Resolves a glyph key to SVG markup,
+  // consulting the emblems collection first (full-color, the intended fit) then icons (monochrome
+  // `currentColor` fallback). Returns `null` — not a default glyph — when neither has the key, so the
+  // marker's fallback chain drops to its palette dot. The emblems collection is post-launch
+  // (icon-designer.md); until it lands only icons resolve, and emblem keys simply return `null`.
+  resolveGlyph: (key) => findIcon(key),
+  // The pickable-glyph pool for the map inspector: emblems (none yet) + icons.
+  listGlyphs: () => activeIcons().map((e) => ({ key: e.key, svg: e.svg })),
 };
 
 // DOM References

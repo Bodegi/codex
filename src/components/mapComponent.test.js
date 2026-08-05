@@ -6,6 +6,7 @@ import {
   normalizeMapValue,
   markerColor,
   markerLabel,
+  resolveMarkerGlyph,
   simplifyPoints,
   renderMapInput,
   renderMapRead,
@@ -55,6 +56,48 @@ test('markerLabel resolves under the field association mode (§4.1)', () => {
   assert.equal(markerLabel({ label: 'x', ref: 'ada' }, both, undefined), 'x');
   // default mode is 'both' when the field declares no association.
   assert.equal(markerLabel({ label: '', ref: 'ada' }, {}, ctx), 'Ada');
+});
+
+// --- glyph resolution (fallback chain, §5.2) ---
+
+test('resolveMarkerGlyph: explicit glyph wins', () => {
+  const ctx = { resolveGlyph: (k) => (k === 'star' ? '<svg id="star"/>' : null) };
+  assert.equal(resolveMarkerGlyph({ glyph: 'star' }, {}, ctx), '<svg id="star"/>');
+});
+
+test('resolveMarkerGlyph: inherits the referenced entry emblem when no explicit glyph', () => {
+  const ctx = {
+    resolveGlyph: (k) => (k === 'crown' ? '<svg id="crown"/>' : null),
+    resolveRef: (_type, id) => (id === 'ada' ? { label: 'Ada', exists: true, emblem: 'crown' } : { label: id, exists: false }),
+  };
+  const field = { association: { mode: 'both', refType: 'person' } };
+  assert.equal(resolveMarkerGlyph({ ref: 'ada' }, field, ctx), '<svg id="crown"/>');
+});
+
+test('resolveMarkerGlyph: an unresolved explicit key falls through to inheritance', () => {
+  const ctx = {
+    resolveGlyph: (k) => (k === 'crown' ? '<svg id="crown"/>' : null), // 'ghost' resolves to null
+    resolveRef: () => ({ label: 'Ada', exists: true, emblem: 'crown' }),
+  };
+  const field = { association: { mode: 'both', refType: 'person' } };
+  assert.equal(resolveMarkerGlyph({ glyph: 'ghost', ref: 'ada' }, field, ctx), '<svg id="crown"/>');
+});
+
+test('resolveMarkerGlyph: label-mode markers never inherit a ref emblem', () => {
+  const ctx = {
+    resolveGlyph: () => '<svg id="crown"/>',
+    resolveRef: () => ({ label: 'x', exists: true, emblem: 'crown' }),
+  };
+  assert.equal(resolveMarkerGlyph({ ref: 'ada' }, { association: { mode: 'label' } }, ctx), null);
+});
+
+test('resolveMarkerGlyph: falls through to null (the palette-dot floor)', () => {
+  const ctx = { resolveGlyph: () => null, resolveRef: () => ({ label: 'x', exists: true }) };
+  assert.equal(resolveMarkerGlyph({ glyph: 'unknown', ref: 'ada' }, {}, ctx), null);
+  assert.equal(resolveMarkerGlyph({}, {}, ctx), null);
+  // No ctx / no resolveGlyph (the ctx-free read paint) → null, never a throw.
+  assert.equal(resolveMarkerGlyph({ glyph: 'star' }, {}, undefined), null);
+  assert.equal(resolveMarkerGlyph({ glyph: 'star' }, {}, {}), null);
 });
 
 // --- point simplification (Douglas–Peucker, §6.2) ---
@@ -152,4 +195,35 @@ test('renderMapInput exposes the name + association inspector slots', () => {
   assert.match(html, /map-inspector-name-group/);
   assert.match(html, /map-inspector-assoc-group/);
   assert.match(html, /class="form-control map-inspector-assoc"/);
+});
+
+test('renderMapInput exposes the glyph picker slot (Phase 4)', () => {
+  const html = renderMapInput({ key: 'map', kind: 'map' }, undefined, null);
+  assert.match(html, /map-inspector-glyph-group/);
+  assert.match(html, /class="form-control map-inspector-glyph"/);
+  assert.match(html, /map-inspector-glyph-preview/);
+});
+
+test('renderMapRead bakes the resolved glyph SVG into the waypoint (§5.2)', () => {
+  const field = { key: 'map', label: 'Map', association: { mode: 'both', refType: 'person' } };
+  const value = {
+    mapImageId: 'm',
+    waypoints: [
+      { id: '1', kind: 'waypoint', x: 1, y: 2, label: 'Keep', glyph: 'star' },
+      { id: '2', kind: 'waypoint', x: 3, y: 4, label: 'Plain' },
+    ],
+    roads: [],
+    territories: [],
+  };
+  const ctx = {
+    resolveImage: (id) => `/i/${id}`,
+    resolveGlyph: (k) => (k === 'star' ? '<svg id="star"></svg>' : null),
+    resolveRef: () => ({ label: 'x', exists: true }),
+  };
+  const html = renderMapRead(field, value, ctx);
+  const m = /data-map-value="([^"]*)"/.exec(html);
+  const decoded = m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  const wps = JSON.parse(decoded).waypoints;
+  assert.equal(wps[0].glyphSvg, '<svg id="star"></svg>'); // resolved glyph baked in
+  assert.equal(wps[1].glyphSvg, ''); // no glyph → empty, falls back to the dot on paint
 });

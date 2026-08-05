@@ -70,6 +70,19 @@ export function getIcon(key, registry = activeRegistry) {
 }
 
 /**
+ * Strict lookup: an icon key → its SVG markup, or `null` when the key is unknown or empty.
+ * Unlike `getIcon`, this never substitutes the default glyph — the `null` is load-bearing for the
+ * map component's glyph fallback chain (`resolveMarkerGlyph`, map-component spec §5.2), which must
+ * fall through to a palette dot when a marker's glyph doesn't resolve. Same active bundled+overlay
+ * registry by default.
+ */
+export function findIcon(key, registry = activeRegistry) {
+  if (!key) return null;
+  const entry = registry.find((e) => e.key === key);
+  return entry ? entry.svg : null;
+}
+
+/**
  * Concatenate `extra` icons onto `bundled`: keys stay unique, `extra` wins on a
  * collision (keeping the bundled slot's position), and extra-only keys are appended.
  * The bundled baseline is never dropped.
