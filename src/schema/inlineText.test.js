@@ -70,3 +70,37 @@ test('formatInline shows the not-found placeholder for an unresolved img: refere
     `<p>${notFoundImage('image-missing-inline')}</p>`
   );
 });
+
+// ── URL-scheme allowlist (technical review T1: stored XSS via javascript: links) ──
+
+test('formatInline strips a javascript: link to inert label text', () => {
+  assert.equal(formatInline('[click](javascript:alert)'), '<p>click</p>');
+});
+
+test('formatInline strips data: and vbscript: link schemes', () => {
+  assert.equal(formatInline('[a](data:text/html,evil)'), '<p>a</p>');
+  assert.equal(formatInline('[b](vbscript:msgbox)'), '<p>b</p>');
+});
+
+test('formatInline defeats control-char scheme obfuscation (java\\tscript:)', () => {
+  assert.equal(formatInline('[x](java\tscript:alert)'), '<p>x</p>');
+  assert.equal(formatInline('[x](  JavaScript:alert)'), '<p>x</p>');
+});
+
+test('formatInline keeps mailto and relative/anchor links', () => {
+  assert.equal(
+    formatInline('[m](mailto:a@b.com)'),
+    '<p><a href="mailto:a@b.com" target="_blank" rel="noopener">m</a></p>'
+  );
+  assert.equal(
+    formatInline('[a](#anchor)'),
+    '<p><a href="#anchor" target="_blank" rel="noopener">a</a></p>'
+  );
+});
+
+test('formatInline drops an unsafe image scheme to the not-found placeholder', () => {
+  assert.equal(
+    formatInline('![x](javascript:alert)'),
+    `<p>${notFoundImage('image-missing-inline')}</p>`
+  );
+});

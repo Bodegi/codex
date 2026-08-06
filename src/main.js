@@ -79,16 +79,19 @@ import { uploadImage, labelFromFilename } from './schema/imageUpload.js';
 import { attachLightbox } from './components/lightbox.js';
 import { openConfirm } from './components/confirmModal.js';
 import { openConflictModal } from './components/conflictModal.js';
+import * as safeStorage from './utils/safeStorage.js';
 
 // localStorage key persisting the active codex across reloads.
 const CURRENT_CODEX_KEY = 'codex_current_id';
 
-// Firebase config resolved once; presence drives configured vs. local-only mode.
-const firebaseConfig = resolveFirebaseConfig(appConfig.firebase, localStorage.getItem('codex_firebase_override'));
+// Firebase config resolved once; presence drives configured vs. local-only mode. Read via safeStorage:
+// a raw localStorage access here throws (and blank-screens the whole app) in Safari private mode /
+// disabled-storage contexts — see safeStorage.js + technical review T2.
+const firebaseConfig = resolveFirebaseConfig(appConfig.firebase, safeStorage.getItem('codex_firebase_override'));
 
 // Supabase (image bytes) resolved once, off the same override sentinel. null in local-only mode, so the
 // image index stays empty and every id resolves to the not-found SVG (spec §7 — images need Firebase).
-const supabaseConfig = resolveSupabaseConfig(appConfig.supabase, localStorage.getItem('codex_firebase_override'));
+const supabaseConfig = resolveSupabaseConfig(appConfig.supabase, safeStorage.getItem('codex_firebase_override'));
 
 // The codex shown first: a configured build defaults to the baked codex; local-only mode is the
 // single demo-fixture codex (no switcher, no Firestore).
@@ -107,7 +110,7 @@ const state = {
   // section can be collapsed and stay collapsed across re-renders.
   navExpanded: new Set(),
   // The active codex. Every Firestore access is codex-scoped; the switcher re-scopes on change.
-  currentCodexId: localStorage.getItem(CURRENT_CODEX_KEY) || DEFAULT_CODEX_ID,
+  currentCodexId: safeStorage.getItem(CURRENT_CODEX_KEY) || DEFAULT_CODEX_ID,
   firebaseConfig,
   fbManager: null,
   authManager: null,
@@ -255,15 +258,17 @@ function subscribeCodexContent() {
 
   if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
   schemaUnsubscribe = scope.subscribeSchemas((schemas) => {
+    hideConnectionBanner(); // a live snapshot means sync is healthy again
     applyCodexSchemas(schemas);
     onCodexContentChanged();
-  });
+  }, handleContentSubscriptionError);
 
   if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
   entriesUnsubscribe = scope.subscribeEntries((entries) => {
+    hideConnectionBanner();
     state.entryIndex = indexEntries(entries);
     onCodexContentChanged();
-  });
+  }, handleContentSubscriptionError);
 
   // The codex's image library (the runtime replacement for the build-time pool): rebuild the in-memory
   // index on every snapshot, then re-render so images that were showing not-found resolve, and removed
@@ -272,7 +277,7 @@ function subscribeCodexContent() {
   imagesUnsubscribe = state.fbManager.subscribeImagesForCodex(state.currentCodexId, (records) => {
     state.imageIndex = createImageIndex(records, supabaseConfig);
     onImagesChanged();
-  });
+  }, handleContentSubscriptionError);
 }
 
 // Re-render nav + selection when the codex's live types/entries change.
@@ -394,10 +399,9 @@ function initAuth() {
 // — the key is cleared after reading; Firebase then persists the session normally across reloads. Inert for
 // every real user (no such key is ever set in production).
 function maybeDevSignIn() {
-  let token = null;
-  try { token = localStorage.getItem('codex_dev_custom_token'); } catch { /* storage unavailable */ }
+  const token = safeStorage.getItem('codex_dev_custom_token');
   if (!token) return;
-  try { localStorage.removeItem('codex_dev_custom_token'); } catch { /* ignore */ }
+  safeStorage.removeItem('codex_dev_custom_token');
   state.authManager.loginWithCustomToken(token).catch((err) => {
     console.error('dev custom-token sign-in failed', err);
     showToast('Dev sign-in failed: ' + err.message);
@@ -483,6 +487,65 @@ function showLoading() {
       <span class="pulse-dot"></span> &nbsp; Checking access…
     </div>
   `);
+}
+
+// The dedicated error screen — the place to land when the app hits a wall it can't recover from in
+// place (a fatal boot failure). A last resort, not the everyday path: transient/subscription failures
+// use the connection banner (recoverable, keeps the workspace) and stray rejections use a toast. Reuses
+// the one overlay mechanism, so it tears the workspace down cleanly. Message is escaped (may carry an
+// error string).
+function showError(message) {
+  showOverlay(`
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:80vh; text-align:center; padding:24px;">
+      <div style="font-size:56px; margin-bottom:12px;">⚠️</div>
+      <h1 style="font-family:var(--font-heading); color:var(--accent-gold); font-size:26px; margin-bottom:8px;">Something went wrong</h1>
+      <p style="font-size:14px; color:var(--text-muted); max-width:480px; margin-bottom:24px;">
+        ${escapeHtml(message || 'The app hit an unexpected error. Reloading usually fixes it.')}
+      </p>
+      <button id="error-reload-btn" class="btn btn-primary">Reload</button>
+    </div>
+  `);
+  document.getElementById('error-reload-btn')?.addEventListener('click', () => location.reload());
+}
+
+// The in-workspace "connection lost / access changed" bar (technical review T3 / feedback F2). Unlike
+// showError it does NOT tear the workspace down — the last-loaded content stays readable — it just
+// signals that live sync stopped and offers a reload. Injected once, then toggled; a successful
+// snapshot hides it again (see subscribeCodexContent), so a self-healing reconnect clears it.
+let connectionBanner = null;
+function showConnectionBanner(message) {
+  if (!connectionBanner) {
+    connectionBanner = document.createElement('div');
+    connectionBanner.setAttribute('role', 'alert');
+    connectionBanner.style.cssText =
+      'position:fixed; top:0; left:0; right:0; z-index:1000; display:flex; align-items:center; justify-content:center; gap:12px;' +
+      'padding:8px 16px; font-size:13px; background:#7f1d1d; color:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.4);';
+    const msg = document.createElement('span');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm';
+    btn.textContent = 'Reload';
+    btn.addEventListener('click', () => location.reload());
+    connectionBanner.append(msg, btn);
+    connectionBanner._msg = msg;
+    document.body.prepend(connectionBanner);
+  }
+  connectionBanner._msg.textContent = message;
+  connectionBanner.style.display = 'flex';
+}
+function hideConnectionBanner() {
+  if (connectionBanner) connectionBanner.style.display = 'none';
+}
+
+// A live codex-content subscription errored (permission-denied after an access change, or a dropped
+// connection). The workspace keeps the last-loaded data; the banner tells the user sync stopped.
+function handleContentSubscriptionError(err) {
+  console.error('Codex subscription error', err);
+  showConnectionBanner(
+    err?.code === 'permission-denied'
+      ? 'Your access to this codex changed. Reload to continue.'
+      : 'Connection lost — showing the last loaded data. Reload to reconnect.'
+  );
 }
 
 function showWorkspace() {
@@ -725,7 +788,7 @@ async function switchCodex(codexId) {
   if (imagesUnsubscribe) { imagesUnsubscribe(); imagesUnsubscribe = null; }
 
   state.currentCodexId = codexId;
-  localStorage.setItem(CURRENT_CODEX_KEY, codexId);
+  safeStorage.setItem(CURRENT_CODEX_KEY, codexId);
   state.formData = {};
   loadCodexContent();       // reset store + entry index for the new codex
   watchOwnPermission();     // re-subscribe permission → recompute caps for this codex
@@ -2266,8 +2329,26 @@ function showToast(message) {
   }, 3000);
 }
 
+// Global error boundary (technical review T2/T3). Last-resort catches so a failure surfaces instead of
+// leaving a frozen or blank app: an uncaught promise rejection toasts (non-fatal — the app is usually
+// still usable), and a resource/script `error` is logged for diagnosis. A *fatal boot* failure below
+// escalates to the full error screen. Registered before boot so a throw during init is still caught.
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('Unhandled promise rejection', e.reason);
+  showToast('Something went wrong. If it persists, reload the page.');
+});
+window.addEventListener('error', (e) => {
+  console.error('Uncaught error', e.error || e.message);
+});
+
 // Bootstrap Auth & Application. initAuth() resolves capabilities and renders the right screen;
 // the workspace (initial nav render + content subscriptions) is set up by showWorkspace() once read
-// access is confirmed — not here — so no codex reads fire before authorization.
-initAuth();
-renderSyncStatus();
+// access is confirmed — not here — so no codex reads fire before authorization. A synchronous throw
+// here (the class that used to blank-screen the app) lands on the dedicated error screen instead.
+try {
+  initAuth();
+  renderSyncStatus();
+} catch (err) {
+  console.error('Boot failed', err);
+  showError('The app failed to start. Reloading usually fixes it.');
+}

@@ -189,12 +189,12 @@ export class FirebaseManager {
    * array-contains + an equality clause would force a composite index, and active-ness is a
    * cheap in-memory check (the render index drops archived downstream anyway). No-op unconfigured.
    */
-  subscribeImagesForCodex(codexId, callback) {
+  subscribeImagesForCodex(codexId, callback, onError) {
     if (!this.db || !codexId) return () => {};
     const q = query(collection(this.db, ...imagesCollectionPath()), where('codices', 'array-contains', codexId));
     return onSnapshot(q, (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()).filter((r) => r.status === 'active'));
-    });
+    }, onError);
   }
 
   /** Admin all-images view: every image record, all statuses, on every change. No-op when unconfigured. */
@@ -375,24 +375,24 @@ export class CodexScope {
    * Subscribe to this codex's entire entries collection (the live entry index). The callback gets
    * the full array of entry docs on every change; an unconfigured scope is a no-op.
    */
-  subscribeEntries(callback) {
+  subscribeEntries(callback, onError) {
     if (!this.db) return () => {};
     const col = collection(this.db, ...entriesCollectionPath(this.codexId));
     return onSnapshot(col, (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
-    });
+    }, onError);
   }
 
   /**
    * Subscribe to real-time updates for this codex's type schemas. The callback receives the
    * full array of schema docs on every change; an unconfigured scope is a no-op.
    */
-  subscribeSchemas(callback) {
+  subscribeSchemas(callback, onError) {
     if (!this.db) return () => {};
     const col = collection(this.db, ...schemasCollectionPath(this.codexId));
     return onSnapshot(col, (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
-    });
+    }, onError);
   }
 
   /** One-shot read of this codex's schema docs (used to copy a template into a new codex). */
