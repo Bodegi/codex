@@ -143,5 +143,14 @@ service cloud.firestore {
       allow read:  if isSignedIn();
       allow write: if isAdmin();
     }
+
+    // App-global emblem set. Sibling of `icons` (icon-designer.md §2): full-color glyphs authored in
+    // the in-app designer, keyed by emblem key (the doc id). No bundled baseline — the app renders
+    // straight from this collection. Same read/write story as icons: any signed-in user reads (content
+    // + map markers render emblems), curation is admin-only, soft-delete via a `status` flag.
+    match /emblems/{key} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
   }
 }

@@ -14,6 +14,7 @@
  *   codices/{codexId}/atlas/{docId}
  *   images/{contentHash}                     (shared image library; membership via codices[])
  *   icons/{key}                              (app-global icon overlay; SVG-as-text, admin-curated)
+ *   emblems/{key}                            (app-global emblem set; full-color glyphs, admin-curated)
  */
 
 /** The deterministic entry doc id — keeps the `${type}_${id}` convention. */
@@ -42,6 +43,11 @@ export const imageDocPath = (id) => ['images', id];
 // App-global icon overlay: SVG-as-text records keyed by icon key (the doc id).
 export const iconsCollectionPath = () => ['icons'];
 export const iconDocPath = (key) => ['icons', key];
+
+// App-global emblem set: full-color glyph records keyed by emblem key (the doc id). Sibling of
+// `icons` — no bundled baseline, different consumption surface (content + map markers).
+export const emblemsCollectionPath = () => ['emblems'];
+export const emblemDocPath = (key) => ['emblems', key];
 
 // ── Per-codex subcollections ────────────────────────────────────────────────
 export const entriesCollectionPath = (codexId) => ['codices', codexId, 'entries'];

@@ -36,6 +36,8 @@ import {
   imageDocPath,
   iconsCollectionPath,
   iconDocPath,
+  emblemsCollectionPath,
+  emblemDocPath,
   entriesCollectionPath,
   entryDocPath,
   schemasCollectionPath,
@@ -263,6 +265,45 @@ export class FirebaseManager {
   async setIconStatus(key, status) {
     if (!this.db) return;
     await updateDoc(doc(this.db, ...iconDocPath(key)), { status, updatedAt: now() });
+  }
+
+  // ── Emblem set (app-global `emblems` collection; full-color glyphs, admin-curated) ──
+  // Sibling of `icons` with no bundled baseline (rendered straight from state.emblems). Consumed by
+  // content + map markers (icon-designer.md §2). Readable by any signed-in user; writes admin-only
+  // (firestore.rules). The doc id is the emblem key. Records carry an optional structured `layers`
+  // source; `svg` is always the derived render output that consumers read.
+
+  /** Live view of every emblem record, all statuses, on each change. No-op when unconfigured. */
+  subscribeEmblems(callback) {
+    if (!this.db) return () => {};
+    return onSnapshot(collection(this.db, ...emblemsCollectionPath()), (snapshot) => {
+      callback(snapshot.docs.map((d) => d.data()));
+    });
+  }
+
+  /** Create an emblem record (admin). Stamps status active + createdAt/updatedAt; id is the key. */
+  async createEmblem(key, data) {
+    if (!this.db) return;
+    const ts = now();
+    await setDoc(doc(this.db, ...emblemDocPath(key)), {
+      ...data,
+      key,
+      status: 'active',
+      createdAt: ts,
+      updatedAt: ts,
+    });
+  }
+
+  /** Edit an emblem's markup/layers/label (admin). Merge so unrelated fields are untouched. */
+  async updateEmblem(key, fields) {
+    if (!this.db) return;
+    await setDoc(doc(this.db, ...emblemDocPath(key)), { ...fields, updatedAt: now() }, { merge: true });
+  }
+
+  /** Set the emblem soft-delete flag ('active' | 'archived') — archived emblems drop from the set. */
+  async setEmblemStatus(key, status) {
+    if (!this.db) return;
+    await updateDoc(doc(this.db, ...emblemDocPath(key)), { status, updatedAt: now() });
   }
 }
 

@@ -17,6 +17,8 @@ import {
   imageDocPath,
   iconsCollectionPath,
   iconDocPath,
+  emblemsCollectionPath,
+  emblemDocPath,
 } from './codexPaths.js';
 
 test('entryId keeps the ${type}_${id} convention', () => {
@@ -43,6 +45,8 @@ test('images are a global top-level library keyed by content hash', () => {
   assert.deepEqual(imageDocPath('a1b2c3d4e5f6'), ['images', 'a1b2c3d4e5f6']);
   assert.deepEqual(iconsCollectionPath(), ['icons']);
   assert.deepEqual(iconDocPath('civilization'), ['icons', 'civilization']);
+  assert.deepEqual(emblemsCollectionPath(), ['emblems']);
+  assert.deepEqual(emblemDocPath('house-stark'), ['emblems', 'house-stark']);
 });
 
 test('entries are scoped under codices/{id}/entries', () => {
