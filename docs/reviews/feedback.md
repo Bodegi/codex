@@ -94,6 +94,29 @@ builder is the app's single hardest concept — defining fields, kinds, summary 
 there's no first-run walkthrough or example. A short guided path (or a "duplicate this example type")
 would flatten the steepest part of the learning curve.
 
+### F11. No client-side image optimization before upload
+Uploads store the source bytes as-is (T4 gates type + a 10 MB cap, but doesn't shrink anything). A 9 MB
+hero or a 5000px map ships full-size to Supabase and loads full-size inline in every reader view. A
+client-side pass — **downscale-by-max-dimension first** (the 80/20: cap the longest edge to ~2048px,
+usually an 80–95% size cut with no perceptible loss), **WebP conversion second** — would cut storage and
+speed up reader pages. Post-launch; the hard cap already prevents the disaster case.
+
+Scope notes so the decision isn't re-derived:
+- **Dedup interaction (decide first).** Image identity is a content hash of the bytes, and dedup is a
+  free consequence. Browser WebP/canvas encoders aren't byte-identical across browsers/versions, so
+  compressing could produce different bytes for the same source → dedup misses. Keep the invariant by
+  **compressing first, then hashing the compressed output** (id stays "hash of what's stored"); accept
+  minor cross-browser near-dupes as the trade.
+- **Gotchas.** Pass **animated GIFs through untouched** (canvas re-encoding flattens them to one frame,
+  killing the animation). Keep quality high (~0.85–0.9) and preserve alpha so crisp line art / map text
+  don't artifact. Skip files already small, and keep the original if the compressed result is larger.
+- **No library.** A ~40-line canvas helper covers it: `createImageBitmap(file, { imageOrientation:
+  'from-image' })` (EXIF rotation) → draw to a downscaled canvas → `toBlob('image/webp', q)` with a
+  JPEG/passthrough fallback for older Safari. Reach for a dependency only if you later need
+  iterative compress-to-target-size.
+- **Where it lives.** The policy (target dims, quality, skip-if-GIF, skip-if-small, keep-original-if-
+  bigger) is a pure, Node-tested module; the canvas encode is the browser-only edge, verified in preview.
+
 ---
 
 ## What's genuinely strong (keep it)
