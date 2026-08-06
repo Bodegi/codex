@@ -1188,21 +1188,23 @@ function wireImagesPanel() {
   formContainer.querySelectorAll('[data-image-label]').forEach((input) => {
     input.addEventListener('change', () => {
       const label = input.value.trim();
-      if (label) guard(fb.updateImageLabel(input.dataset.imageLabel, label));
+      if (label) guard(fb.updateImageLabel(input.dataset.imageLabel, label).then(() => showToast('Saved label')));
     });
   });
   formContainer.querySelectorAll('[data-image-add-codex]').forEach((sel) => {
     sel.addEventListener('change', () => {
-      if (sel.value) guard(fb.addImageToCodex(sel.dataset.imageAddCodex, sel.value));
+      if (sel.value) guard(fb.addImageToCodex(sel.dataset.imageAddCodex, sel.value).then(() => showToast('Added to codex')));
     });
   });
   formContainer.querySelectorAll('[data-image-drop-codex]').forEach((btn) => {
     btn.addEventListener('click', () =>
-      guard(fb.removeImageFromCodex(btn.dataset.imageDropCodex, btn.dataset.codex))
+      guard(fb.removeImageFromCodex(btn.dataset.imageDropCodex, btn.dataset.codex).then(() => showToast('Removed from codex')))
     );
   });
   formContainer.querySelectorAll('[data-image-restore]').forEach((btn) => {
-    btn.addEventListener('click', () => guard(fb.setImageStatus(btn.dataset.imageRestore, 'active')));
+    btn.addEventListener('click', () =>
+      guard(fb.setImageStatus(btn.dataset.imageRestore, 'active').then(() => showToast('Restored image')))
+    );
   });
   formContainer.querySelectorAll('[data-image-archive]').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -1211,7 +1213,7 @@ function wireImagesPanel() {
         message: 'It will be hidden from every codex. The bytes are retained, and you can restore it.',
         confirmLabel: 'Archive',
       });
-      if (ok) guard(fb.setImageStatus(btn.dataset.imageArchive, 'archived'));
+      if (ok) guard(fb.setImageStatus(btn.dataset.imageArchive, 'archived').then(() => showToast('Archived image')));
     });
   });
 }
@@ -1475,7 +1477,9 @@ function grantRole(uid, role) {
           grantedBy,
           grantedAt: new Date().toISOString(),
         });
-  action?.catch((err) => showToast('Access change failed: ' + err.message));
+  action
+    ?.then(() => showToast(role === 'none' ? 'Access removed' : `Access set to ${role}`))
+    .catch((err) => showToast('Access change failed: ' + err.message));
 }
 
 function ensureAdminSubscriptions() {
