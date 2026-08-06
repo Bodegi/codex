@@ -19,7 +19,7 @@
  */
 
 const MODES = new Set(['read', 'edit', 'admin', 'index']);
-const PANELS = new Set(['access', 'codices', 'images', 'icons']);
+const PANELS = new Set(['access', 'codices', 'images', 'icons', 'emblems']);
 
 const typeView = (type, mode = 'read') => ({ kind: 'type', type: type ?? null, mode });
 

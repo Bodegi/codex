@@ -2316,3 +2316,280 @@ select[multiple].form-control option {
 .icon-card-footer .status-badge {
   margin-right: auto;
 }
+
+/* Emblem previews sit on a checkerboard so transparent areas read as transparent (they keep their
+   own colors and don't theme, unlike icons). */
+.icon-card-preview.is-emblem {
+  background-image:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.06) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.06) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.06) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.06) 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  border-radius: var(--radius-sm);
+}
+
+/* ==========================================================================
+   Glyph designer (icons + emblems) — icon-designer.md §4
+   ========================================================================== */
+.glyph-designer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 24px;
+}
+.glyph-designer,
+.glyph-library {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  width: min(880px, 100%);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+}
+.gd-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-dim);
+  flex-wrap: wrap;
+}
+.gd-mode {
+  display: inline-flex;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.gd-mode-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.gd-mode-btn.is-active {
+  background: var(--accent-gold);
+  color: #1a1205;
+  font-weight: 600;
+}
+.gd-mode-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.gd-key {
+  width: 180px;
+}
+.gd-label {
+  flex: 1;
+  min-width: 120px;
+}
+.gd-header-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.gd-status {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-dim);
+}
+.gd-status.is-error {
+  color: var(--accent-crimson);
+}
+.gd-body {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  overflow: auto;
+}
+.gd-stage-col {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gd-stage {
+  width: 264px;
+  height: 264px;
+  border-radius: var(--radius-sm);
+  background-color: #f3f4f6;
+  /* 24-cell reference grid (264 / 24 = 11px cells). */
+  background-image:
+    linear-gradient(to right, rgba(0, 0, 0, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+  background-size: 11px 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1f2937; /* mono glyphs tint to this on the light stage */
+}
+.gd-stage.is-dark {
+  background-color: #0b1220;
+  color: #e5e7eb;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+}
+.gd-stage svg {
+  width: 200px;
+  height: 200px;
+}
+.gd-stage-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gd-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.gd-side {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.gd-side-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.gd-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.gd-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow: auto;
+}
+.gd-layer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-elevated);
+  cursor: pointer;
+}
+.gd-layer-row.is-selected {
+  border-color: var(--accent-gold);
+}
+.gd-drag {
+  cursor: grab;
+  color: var(--text-dim);
+}
+.gd-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.gd-layer-name {
+  flex: 1;
+  font-size: 13px;
+}
+.gd-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 13px;
+}
+.gd-icon-btn:hover {
+  color: var(--text-main);
+}
+.gd-inspector {
+  border-top: 1px solid var(--border-dim);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gd-geo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.gd-geo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.gd-geo.gd-geo-wide {
+  grid-column: 1 / -1;
+}
+.gd-geo input,
+.gd-geo textarea {
+  font-size: 13px;
+}
+.gd-paint {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gd-paint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.gd-stroke-w {
+  width: 64px;
+}
+.gd-empty {
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 8px 0;
+}
+.glyph-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+  padding: 16px;
+  overflow: auto;
+}
+.glyph-library-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-main);
+}
+.glyph-library-item:hover {
+  border-color: var(--accent-gold);
+}
+.glyph-library-item svg {
+  width: 36px;
+  height: 36px;
+}
+.glyph-library-item code {
+  font-size: 11px;
+  color: var(--text-muted);
+}

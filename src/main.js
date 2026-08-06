@@ -27,7 +27,7 @@ import { slugify, isSlugTaken, deriveEntryId } from './schema/slug.js';
 import { blankEntry } from './schema/entryDraft.js';
 import { validateSchema } from './schema/schemaValidate.js';
 import { escapeHtml } from './schema/inlineText.js';
-import { getIcon, findIcon, activeIcons, setOverlayIcons, bundledIcons, validateIcon } from './schema/iconRegistry.js';
+import { getIcon, findIcon, activeIcons, setOverlayIcons, bundledIcons, validateIcon, mergeIcons } from './schema/iconRegistry.js';
 import { buildNavModel } from './schema/navModel.js';
 import {
   selectType,
@@ -66,7 +66,9 @@ import {
   renderCodicesPanel,
   renderImagesPanel,
   renderIconsPanel,
+  renderEmblemsPanel,
 } from './components/adminView.js';
+import { openGlyphDesigner, openLibraryPicker } from './components/glyphDesigner.js';
 import { resolveCapabilities, isAdminEmail } from './utils/capabilities.js';
 import { getKind } from './schema/fieldKinds.js';
 import { initCarousel } from './components/carousel.js';
@@ -138,7 +140,10 @@ const state = {
   adminImages: [],
   // App-global icon overlay: every icon record, all statuses (subscribeIcons). Active ones are
   // pushed into iconRegistry via setOverlayIcons; the admin Icons panel reads the full list.
-  icons: []
+  icons: [],
+  // App-global emblem set: every emblem record, all statuses (subscribeEmblems). No bundled
+  // baseline — rendered straight from here (Emblems panel + map glyph resolution).
+  emblems: []
 };
 
 // ── View-state helpers ───────────────────────────────────────────────────────
@@ -331,11 +336,14 @@ const renderCtx = {
   // Glyph resolution for map markers (map-component §5.2). Resolves a glyph key to SVG markup,
   // consulting the emblems collection first (full-color, the intended fit) then icons (monochrome
   // `currentColor` fallback). Returns `null` — not a default glyph — when neither has the key, so the
-  // marker's fallback chain drops to its palette dot. The emblems collection is post-launch
-  // (icon-designer.md); until it lands only icons resolve, and emblem keys simply return `null`.
-  resolveGlyph: (key) => findIcon(key),
-  // The pickable-glyph pool for the map inspector: emblems (none yet) + icons.
-  listGlyphs: () => activeIcons().map((e) => ({ key: e.key, svg: e.svg })),
+  // marker's fallback chain drops to its palette dot.
+  resolveGlyph: (key) => {
+    if (!key) return null;
+    const emblem = state.emblems.find((e) => e && e.key === key && e.svg && e.status !== 'archived');
+    return emblem ? emblem.svg : findIcon(key);
+  },
+  // The pickable-glyph pool for the map inspector: emblems first, then icons.
+  listGlyphs: () => [...activeEmblems(), ...activeIcons().map((e) => ({ key: e.key, svg: e.svg }))],
 };
 
 // DOM References
@@ -485,6 +493,7 @@ function showWorkspace() {
     state.workspaceReady = true;
     subscribeCodexRegistry();      // populate the switcher (app-global, not codex-scoped)
     subscribeIconOverlay();        // app-global icon overlay (nav renders it for every user)
+    subscribeEmblemOverlay();      // app-global emblem set (content + map markers resolve it)
     subscribeCodexContent();       // deferred schema + entry subscriptions (now that canRead is true)
     renderCodexSwitcher();
     state.view = normalize(state.view, viewCtx());
@@ -506,6 +515,8 @@ function teardownWorkspace() {
   if (codicesUnsub) { codicesUnsub(); codicesUnsub = null; }
   if (ownPermsUnsub) { ownPermsUnsub(); ownPermsUnsub = null; }
   if (iconsUnsub) { iconsUnsub(); iconsUnsub = null; }
+  if (emblemsUnsub) { emblemsUnsub(); emblemsUnsub = null; }
+  state.emblems = []; // drop the set so a re-auth starts clean
   setOverlayIcons([]); // drop the overlay so a re-auth starts from the bundled baseline
   if (adminUsersUnsub) { adminUsersUnsub(); adminUsersUnsub = null; }
   if (adminPermsUnsub) { adminPermsUnsub(); adminPermsUnsub = null; }
@@ -588,6 +599,7 @@ const codexSwitcherWrap = codexSwitcher.parentElement;
 let codicesUnsub = null;
 let ownPermsUnsub = null;
 let iconsUnsub = null;
+let emblemsUnsub = null;
 
 // The codices to show in the switcher, per the pure registry rules.
 function visibleCodices() {
@@ -639,6 +651,23 @@ function subscribeIconOverlay() {
     renderNav(); // type icons pick up the overlay live
     if (inGlobalAdmin() && state.view.panel === 'icons') renderAdminPanel();
   });
+}
+
+// App-global emblem set: full-color glyphs, readable by any signed-in user (content + map markers
+// render them). No bundled baseline and no registry merge — state.emblems is the whole story; the
+// map glyph resolver and the Emblems admin panel read it directly. Inert in local-only mode.
+function subscribeEmblemOverlay() {
+  if (emblemsUnsub || !(state.fbManager && state.fbManager.isConfigured())) return;
+  emblemsUnsub = state.fbManager.subscribeEmblems((emblems) => {
+    state.emblems = emblems;
+    renderNav(); // markers/content that resolve an emblem pick it up live
+    if (inGlobalAdmin() && state.view.panel === 'emblems') renderAdminPanel();
+  });
+}
+
+/** Active (non-archived) emblems as `[{ key, svg }]` — the pool the map glyph resolver consults. */
+function activeEmblems() {
+  return state.emblems.filter((e) => e && e.key && e.svg && e.status !== 'archived').map((e) => ({ key: e.key, svg: e.svg }));
 }
 
 function renderCodexSwitcher() {
@@ -784,6 +813,7 @@ function renderAdminNav() {
       ${item('codices', 'Codices')}
       ${item('images', 'Images')}
       ${item('icons', 'Icons')}
+      ${item('emblems', 'Emblems')}
     </div>`;
   typeNav.querySelector('[data-admin-back]')?.addEventListener('click', exitAdmin);
   typeNav.querySelectorAll('[data-admin-nav]').forEach((btn) => {
@@ -1086,6 +1116,11 @@ function renderAdminPanel() {
     wireIconsPanel();
     updateRenderedPreview('<div class="admin-blurb">Admin — the app-global icon overlay.</div>');
     updateRawJson('');
+  } else if (state.view.panel === 'emblems') {
+    formContainer.innerHTML = renderEmblemsPanelHtml();
+    wireEmblemsPanel();
+    updateRenderedPreview('<div class="admin-blurb">Admin — the app-global emblem set.</div>');
+    updateRawJson('');
   } else {
     formContainer.innerHTML = renderAccessPanel({ codexId: state.currentCodexId, rows: buildRosterRows() });
     wireAccessPanel();
@@ -1235,6 +1270,7 @@ function renderIconsPanelHtml() {
       svg: i.svg || '',
       status: i.status || 'active',
       bundled: bundledKeys.has(i.key),
+      layers: i.layers || null, // designer-authored icons offer "Edit in designer"
     }))
     .sort((a, b) => a.key.localeCompare(b.key));
   // Bundled icons the overlay is NOT actively overriding — shown as read-only reference rows. An
@@ -1270,6 +1306,17 @@ function wireIconsPanel() {
   syncCreateState();
 
   document.getElementById('icon-create-btn')?.addEventListener('click', createIcon);
+
+  // Visual authoring (icon-designer.md): Draw opens the layered editor blank (mono); Browse library
+  // seeds it from any bundled/overlay glyph; per-card "Edit in designer" reopens a layered record.
+  document.getElementById('icon-draw-btn')?.addEventListener('click', () => openGlyphFor('mono'));
+  document.getElementById('icon-library-btn')?.addEventListener('click', browseGlyphLibrary);
+  formContainer.querySelectorAll('[data-icon-design]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const rec = state.icons.find((i) => i.key === btn.dataset.iconDesign);
+      if (rec) openGlyphFor('mono', rec);
+    });
+  });
 
   // Clear the add-icon card (handy after an Override seeds it, or to abandon a draft).
   document.getElementById('icon-create-clear')?.addEventListener('click', () => {
@@ -1345,6 +1392,176 @@ async function createIcon() {
     showToast(`Added icon “${key}”`);
   } catch (err) {
     showToast('Add failed: ' + err.message);
+  }
+}
+
+// ── Emblems admin panel (create / edit / archive-restore) ────────────────────
+// The app-global emblem set: full-color glyphs with no bundled baseline (rendered straight from
+// state.emblems). Primary authoring is the shared glyph designer; a color-SVG paste box is the
+// escape hatch. All writes admin-only (firestore.rules). Inert local-only.
+
+function renderEmblemsPanelHtml() {
+  if (!(state.fbManager && state.fbManager.isConfigured())) {
+    return '<div class="admin-section"><div class="admin-muted">Emblem management needs cloud mode (Firebase).</div></div>';
+  }
+  const rows = state.emblems
+    .map((e) => ({
+      key: e.key,
+      label: e.label || '',
+      svg: e.svg || '',
+      status: e.status || 'active',
+      layers: e.layers || null,
+    }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  return renderEmblemsPanel({ rows });
+}
+
+function wireEmblemsPanel() {
+  const fb = state.fbManager;
+  if (!fb) return;
+  const guard = (p) => Promise.resolve(p).catch((err) => showToast('Emblem error: ' + err.message));
+
+  // Live preview + Add gate for the paste escape hatch (color SVG, admin-authored trusted markup).
+  const createKey = document.getElementById('emblem-create-key');
+  const createSvg = document.getElementById('emblem-create-svg');
+  const createPreview = document.getElementById('emblem-create-preview');
+  const createBtn = document.getElementById('emblem-create-btn');
+  const syncCreateState = () => {
+    if (createPreview) createPreview.innerHTML = /<svg[\s>]/i.test(createSvg?.value || '') ? createSvg.value : '';
+    if (createBtn) createBtn.disabled = !(createKey?.value.trim() && createSvg?.value.trim());
+  };
+  createKey?.addEventListener('input', syncCreateState);
+  createSvg?.addEventListener('input', syncCreateState);
+  syncCreateState();
+
+  document.getElementById('emblem-draw-btn')?.addEventListener('click', () => openGlyphFor('color'));
+  document.getElementById('emblem-create-btn')?.addEventListener('click', createEmblemFromPaste);
+  document.getElementById('emblem-create-clear')?.addEventListener('click', () => {
+    ['emblem-create-key', 'emblem-create-label', 'emblem-create-svg'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    document.getElementById('emblem-create-svg')?.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('emblem-create-key')?.focus();
+  });
+
+  formContainer.querySelectorAll('[data-emblem-design]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const rec = state.emblems.find((e) => e.key === btn.dataset.emblemDesign);
+      if (rec) openGlyphFor('color', rec);
+    });
+  });
+
+  // Pasted (layer-less) emblems save their raw markup; designed ones save the label only.
+  formContainer.querySelectorAll('[data-emblem-save]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.emblemSave;
+      const label = formContainer.querySelector(`[data-emblem-label="${CSS.escape(key)}"]`)?.value.trim() || '';
+      const svg = formContainer.querySelector(`[data-emblem-svg="${CSS.escape(key)}"]`)?.value.trim() || '';
+      if (!/<svg[\s>]/i.test(svg)) return showToast('SVG must contain an <svg> element.');
+      guard(fb.updateEmblem(key, { label, svg }).then(() => showToast(`Saved emblem “${key}”`)));
+    });
+  });
+  formContainer.querySelectorAll('[data-emblem-save-label]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.emblemSaveLabel;
+      const label = formContainer.querySelector(`[data-emblem-label="${CSS.escape(key)}"]`)?.value.trim() || '';
+      guard(fb.updateEmblem(key, { label }).then(() => showToast('Saved label')));
+    });
+  });
+
+  formContainer.querySelectorAll('[data-emblem-restore]').forEach((btn) => {
+    btn.addEventListener('click', () =>
+      guard(fb.setEmblemStatus(btn.dataset.emblemRestore, 'active').then(() => showToast('Restored emblem')))
+    );
+  });
+  formContainer.querySelectorAll('[data-emblem-archive]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const ok = await openConfirm({
+        title: 'Archive this emblem?',
+        message: 'It drops out of the set; content and map markers using its key fall back. You can restore it.',
+        confirmLabel: 'Archive',
+      });
+      if (ok) guard(fb.setEmblemStatus(btn.dataset.emblemArchive, 'archived').then(() => showToast('Archived emblem')));
+    });
+  });
+}
+
+// Add an emblem from the paste box (no structured layers — the escape hatch, mirrors createIcon).
+async function createEmblemFromPaste() {
+  const fb = state.fbManager;
+  if (!fb) return;
+  const key = (document.getElementById('emblem-create-key')?.value || '').trim();
+  const label = (document.getElementById('emblem-create-label')?.value || '').trim();
+  const svg = (document.getElementById('emblem-create-svg')?.value || '').trim();
+  const problems = validateIcon({ key, svg }, state.emblems.map((e) => e.key)); // reuse the key+<svg> gate
+  if (problems.length) return showToast(problems[0]);
+  try {
+    await fb.createEmblem(key, { label, svg });
+    showToast(`Added emblem “${key}”`);
+  } catch (err) {
+    showToast('Add failed: ' + err.message);
+  }
+}
+
+// ── Shared glyph designer glue (icons + emblems) ─────────────────────────────
+// One designer, two collections. `palette` picks the starting kind; editing an existing record
+// (`rec` present) locks the palette so a glyph never silently jumps collections. On save, the
+// record routes by its final palette: mono → icons, color → emblems (createGlyph or updateGlyph).
+
+async function openGlyphFor(palette, rec = null) {
+  const existingKeys = {
+    mono: state.icons.map((i) => i.key).filter((k) => k !== rec?.key),
+    color: state.emblems.map((e) => e.key).filter((k) => k !== rec?.key),
+  };
+  await openGlyphDesigner({
+    palette: rec ? (rec.palette || palette) : palette,
+    lockPalette: !!rec,
+    initial: rec ? { key: rec.key, label: rec.label || '', layers: rec.layers || [] } : {},
+    existingKeys,
+    onSave: (record) => saveGlyph(record, !!rec),
+  });
+}
+
+async function browseGlyphLibrary() {
+  // Our own curated set: the bundled baseline plus the active overlay (generalizes "Override…").
+  // Source the overlay from state.icons so a designed glyph keeps its `layers` (opens in the editor).
+  const overlay = state.icons
+    .filter((i) => i && i.key && i.svg && i.status !== 'archived')
+    .map((i) => ({ key: i.key, svg: i.svg, layers: i.layers || null }));
+  const pool = mergeIcons(bundledIcons, overlay);
+  const chosen = await openLibraryPicker(pool);
+  if (!chosen) return;
+  if (chosen.layers) {
+    // A layered source opens straight in the designer under a fresh key (blanked so it's a new glyph).
+    return openGlyphFor('mono', { key: '', label: '', layers: chosen.layers, palette: 'mono' });
+  }
+  // A bundled/pasted source seeds the raw create form (no layers to edit visually).
+  const keyInput = document.getElementById('icon-create-key');
+  const svgInput = document.getElementById('icon-create-svg');
+  if (keyInput) keyInput.value = '';
+  if (svgInput) {
+    svgInput.value = chosen.svg || '';
+    svgInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  keyInput?.focus();
+}
+
+// Write a designer record to the collection its palette selects. `isEdit` updates in place (the key
+// is fixed); a create stamps a new doc. The live subscription re-renders the panel with the result.
+async function saveGlyph(record, isEdit) {
+  const fb = state.fbManager;
+  if (!fb) throw new Error('Glyph authoring needs cloud mode.');
+  const { key, label, svg, layers, palette } = record;
+  const data = { label, svg, layers, palette };
+  if (palette === 'color') {
+    if (isEdit) await fb.updateEmblem(key, data);
+    else await fb.createEmblem(key, data);
+    showToast(isEdit ? `Saved emblem “${key}”` : `Added emblem “${key}”`);
+  } else {
+    if (isEdit) await fb.updateIcon(key, data);
+    else await fb.createIcon(key, data);
+    showToast(isEdit ? `Saved icon “${key}”` : `Added icon “${key}”`);
   }
 }
 

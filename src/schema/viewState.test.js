@@ -66,6 +66,11 @@ test('selectAdminPanel swaps the panel within the global-admin surface', () => {
     selectAdminPanel({ kind: 'global-admin', panel: 'access' }, 'images'),
     { kind: 'global-admin', panel: 'images' }
   );
+  // Icons and Emblems are valid panels too.
+  assert.deepEqual(
+    selectAdminPanel({ kind: 'global-admin', panel: 'access' }, 'emblems'),
+    { kind: 'global-admin', panel: 'emblems' }
+  );
 });
 
 test('closeGlobalAdmin returns to a content read view on the fallback type', () => {

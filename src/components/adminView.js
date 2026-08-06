@@ -1,9 +1,9 @@
 /**
  * Global-admin panels (admin-only): the Users & Access roster, the Codices manager, the
- * Images gallery, and the Icons overlay editor. Panel switching + a way back out live in the
- * sidebar (main.js renderAdminNav), not here. Pure HTML builders; main.js owns the wiring
- * (roster subscriptions, grant/revoke, codex create/rename/archive, image label/cross-assign/
- * archive/restore, icon create/edit/archive/restore).
+ * Images gallery, the Icons overlay editor, and the Emblems set. Panel switching + a way back out
+ * live in the sidebar (main.js renderAdminNav), not here. Pure HTML builders; main.js owns the
+ * wiring (roster subscriptions, grant/revoke, codex create/rename/archive, image label/cross-assign/
+ * archive/restore, icon + emblem create/edit/archive/restore, and the shared glyph designer).
  */
 
 import { notFoundImage } from '../schema/notFoundImage.js';
@@ -234,6 +234,7 @@ export function renderIconsPanel({ overlayRows = [], bundledRows = [] }) {
         <textarea class="admin-input icon-card-svg" data-icon-svg="${escapeHtml(icon.key)}" rows="3" spellcheck="false" aria-label="SVG markup">${escapeHtml(icon.svg || '')}</textarea>
         <div class="icon-card-footer">
           <span class="admin-badge status-badge status-${isArchived ? 'archived' : 'active'}">${isArchived ? 'archived' : 'active'}</span>
+          ${icon.layers ? `<button type="button" class="btn btn-secondary btn-sm" data-icon-design="${escapeHtml(icon.key)}">Edit in designer</button>` : ''}
           <button type="button" class="btn btn-primary btn-sm" data-icon-save="${escapeHtml(icon.key)}">Save</button>
           ${statusAction}
         </div>
@@ -271,6 +272,8 @@ export function renderIconsPanel({ overlayRows = [], bundledRows = [] }) {
         <textarea class="admin-input" id="icon-create-svg" rows="3" spellcheck="false" placeholder="&lt;svg viewBox=&quot;0 0 24 24&quot; fill=&quot;currentColor&quot;&gt;…&lt;/svg&gt;" aria-label="New icon SVG markup"></textarea>
         <div class="icon-create-actions">
           <div class="icon-card-preview" id="icon-create-preview" aria-hidden="true"></div>
+          <button type="button" class="btn btn-secondary" id="icon-draw-btn">Draw…</button>
+          <button type="button" class="btn btn-secondary" id="icon-library-btn">Browse library</button>
           <button type="button" class="btn btn-secondary" id="icon-create-clear">Clear</button>
           <button type="button" class="btn btn-primary" id="icon-create-btn" disabled>Add icon</button>
         </div>
@@ -282,5 +285,75 @@ export function renderIconsPanel({ overlayRows = [], bundledRows = [] }) {
       <h4 class="icon-subhead">Bundled baseline</h4>
       <p class="admin-muted">Always available and defined in code — can't be deleted. Override one to replace its glyph everywhere it's used.</p>
       ${bundledBody}
+    </div>`;
+}
+
+/**
+ * Emblems panel: the app-global full-color glyph set (icon-designer.md §2). Sibling of Icons with
+ * NO bundled baseline — every emblem is admin-authored, rendered straight from the record's derived
+ * `svg`. The primary authoring surface is the shared glyph designer ("Draw…"); a color-SVG paste box
+ * stays as an escape hatch. A record with a structured `layers` source opens back in the designer;
+ * a pasted one (no `layers`) edits through the raw textarea. main.js owns the wiring.
+ *
+ *   rows — [{ key, label, svg, status, layers }] the emblem records, sorted by key. `layers` present
+ *          marks a designer-authored emblem (offer "Edit in designer"); absent = paste-authored.
+ */
+export function renderEmblemsPanel({ rows = [] }) {
+  const preview = (svg) => `<div class="icon-card-preview is-emblem">${svg || ''}</div>`;
+
+  const card = (emblem) => {
+    const isArchived = emblem.status === 'archived';
+    const designed = !!emblem.layers;
+    const statusAction = isArchived
+      ? `<button type="button" class="btn btn-secondary btn-sm" data-emblem-restore="${escapeHtml(emblem.key)}">Restore</button>`
+      : `<button type="button" class="btn btn-danger btn-sm" data-emblem-archive="${escapeHtml(emblem.key)}">Archive</button>`;
+    const designedBadge = designed
+      ? '<span class="admin-badge" title="Authored in the glyph designer">designed</span>'
+      : '';
+    // A designed emblem edits in the designer (raw markup is derived, so hand-editing it would
+    // desync `layers`); a pasted emblem keeps the raw textarea + Save.
+    const editControls = designed
+      ? `<button type="button" class="btn btn-secondary btn-sm" data-emblem-design="${escapeHtml(emblem.key)}">Edit in designer</button>
+         <button type="button" class="btn btn-primary btn-sm" data-emblem-save-label="${escapeHtml(emblem.key)}">Save label</button>`
+      : `<textarea class="admin-input icon-card-svg" data-emblem-svg="${escapeHtml(emblem.key)}" rows="3" spellcheck="false" aria-label="Emblem SVG markup">${escapeHtml(emblem.svg || '')}</textarea>
+         <button type="button" class="btn btn-primary btn-sm" data-emblem-save="${escapeHtml(emblem.key)}">Save</button>`;
+    return `
+      <div class="icon-card${isArchived ? ' is-archived' : ''}" data-emblem-id="${escapeHtml(emblem.key)}">
+        <div class="icon-card-media">${preview(emblem.svg)}</div>
+        <div class="icon-card-key"><code title="${escapeHtml(emblem.key)}">${escapeHtml(emblem.key)}</code> ${designedBadge}</div>
+        <input class="admin-input icon-card-label" data-emblem-label="${escapeHtml(emblem.key)}" value="${escapeHtml(emblem.label || '')}" placeholder="Label (optional)" aria-label="Emblem label">
+        ${editControls}
+        <div class="icon-card-footer">
+          <span class="admin-badge status-badge status-${isArchived ? 'archived' : 'active'}">${isArchived ? 'archived' : 'active'}</span>
+          ${statusAction}
+        </div>
+      </div>`;
+  };
+
+  const body = rows.length
+    ? `<div class="icon-grid">${rows.map(card).join('')}</div>`
+    : '<div class="admin-muted">No emblems yet. Draw one above.</div>';
+
+  return `
+    <div class="admin-section">
+      <h3>Emblems</h3>
+      <p class="admin-muted">Full-color glyphs for content and map markers. Unlike icons they keep their own colors (they don't theme). Draw one in the designer, or paste color SVG. Archiving drops an emblem from the set.</p>
+
+      <div class="icon-create">
+        <div class="icon-create-fields">
+          <input class="admin-input" id="emblem-create-key" placeholder="key (e.g. house-stark)" maxlength="32" aria-label="New emblem key">
+          <input class="admin-input" id="emblem-create-label" placeholder="label (optional)" aria-label="New emblem label">
+        </div>
+        <textarea class="admin-input" id="emblem-create-svg" rows="3" spellcheck="false" placeholder="Paste color &lt;svg&gt;…&lt;/svg&gt;, or use Draw…" aria-label="New emblem SVG markup"></textarea>
+        <div class="icon-create-actions">
+          <div class="icon-card-preview is-emblem" id="emblem-create-preview" aria-hidden="true"></div>
+          <button type="button" class="btn btn-secondary" id="emblem-draw-btn">Draw…</button>
+          <button type="button" class="btn btn-secondary" id="emblem-create-clear">Clear</button>
+          <button type="button" class="btn btn-primary" id="emblem-create-btn" disabled>Add emblem</button>
+        </div>
+      </div>
+
+      <h4 class="icon-subhead">Emblems</h4>
+      ${body}
     </div>`;
 }
