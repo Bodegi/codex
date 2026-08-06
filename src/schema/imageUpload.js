@@ -16,6 +16,27 @@
 
 import { hashBytes } from './contentHash.js';
 
+/** Default per-file upload ceiling: 10 MB. Reader views load images inline, so keep them reasonable. */
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Client-side upload gate. NOT the security boundary — Supabase Storage RLS is — just a friendly guard
+ * that keeps junk out and gives the user a reason instead of a cryptic downstream failure (technical
+ * review T4). Policy: any raster image, but no SVG (the app has a dedicated vector system in
+ * icons/emblems, and excluding it is defense-in-depth against any future inline-render path), capped at
+ * `maxBytes`. Returns a human-readable problem string, or null when the file is acceptable. Pure over
+ * `{ type, size }` so it's Node-testable and callable from both the picker and the upload backstop.
+ */
+export function validateImageFile({ type, size } = {}, { maxBytes = MAX_IMAGE_BYTES } = {}) {
+  const mime = String(type || '').toLowerCase();
+  if (!mime.startsWith('image/')) return 'Only image files can be uploaded.';
+  if (mime === 'image/svg+xml') return 'SVG isn’t supported here — use the icon/emblem designer for vector art.';
+  if (Number.isFinite(size) && size > maxBytes) {
+    return `Image is too large (max ${Math.round(maxBytes / (1024 * 1024))} MB).`;
+  }
+  return null;
+}
+
 /** "dwarven-hall.png" -> "Dwarven Hall". Falls back to "Untitled". */
 export function labelFromFilename(filename) {
   const label = String(filename ?? '')

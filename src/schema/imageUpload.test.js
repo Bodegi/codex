@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { uploadImage, labelFromFilename } from './imageUpload.js';
+import { uploadImage, labelFromFilename, validateImageFile, MAX_IMAGE_BYTES } from './imageUpload.js';
 
 const bytesOf = (s) => new TextEncoder().encode(s);
 
@@ -106,4 +106,29 @@ test('labelFromFilename prettifies the base name', () => {
 test('labelFromFilename falls back to Untitled when nothing is left', () => {
   assert.equal(labelFromFilename('.png'), 'Untitled');
   assert.equal(labelFromFilename(''), 'Untitled');
+});
+
+// ── validateImageFile (technical review T4: type + size gate) ──
+
+test('validateImageFile accepts a normal raster image under the cap', () => {
+  assert.equal(validateImageFile({ type: 'image/png', size: 1024 }), null);
+  assert.equal(validateImageFile({ type: 'image/jpeg', size: MAX_IMAGE_BYTES }), null);
+});
+
+test('validateImageFile rejects a non-image file', () => {
+  assert.match(validateImageFile({ type: 'application/pdf', size: 10 }), /image files/i);
+  assert.match(validateImageFile({ type: '', size: 10 }), /image files/i);
+});
+
+test('validateImageFile rejects SVG specifically', () => {
+  assert.match(validateImageFile({ type: 'image/svg+xml', size: 10 }), /svg/i);
+});
+
+test('validateImageFile rejects a file over the size cap', () => {
+  assert.match(validateImageFile({ type: 'image/png', size: MAX_IMAGE_BYTES + 1 }), /too large/i);
+});
+
+test('validateImageFile honors a custom maxBytes', () => {
+  assert.equal(validateImageFile({ type: 'image/png', size: 500 }, { maxBytes: 1000 }), null);
+  assert.match(validateImageFile({ type: 'image/png', size: 1500 }, { maxBytes: 1000 }), /too large/i);
 });

@@ -75,7 +75,7 @@ import { initCarousel } from './components/carousel.js';
 import { initMapReadCanvases } from './components/mapComponent.js';
 import { createImageIndex, publicUrl } from './schema/imageIndex.js';
 import { createImageStore } from './utils/imageStore.js';
-import { uploadImage, labelFromFilename } from './schema/imageUpload.js';
+import { uploadImage, labelFromFilename, validateImageFile } from './schema/imageUpload.js';
 import { attachLightbox } from './components/lightbox.js';
 import { openConfirm } from './components/confirmModal.js';
 import { openConflictModal } from './components/conflictModal.js';
@@ -216,6 +216,10 @@ const imageMetaPort = state.fbManager
 // failure propagates to the picker's inline error.
 async function uploadImageToCurrentCodex(file) {
   if (!imageStore || !imageMetaPort) throw new Error('Image upload needs cloud mode.');
+  // Backstop the picker's own gate (defense in depth): reject unsupported/oversize files before we read
+  // the bytes. The picker surfaces the thrown message inline.
+  const problem = validateImageFile({ type: file.type, size: file.size });
+  if (problem) throw new Error(problem);
   const bytes = new Uint8Array(await file.arrayBuffer());
   const id = await uploadImage(
     {

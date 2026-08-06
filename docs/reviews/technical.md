@@ -25,16 +25,7 @@ _None open._
 
 ## Should-fix
 
-### T4. Image upload has no type or size gate
-**`src/main.js` `uploadImageToCurrentCodex` → `src/schema/imageUpload.js`**
-
-The upload reads `file.arrayBuffer()` for *any* dropped/picked file — no `image/*` check, no max-size
-check — hashes it, and pushes the bytes to Supabase with a passed-through `contentType`. A user can
-upload a 100 MB file or a non-image; oversize/rejected uploads surface only as a cryptic downstream
-error, and there's no guard against filling the bucket.
-
-**Fix:** validate MIME (`image/*`) and a sane max size before reading bytes; show an inline picker
-error. The validation belongs in a pure helper with a test. (Defaults under discussion.)
+_None open._
 
 ---
 
@@ -79,3 +70,5 @@ probability at launch scale; worth a size check + friendly message eventually.
   recoverable connection banner, the permission sub resolves off the loading spinner, and the rest toast.
 - **Boot robustness** — `localStorage` is read through `safeStorage`, and boot is wrapped in a global
   error boundary (`showError` overlay + `unhandledrejection`/`error` handlers).
+- **Image upload** — `validateImageFile` gates type (`image/*`, no SVG) and size (10 MB) in the picker
+  with an inline reason, backstopped in the upload path before bytes are read.

@@ -21,6 +21,7 @@
  */
 
 import { notFoundImage } from '../schema/notFoundImage.js';
+import { validateImageFile } from '../schema/imageUpload.js';
 
 function escapeAttr(text) {
   return String(text ?? '')
@@ -157,8 +158,21 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
     // several stay open with their new thumbs so the author can pick one.
     async function uploadFiles(fileList) {
       if (!onUpload) return;
-      const files = Array.from(fileList || []).filter((f) => (f.type || '').startsWith('image/'));
-      if (!files.length) return;
+      // Split into valid uploads and rejects (wrong type / too large) so a bad file gets an inline
+      // reason instead of being silently ignored (technical review T4).
+      const files = [];
+      const rejects = [];
+      for (const f of Array.from(fileList || [])) {
+        const problem = validateImageFile({ type: f.type, size: f.size });
+        if (problem) rejects.push(`${f.name}: ${problem}`);
+        else files.push(f);
+      }
+      if (!files.length) {
+        if (rejects.length) {
+          setStatus(rejects.length === 1 ? rejects[0] : `Skipped ${rejects.length} files — unsupported type or too large.`, true);
+        }
+        return;
+      }
       setBusy(true);
       const uploaded = [];
       let failed = 0;
@@ -176,10 +190,12 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
       }
       fileInput.value = '';
       setBusy(false);
-      if (files.length === 1 && uploaded.length === 1) return close(uploaded[0].id);
+      // Upload-and-use only when the user offered exactly one file and it went through cleanly.
+      if (files.length === 1 && uploaded.length === 1 && !rejects.length) return close(uploaded[0].id);
       if (uploaded.length) {
         const n = uploaded.length;
-        setStatus(`Added ${n} image${n > 1 ? 's' : ''}${failed ? `, ${failed} failed` : ''}. Click one to use it.`);
+        const skipped = rejects.length ? `, ${rejects.length} skipped` : '';
+        setStatus(`Added ${n} image${n > 1 ? 's' : ''}${failed ? `, ${failed} failed` : ''}${skipped}. Click one to use it.`);
       }
     }
 
