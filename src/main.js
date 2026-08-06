@@ -426,12 +426,25 @@ function watchOwnPermission() {
   state.permissionLoaded = false;
   const user = state.authManager?.currentUser;
   if (!(user && state.fbManager && state.fbManager.isConfigured())) return;
-  permissionUnsub = state.fbManager.subscribePermission(user.uid, state.currentCodexId, (perm) => {
-    state.permission = perm;
-    state.permissionLoaded = true;
-    recomputeCaps();
-    renderAppState();
-  });
+  permissionUnsub = state.fbManager.subscribePermission(
+    user.uid,
+    state.currentCodexId,
+    (perm) => {
+      state.permission = perm;
+      state.permissionLoaded = true;
+      recomputeCaps();
+      renderAppState();
+    },
+    (err) => {
+      // If the permission read fails, don't hang on the "Checking access…" spinner forever — resolve as
+      // no-access so the user lands on the awaiting-access screen (a real denial looks the same to them).
+      console.error('permission subscription error', err);
+      state.permission = null;
+      state.permissionLoaded = true;
+      recomputeCaps();
+      renderAppState();
+    }
+  );
 }
 
 function recomputeCaps() {
@@ -546,6 +559,16 @@ function handleContentSubscriptionError(err) {
       ? 'Your access to this codex changed. Reload to continue.'
       : 'Connection lost — showing the last loaded data. Reload to reconnect.'
   );
+}
+
+// A non-critical subscription errored (codex registry, admin roster, global icon/emblem overlays).
+// These degrade gracefully — the last-loaded data stays usable — so they get a quiet toast, not the
+// full connection banner. `what` names the surface for the log + message.
+function subError(what) {
+  return (err) => {
+    console.error(`${what} subscription error`, err);
+    showToast(`Couldn’t sync ${what}. Reload if it persists.`);
+  };
 }
 
 function showWorkspace() {
@@ -685,7 +708,7 @@ function subscribeCodexRegistry() {
         state.codices = codices;
         renderCodexSwitcher();
         if (inGlobalAdmin() && state.view.panel === 'codices') renderAdminPanel();
-      });
+      }, subError('codices'));
     }
   } else if (uid && !ownPermsUnsub) {
     ownPermsUnsub = state.fbManager.subscribeOwnPermissions(uid, async (perms) => {
@@ -695,7 +718,7 @@ function subscribeCodexRegistry() {
       );
       state.codices = metas.filter(Boolean);
       renderCodexSwitcher();
-    });
+    }, subError('your codices'));
   }
 }
 
@@ -713,7 +736,7 @@ function subscribeIconOverlay() {
     setOverlayIcons(active);
     renderNav(); // type icons pick up the overlay live
     if (inGlobalAdmin() && state.view.panel === 'icons') renderAdminPanel();
-  });
+  }, subError('icons'));
 }
 
 // App-global emblem set: full-color glyphs, readable by any signed-in user (content + map markers
@@ -725,7 +748,7 @@ function subscribeEmblemOverlay() {
     state.emblems = emblems;
     renderNav(); // markers/content that resolve an emblem pick it up live
     if (inGlobalAdmin() && state.view.panel === 'emblems') renderAdminPanel();
-  });
+  }, subError('emblems'));
 }
 
 /** Active (non-archived) emblems as `[{ key, svg }]` — the pool the map glyph resolver consults. */
@@ -1768,19 +1791,19 @@ function ensureAdminSubscriptions() {
     adminUsersUnsub = state.fbManager.subscribeUsers((users) => {
       state.adminUsers = users;
       if (inGlobalAdmin() && state.view.panel === 'access') renderAdminPanel();
-    });
+    }, subError('the user roster'));
   }
   if (!adminPermsUnsub) {
     adminPermsUnsub = state.fbManager.subscribePermissions((perms) => {
       state.adminPerms = perms;
       if (inGlobalAdmin() && state.view.panel === 'access') renderAdminPanel();
-    });
+    }, subError('access grants'));
   }
   if (!adminImagesUnsub) {
     adminImagesUnsub = state.fbManager.subscribeAllImages((images) => {
       state.adminImages = images;
       if (inGlobalAdmin() && state.view.panel === 'images') renderAdminPanel();
-    });
+    }, subError('the image library'));
   }
 }
 

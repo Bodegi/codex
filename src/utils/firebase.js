@@ -121,47 +121,47 @@ export class FirebaseManager {
   }
 
   /** Admin codex registry: every codex meta doc, on every change. Requires the `list` rule. No-op unconfigured. */
-  subscribeCodices(callback) {
+  subscribeCodices(callback, onError) {
     if (!this.db) return () => {};
     return onSnapshot(collection(this.db, ...codicesCollectionPath()), (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
-    });
+    }, onError);
   }
 
   /**
    * A non-admin's own permission grants across all codices (how they discover which codices they can
    * open). Queries `permissions where uid == uid`; requires the per-user `list` rule. No-op unconfigured.
    */
-  subscribeOwnPermissions(uid, callback) {
+  subscribeOwnPermissions(uid, callback, onError) {
     if (!this.db || !uid) return () => {};
     const q = query(collection(this.db, ...permissionsCollectionPath()), where('uid', '==', uid));
     return onSnapshot(q, (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
-    });
+    }, onError);
   }
 
   /** Watch one user's permission doc for the given codex; callback gets the data or null (absent). */
-  subscribePermission(uid, codexId, callback) {
+  subscribePermission(uid, codexId, callback, onError) {
     if (!this.db) return () => {};
     return onSnapshot(doc(this.db, ...permissionDocPath(uid, codexId)), (snapshot) => {
       callback(snapshot.exists() ? snapshot.data() : null);
-    });
+    }, onError);
   }
 
   /** Admin roster: every user doc, on every change. No-op when unconfigured. */
-  subscribeUsers(callback) {
+  subscribeUsers(callback, onError) {
     if (!this.db) return () => {};
     return onSnapshot(collection(this.db, ...usersCollectionPath()), (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
-    });
+    }, onError);
   }
 
   /** Admin roster: every permission doc, on every change. No-op when unconfigured. */
-  subscribePermissions(callback) {
+  subscribePermissions(callback, onError) {
     if (!this.db) return () => {};
     return onSnapshot(collection(this.db, ...permissionsCollectionPath()), (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
-    });
+    }, onError);
   }
 
   // ── Image library (shared `images` collection; bytes live in Supabase) ──────
@@ -198,11 +198,11 @@ export class FirebaseManager {
   }
 
   /** Admin all-images view: every image record, all statuses, on every change. No-op when unconfigured. */
-  subscribeAllImages(callback) {
+  subscribeAllImages(callback, onError) {
     if (!this.db) return () => {};
     return onSnapshot(collection(this.db, ...imagesCollectionPath()), (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
-    });
+    }, onError);
   }
 
   /** Add a codex to an image's membership (editor upload/dedup path). arrayUnion → idempotent. */
@@ -235,11 +235,11 @@ export class FirebaseManager {
   // it); all writes are admin-only (see firestore.rules). The doc id is the icon key.
 
   /** Live view of every icon record, all statuses, on each change. No-op when unconfigured. */
-  subscribeIcons(callback) {
+  subscribeIcons(callback, onError) {
     if (!this.db) return () => {};
     return onSnapshot(collection(this.db, ...iconsCollectionPath()), (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
-    });
+    }, onError);
   }
 
   /** Create an icon record (admin). Stamps status active + createdAt/updatedAt; id is the key. */
@@ -274,11 +274,11 @@ export class FirebaseManager {
   // source; `svg` is always the derived render output that consumers read.
 
   /** Live view of every emblem record, all statuses, on each change. No-op when unconfigured. */
-  subscribeEmblems(callback) {
+  subscribeEmblems(callback, onError) {
     if (!this.db) return () => {};
     return onSnapshot(collection(this.db, ...emblemsCollectionPath()), (snapshot) => {
       callback(snapshot.docs.map((d) => d.data()));
-    });
+    }, onError);
   }
 
   /** Create an emblem record (admin). Stamps status active + createdAt/updatedAt; id is the key. */
