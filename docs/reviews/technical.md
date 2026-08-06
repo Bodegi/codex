@@ -17,7 +17,7 @@ predicate-for-predicate with the rules as the true gate. The findings below are 
 ## Blocking
 
 ### T1. Stored XSS: `javascript:` / `data:` scheme in inline links
-**`src/schema/inlineText.js:57` (and the image mark, :56/:71)**
+**`src/schema/inlineText.js:57` (and the image mark, :56/:71)** — **✅ Fixed in `eb646b4`** (scheme allowlist; verified in-browser).
 
 `inlineMarks` builds `<a href="${url}">` from markdown `[label](url)` after `escapeHtml`. The escape
 neutralizes attribute *breakout* (`"`, `<`, `>`) — which the header comment correctly documents — but
@@ -42,7 +42,7 @@ relative/anchor URLs; drop everything else to a plain span (or `#`). One pure he
 ## Should-fix
 
 ### T2. App boot crashes when `localStorage` is unavailable
-**`src/main.js:87`, `:91`, `:110` (top-level, module load)**
+**`src/main.js:87`, `:91`, `:110` (top-level, module load)** — **✅ Fixed in `eb646b4`** (`src/utils/safeStorage.js`).
 
 `resolveFirebaseConfig(appConfig.firebase, localStorage.getItem(...))` runs at module scope. In
 Safari private mode, storage-partitioned iframes, or when a user has disabled site data, `localStorage`
@@ -54,7 +54,7 @@ does not.
 `localStorage` is touched. Pure, testable, ~10 lines.
 
 ### T3. Firestore subscriptions swallow errors silently
-**`src/utils/firebase.js` — all 11 `onSnapshot(...)` calls; also `subscribePermission`, `subscribeEntries`, `subscribeSchemas`**
+**`src/utils/firebase.js` — all 11 `onSnapshot(...)` calls; also `subscribePermission`, `subscribeEntries`, `subscribeSchemas`** — **✅ Partially fixed in `eb646b4`**: the content subscriptions (schemas/entries/images) now forward an `onError` that surfaces a recoverable connection banner, plus a `showError()` boot overlay and global handlers. *Remaining:* `subscribePermission` and the admin-roster subscriptions still have no `onError`.
 
 Every `onSnapshot` is called with a success callback and **no error callback**. Firestore delivers
 listener failures (permission-denied, network) to the second argument only. Concretely: if an admin
