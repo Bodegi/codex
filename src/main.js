@@ -27,8 +27,16 @@ import { slugify, isSlugTaken, deriveEntryId } from './schema/slug.js';
 import { blankEntry } from './schema/entryDraft.js';
 import { validateSchema } from './schema/schemaValidate.js';
 import { escapeHtml } from './schema/inlineText.js';
-import { getIcon, findIcon, activeIcons, setOverlayIcons, bundledIcons, validateIcon, mergeIcons } from './schema/iconRegistry.js';
+import { getIcon, findIcon, activeIcons, setOverlayIcons, bundledIcons, validateIcon } from './schema/iconRegistry.js';
 import { buildNavModel } from './schema/navModel.js';
+import { buildRoster } from './schema/rosterModel.js';
+import {
+  buildIconPanelModel,
+  buildEmblemPanelModel,
+  glyphDesignerParams,
+  buildGlyphLibraryPool,
+  glyphSaveTarget,
+} from './schema/glyphAdminModel.js';
 import {
   selectType,
   toRead,
@@ -1352,27 +1360,7 @@ function renderIconsPanelHtml() {
   if (!(state.fbManager && state.fbManager.isConfigured())) {
     return '<div class="admin-section"><div class="admin-muted">Icon management needs cloud mode (Firebase).</div></div>';
   }
-  const bundledKeys = new Set(bundledIcons.map((i) => i.key));
-  const overlayRows = state.icons
-    .map((i) => ({
-      key: i.key,
-      label: i.label || '',
-      svg: i.svg || '',
-      status: i.status || 'active',
-      bundled: bundledKeys.has(i.key),
-      layers: i.layers || null, // designer-authored icons offer "Edit in designer"
-    }))
-    .sort((a, b) => a.key.localeCompare(b.key));
-  // Bundled icons the overlay is NOT actively overriding — shown as read-only reference rows. An
-  // active overlay of the same key is represented by its overlay row (badged "overrides bundled").
-  const activeOverrides = new Set(
-    state.icons.filter((i) => (i.status || 'active') !== 'archived').map((i) => i.key)
-  );
-  const bundledRows = bundledIcons
-    .filter((i) => !activeOverrides.has(i.key))
-    .map((i) => ({ key: i.key, svg: i.svg }))
-    .sort((a, b) => a.key.localeCompare(b.key));
-  return renderIconsPanel({ overlayRows, bundledRows });
+  return renderIconsPanel(buildIconPanelModel(state.icons, bundledIcons));
 }
 
 function wireIconsPanel() {
@@ -1494,16 +1482,7 @@ function renderEmblemsPanelHtml() {
   if (!(state.fbManager && state.fbManager.isConfigured())) {
     return '<div class="admin-section"><div class="admin-muted">Emblem management needs cloud mode (Firebase).</div></div>';
   }
-  const rows = state.emblems
-    .map((e) => ({
-      key: e.key,
-      label: e.label || '',
-      svg: e.svg || '',
-      status: e.status || 'active',
-      layers: e.layers || null,
-    }))
-    .sort((a, b) => a.key.localeCompare(b.key));
-  return renderEmblemsPanel({ rows });
+  return renderEmblemsPanel(buildEmblemPanelModel(state.emblems));
 }
 
 function wireEmblemsPanel() {
@@ -1600,26 +1579,17 @@ async function createEmblemFromPaste() {
 // record routes by its final palette: mono → icons, color → emblems (createGlyph or updateGlyph).
 
 async function openGlyphFor(palette, rec = null) {
-  const existingKeys = {
-    mono: state.icons.map((i) => i.key).filter((k) => k !== rec?.key),
-    color: state.emblems.map((e) => e.key).filter((k) => k !== rec?.key),
-  };
-  await openGlyphDesigner({
-    palette: rec ? (rec.palette || palette) : palette,
-    lockPalette: !!rec,
-    initial: rec ? { key: rec.key, label: rec.label || '', layers: rec.layers || [] } : {},
-    existingKeys,
-    onSave: (record) => saveGlyph(record, !!rec),
+  const params = glyphDesignerParams(palette, rec, {
+    iconKeys: state.icons.map((i) => i.key),
+    emblemKeys: state.emblems.map((e) => e.key),
   });
+  await openGlyphDesigner({ ...params, onSave: (record) => saveGlyph(record, !!rec) });
 }
 
 async function browseGlyphLibrary() {
   // Our own curated set: the bundled baseline plus the active overlay (generalizes "Override…").
   // Source the overlay from state.icons so a designed glyph keeps its `layers` (opens in the editor).
-  const overlay = state.icons
-    .filter((i) => i && i.key && i.svg && i.status !== 'archived')
-    .map((i) => ({ key: i.key, svg: i.svg, layers: i.layers || null }));
-  const pool = mergeIcons(bundledIcons, overlay);
+  const pool = buildGlyphLibraryPool(bundledIcons, state.icons);
   const chosen = await openLibraryPicker(pool);
   if (!chosen) return;
   if (chosen.layers) {
@@ -1642,17 +1612,13 @@ async function browseGlyphLibrary() {
 async function saveGlyph(record, isEdit) {
   const fb = state.fbManager;
   if (!fb) throw new Error('Glyph authoring needs cloud mode.');
-  const { key, label, svg, layers, palette } = record;
-  const data = { label, svg, layers, palette };
-  if (palette === 'color') {
-    if (isEdit) await fb.updateEmblem(key, data);
-    else await fb.createEmblem(key, data);
-    showToast(isEdit ? `Saved emblem “${key}”` : `Added emblem “${key}”`);
+  const { collection, op, key, data, toast } = glyphSaveTarget(record, isEdit);
+  if (collection === 'emblem') {
+    await (op === 'update' ? fb.updateEmblem(key, data) : fb.createEmblem(key, data));
   } else {
-    if (isEdit) await fb.updateIcon(key, data);
-    else await fb.createIcon(key, data);
-    showToast(isEdit ? `Saved icon “${key}”` : `Added icon “${key}”`);
+    await (op === 'update' ? fb.updateIcon(key, data) : fb.createIcon(key, data));
   }
+  showToast(toast);
 }
 
 // Create a codex: slug from the name (rejected on collision), meta + creator grant, optional
@@ -1760,17 +1726,12 @@ function setTypeStatus(type, status) {
 
 // Join the users roster with their permission for the current codex.
 function buildRosterRows() {
-  const roleByUid = new Map(
-    state.adminPerms.filter((p) => p.codexId === state.currentCodexId).map((p) => [p.uid, p.role])
-  );
-  return state.adminUsers.map((u) => ({
-    uid: u.uid,
-    email: u.email,
-    displayName: u.displayName,
-    lastSeenAt: u.lastSeenAt,
-    role: roleByUid.get(u.uid) || 'none',
-    isAdmin: isAdminEmail(u.email, appConfig.auth.adminEmail),
-  }));
+  return buildRoster({
+    users: state.adminUsers,
+    perms: state.adminPerms,
+    codexId: state.currentCodexId,
+    adminEmail: appConfig.auth.adminEmail,
+  });
 }
 
 // Grant or revoke a role. The roster re-renders from the live subscription once the write lands.

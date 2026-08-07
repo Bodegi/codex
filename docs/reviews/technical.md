@@ -9,7 +9,7 @@ Mechanical / correctness findings from a close read of the core modules (`main.j
 
 This is a living list of what's **open** — resolved items are removed as they land (git history is the
 record). Item numbers are stable, so gaps (T1–T3, resolved) are intentional and keep older commit
-references meaningful. Suite is green (314 tests).
+references meaningful. Suite is green (339 tests).
 
 Overall the architecture holds up under pressure: the pure/impure split is real, the version-guard write
 path is careful and well-tested, and `capabilities.js` mirrors `firestore.rules` predicate-for-predicate
@@ -30,12 +30,6 @@ _None open._
 ---
 
 ## Later (debt to acknowledge, not launch-gating)
-
-### T5. `main.js` is ~2300 lines — the repo's own altitude rule
-CLAUDE.md: *"Don't grow `main.js` with logic that could be pure."* The icons/emblems panel wiring, the
-glyph-designer glue (`openGlyphFor`/`browseGlyphLibrary`/`saveGlyph`), and roster-row assembly are all
-extractable into pure modules with tests. Not urgent, but it's drifting from the invariant the codebase
-is proud of.
 
 ### T6. Admin SVG injected via innerHTML with only a presence check
 **`src/schema/iconRegistry.js` `validateIcon`, consumed by `getIcon`/`resolveGlyph` → innerHTML**
