@@ -39,10 +39,40 @@ service cloud.firestore {
     function canEdit(codexId) {
       return isAdmin() || isEditor(codexId);
     }
+    // Private-site invite gate. A live invite is active AND (no expiry OR now before expiresAt).
+    // `expiresAt` is epoch millis (or null). get()/exists() bypass the invites block's admin-only
+    // allow rules, so a would-be new user is validated against an invite they can't themselves read.
+    // Pure mirror: src/schema/inviteModel.isInviteRedeemable — change both together.
+    function inviteRedeemable(token) {
+      // exists() FIRST so a missing invite short-circuits before any .data dereference (get() on a
+      // non-existent path is not safe to read). get() results are cached within one rule evaluation.
+      return exists(/databases/$(database)/documents/invites/$(token))
+        && get(/databases/$(database)/documents/invites/$(token)).data.status == 'active'
+        && (get(/databases/$(database)/documents/invites/$(token)).data.expiresAt == null
+            || request.time.toMillis() < get(/databases/$(database)/documents/invites/$(token)).data.expiresAt);
+    }
 
-    // Global identity roster — own doc (sign-in upsert) or admin.
+    // Invite tokens (doc id == the secret UUID). `get` is allowed for any signed-in user: knowing the
+    // exact token IS the authorization (capability-URL style), and it lets the client validate + show
+    // the right screen before attempting the users-create write. `list` (enumeration) and all writes are
+    // admin-only. The users-create rule below still independently enforces redeemability via get()/exists().
+    match /invites/{token} {
+      allow get:          if isSignedIn();
+      allow list, write:  if isAdmin();
+    }
+
+    // Global identity roster. Split so a NEW row (create) requires a live invite the admin issued —
+    // this is what stops random Google sign-ins from accruing junk rows. Returning users only refresh
+    // lastSeenAt (update) and can't rewrite their write-once `invitedVia` provenance. See invite-access spec.
     match /users/{uid} {
-      allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.auth.uid == uid
+            && request.resource.data.invitedVia is string
+            && inviteRedeemable(request.resource.data.invitedVia));
+      allow update: if isAdmin()
+        || (isSignedIn() && request.auth.uid == uid
+            && request.resource.data.get('invitedVia', null) == resource.data.get('invitedVia', null));
     }
 
     // Access grants. Read keyed by id-prefix (NOT resource.data) so a *missing* own-permission doc

@@ -2185,9 +2185,50 @@ select[multiple].form-control option {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.status-badge.status-archived {
+.status-badge.status-archived,
+.status-badge.status-revoked,
+.status-badge.status-expired {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-muted);
+}
+.status-badge.status-active {
+  background: rgba(80, 200, 120, 0.18);
+  color: #7bd39a;
+}
+.status-badge.status-pending {
+  background: rgba(230, 180, 60, 0.18);
+  color: var(--accent-gold);
+}
+
+/* Invites panel + pending-grant highlight (invite-access) */
+.invite-create {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.invite-create .admin-input { flex: 1; }
+.invite-row-actions {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+.invite-row.is-revoked td,
+.invite-row.is-expired td { opacity: 0.6; }
+.admin-roster tr.is-pending {
+  background: rgba(230, 180, 60, 0.06);
+}
+.nav-badge {
+  display: inline-block;
+  min-width: 16px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 9px;
+  background: var(--accent-gold);
+  color: #000;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
 }
 .image-missing-card {
   display: flex;

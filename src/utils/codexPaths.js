@@ -7,6 +7,7 @@
  * one place (see the multi-codex data-model spec).
  *
  *   users/{uid}                              (Phase 2)
+ *   invites/{token}                          (private-site invite gate; token == doc id == the secret)
  *   permissions/{uid}_{codexId}
  *   codices/{codexId}
  *   codices/{codexId}/entries/{type}_{id}
@@ -33,6 +34,10 @@ export const userDocPath = (uid) => ['users', uid];
 
 export const permissionsCollectionPath = () => ['permissions'];
 export const permissionDocPath = (uid, codexId) => ['permissions', permissionId(uid, codexId)];
+
+// Invite gate: the doc id IS the secret token (invite-access spec). Admin-only per firestore.rules.
+export const invitesCollectionPath = () => ['invites'];
+export const inviteDocPath = (token) => ['invites', token];
 
 export const codicesCollectionPath = () => ['codices'];
 export const codexMetaPath = (codexId) => ['codices', codexId];

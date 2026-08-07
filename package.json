@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test"
+    "test": "node --test",
+    "deploy:rules": "node scripts/deploy-rules.mjs"
   },
   "devDependencies": {
     "vite": "^5.4.11"

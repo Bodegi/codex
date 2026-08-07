@@ -17,8 +17,66 @@ function escapeHtml(text) {
 }
 
 /**
+ * Invites panel (admin): generate a shareable link + manage issued invites. The private-site gate —
+ * a link dropped in Discord is how a new person gets a `users` row at all (invite-access spec). Rows
+ * come from `inviteModel.buildInviteRows` (invites × users join, newest-first, with redeemers +
+ * derived expiry). main.js owns the wiring (generate/copy/revoke). `status` is 'active'|'revoked';
+ * `isExpired` is derived — an active-but-expired invite reads as "expired" and no longer redeems.
+ */
+export function renderInvitesPanel({ rows = [] }) {
+  const stateOf = (r) => (r.status === 'revoked' ? 'revoked' : r.isExpired ? 'expired' : 'active');
+
+  const rowsHtml = rows.length
+    ? rows
+        .map((r) => {
+          const st = stateOf(r);
+          const redeemers = r.redeemers.length
+            ? escapeHtml(r.redeemers.map((u) => u.displayName || u.email || u.uid).join(', '))
+            : '<span class="admin-muted">none yet</span>';
+          const expiry = r.expiresAt ? escapeHtml(new Date(r.expiresAt).toLocaleDateString()) : 'never';
+          const toggle =
+            r.status === 'revoked'
+              ? `<button class="btn btn-secondary btn-sm" data-invite-reactivate="${escapeHtml(r.token)}">Reactivate</button>`
+              : `<button class="btn btn-danger btn-sm" data-invite-revoke="${escapeHtml(r.token)}">Revoke</button>`;
+          return `
+      <tr class="invite-row is-${st}">
+        <td>
+          <strong>${escapeHtml(r.label || '(no label)')}</strong>
+          <br><span class="admin-muted">expires ${expiry}</span>
+        </td>
+        <td><span class="admin-badge status-badge status-${st}">${st}</span></td>
+        <td>${r.redeemedCount} &nbsp; ${redeemers}</td>
+        <td class="invite-row-actions">
+          <button class="btn btn-secondary btn-sm" data-invite-copy="${escapeHtml(r.token)}">Copy link</button>
+          ${toggle}
+        </td>
+      </tr>`;
+        })
+        .join('')
+    : '<tr><td colspan="4" class="admin-muted">No invites yet. Generate one to share.</td></tr>';
+
+  return `
+    <div class="admin-section">
+      <h3>Invites</h3>
+      <p class="admin-muted">Generate a link and share it (Discord, etc.). Anyone who signs in through a
+        live link becomes a user awaiting a role below. Revoke to stop further sign-ups; links expire
+        after 7 days by default.</p>
+      <div class="invite-create">
+        <input class="admin-input" id="invite-label" placeholder="Label (optional) — e.g. Discord #recruiting" aria-label="Invite label">
+        <button class="btn btn-primary btn-sm" id="invite-generate-btn">Generate invite link</button>
+      </div>
+      <table class="admin-roster">
+        <thead><tr><th>Invite</th><th>Status</th><th>Redeemed by</th><th></th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>`;
+}
+
+/**
  * Users & Access panel: a roster table with a role control per user.
  * `rows` = [{ uid, email, displayName, lastSeenAt, role: 'none'|'viewer'|'editor', isAdmin }].
+ * A non-admin still at role 'none' is flagged `is-pending` (awaiting a grant) — the roster half of
+ * the redemption alert (the count badge lives on the admin nav).
  */
 export function renderAccessPanel({ codexId, rows }) {
   const roleBtn = (uid, role, current, label) =>
@@ -37,9 +95,9 @@ export function renderAccessPanel({ codexId, rows }) {
     ? rows
         .map(
           (r) => `
-      <tr>
+      <tr class="${!r.isAdmin && r.role === 'none' ? 'is-pending' : ''}">
         <td>
-          <strong>${escapeHtml(r.displayName || r.email || r.uid)}</strong>${r.isAdmin ? ' <span class="admin-badge">admin</span>' : ''}
+          <strong>${escapeHtml(r.displayName || r.email || r.uid)}</strong>${r.isAdmin ? ' <span class="admin-badge">admin</span>' : ''}${!r.isAdmin && r.role === 'none' ? ' <span class="admin-badge status-badge status-pending">awaiting access</span>' : ''}
           <br><span class="admin-muted">${escapeHtml(r.email || '')}</span>
         </td>
         <td class="admin-muted">${r.lastSeenAt ? escapeHtml(new Date(r.lastSeenAt).toLocaleDateString()) : '—'}</td>
@@ -47,7 +105,7 @@ export function renderAccessPanel({ codexId, rows }) {
       </tr>`
         )
         .join('')
-    : `<tr><td colspan="3" class="admin-muted">No one has signed in yet. Ask a friend to sign in — they'll appear here to grant access.</td></tr>`;
+    : `<tr><td colspan="3" class="admin-muted">No one has signed in yet. Generate an invite link above and share it — new users appear here to grant access.</td></tr>`;
 
   return `
     <div class="admin-section">

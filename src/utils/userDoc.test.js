@@ -26,3 +26,20 @@ test('missing optional fields fall back to null, not undefined', () => {
   assert.equal(doc.displayName, null);
   assert.equal(doc.photoURL, null);
 });
+
+test('invitedVia is stamped only on create, alongside createdAt', () => {
+  const doc = buildUserDoc(profile, TS, { isNew: true, invitedVia: 'tok1' });
+  assert.equal(doc.invitedVia, 'tok1');
+  assert.equal(doc.createdAt, TS);
+});
+
+test('invitedVia is never written on the lastSeenAt refresh (update)', () => {
+  // A returning user's merge must not carry invitedVia — it is write-once provenance.
+  const doc = buildUserDoc(profile, TS, { invitedVia: 'tok1' });
+  assert.equal('invitedVia' in doc, false);
+});
+
+test('invitedVia is omitted on create when not supplied (admin path)', () => {
+  const doc = buildUserDoc(profile, TS, { isNew: true });
+  assert.equal('invitedVia' in doc, false);
+});

@@ -13,17 +13,22 @@ is a filter across both, not a separate axis:
 
 ## Blocking
 
-### F1. No "request access" loop for new users
-**`src/components/awaitingAccess.js`, `src/main.js:473` `showAwaitingAccess`**
+### F1. New-user onboarding — RESOLVED (invite-gated, not a request-access loop)
+**`src/schema/inviteModel.js`, `src/utils/inviteLink.js`, `src/components/awaitingAccess.js`,
+`src/components/adminView.js` (`renderInvitesPanel`), `firestore.rules`**
 
-A signed-in user with no grant lands on the awaiting-access screen and can only… wait. There's no
-"request access" action, and the admin gets no notification — a new user only appears as a row in the
-roster if the admin happens to look. For a multi-user launch this is the first thing every invitee hits,
-and it's a silent dead end on both ends.
+Reframed for a **private** site: rather than a public request-access loop, new access is **invite-only**.
+The admin generates an invite link (Admin › Users & Access → Invites) and shares it (e.g. Discord); a
+new person signs in with any Google account through the link. The `users/{uid}` **create** rule now
+requires a live invite, so random sign-ins no longer accrue junk roster rows — an uninvited account
+hits an "Invite Required" wall instead. Redemption alerts the admin **in-app**: a pending-grants count
+badge on the Users & Access nav item + an "awaiting access" highlight on the roster row (the admin then
+grants the role as before — self-granting is still impossible). Invites are multi-use with a 7-day
+default expiry and admin revoke.
 
-**What to add:** a "Request access" button that flags the user (a field on their user doc / a small
-requests collection), and an admin-side indicator that someone is waiting. Even a minimal version
-closes the loop.
+**Deferred (optional):** email-on-redeem needs a backend (a Firestore-triggered Cloud Function or the
+Trigger Email extension) — left out of the client-only build; revisit if the in-app badge proves
+insufficient. See the invite-access spec for the full design.
 
 ### F2. Connection loss / stale-data has no UX
 Pairs with technical T3. Beyond the silent-listener bug itself, there is no *design* for "you've lost

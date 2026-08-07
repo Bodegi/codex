@@ -32,6 +32,8 @@ import {
   userDocPath,
   permissionsCollectionPath,
   permissionDocPath,
+  invitesCollectionPath,
+  inviteDocPath,
   imagesCollectionPath,
   imageDocPath,
   iconsCollectionPath,
@@ -44,6 +46,7 @@ import {
   schemaDocPath
 } from './codexPaths.js';
 import { buildUserDoc } from './userDoc.js';
+import { makeInvite, resolveSignInAction } from '../schema/inviteModel.js';
 import { resolveSave } from '../schema/saveResolve.js';
 import { checkEntrySize } from '../schema/entrySize.js';
 
@@ -111,14 +114,63 @@ export class FirebaseManager {
   }
 
   /**
-   * Record the signed-in person in the global `users` roster. createdAt is written once (on first
-   * sign-in); lastSeenAt updates every time. This is what surfaces a user to the admin to grant access.
+   * Record the signed-in person in the global `users` roster — the private-site invite gate
+   * (invite-access spec). A NEW row is created only for an admin or a redeemable invite; everyone else
+   * is blocked (no write) so random sign-ins can't accrue junk rows. A returning user just refreshes
+   * lastSeenAt. The create/update split and the redeemability check are enforced by firestore.rules;
+   * this method mirrors that decision via the pure `resolveSignInAction` so the caller can show the
+   * right screen. Returns the decision: `{action:'refresh'|'create'|'blocked', reason?, invitedVia?}`.
+   *
+   * The invite doc is read only for a new non-admin with a pending token (rules allow `get` on a token
+   * you hold). createdAt/invitedVia are written once on create; invitedVia is omitted for admins.
    */
-  async upsertUser(profile) {
-    if (!this.db || !profile || !profile.uid) return;
+  async upsertUser(profile, { isAdmin = false, pendingToken = null } = {}) {
+    if (!this.db || !profile || !profile.uid) return { action: 'refresh' };
     const ref = doc(this.db, ...userDocPath(profile.uid));
     const snap = await getDoc(ref);
-    await setDoc(ref, buildUserDoc(profile, now(), { isNew: !snap.exists() }), { merge: true });
+    const existingUserDoc = snap.exists() ? snap.data() : null;
+
+    let invite = null;
+    if (!existingUserDoc && !isAdmin && pendingToken) {
+      const iSnap = await getDoc(doc(this.db, ...inviteDocPath(pendingToken)));
+      invite = iSnap.exists() ? iSnap.data() : null;
+    }
+
+    const decision = resolveSignInAction({ isAdmin, existingUserDoc, pendingToken, invite, nowMs: Date.now() });
+    if (decision.action === 'refresh') {
+      await setDoc(ref, buildUserDoc(profile, now()), { merge: true });
+    } else if (decision.action === 'create') {
+      await setDoc(ref, buildUserDoc(profile, now(), { isNew: true, invitedVia: decision.invitedVia }), { merge: true });
+    }
+    // 'blocked' → no write; the caller renders the invite-required screen.
+    return decision;
+  }
+
+  // ── Invites (private-site gate; doc id == the secret token) ─────────────────
+  // Admin generates a link, drops it in Discord; a new user redeems it by signing in. Admin-only for
+  // create/list/revoke; `get` is open to any signed-in holder of the token (see firestore.rules).
+
+  /** Mint an invite (admin). `token` is the secret (a UUID from the caller); ttlDays defaults to 7. */
+  async createInvite(token, { label = null, createdBy, ttlDays } = {}) {
+    if (!this.db) return;
+    await setDoc(
+      doc(this.db, ...inviteDocPath(token)),
+      makeInvite({ token, label, createdBy, nowMs: Date.now(), ttlDays })
+    );
+  }
+
+  /** Admin invites list: every invite doc, on every change. No-op when unconfigured. */
+  subscribeInvites(callback, onError) {
+    if (!this.db) return () => {};
+    return onSnapshot(collection(this.db, ...invitesCollectionPath()), (snapshot) => {
+      callback(snapshot.docs.map((d) => d.data()));
+    }, onError);
+  }
+
+  /** Flip an invite's status ('active' | 'revoked') — the admin's stop-further-redemptions switch. */
+  async setInviteStatus(token, status) {
+    if (!this.db) return;
+    await updateDoc(doc(this.db, ...inviteDocPath(token)), { status });
   }
 
   /** Admin codex registry: every codex meta doc, on every change. Requires the `list` rule. No-op unconfigured. */

@@ -19,6 +19,8 @@ import {
   iconDocPath,
   emblemsCollectionPath,
   emblemDocPath,
+  invitesCollectionPath,
+  inviteDocPath,
 } from './codexPaths.js';
 
 test('entryId keeps the ${type}_${id} convention', () => {
@@ -47,6 +49,11 @@ test('images are a global top-level library keyed by content hash', () => {
   assert.deepEqual(iconDocPath('civilization'), ['icons', 'civilization']);
   assert.deepEqual(emblemsCollectionPath(), ['emblems']);
   assert.deepEqual(emblemDocPath('house-stark'), ['emblems', 'house-stark']);
+});
+
+test('invites are a global top-level collection keyed by token', () => {
+  assert.deepEqual(invitesCollectionPath(), ['invites']);
+  assert.deepEqual(inviteDocPath('tok-abc123'), ['invites', 'tok-abc123']);
 });
 
 test('entries are scoped under codices/{id}/entries', () => {

@@ -69,14 +69,17 @@ import {
   newTypeSchema,
 } from './components/schemaEditor.js';
 import { renderAuthGateway } from './components/authGateway.js';
-import { renderAwaitingAccess } from './components/awaitingAccess.js';
+import { renderAwaitingAccess, renderInviteRequired } from './components/awaitingAccess.js';
 import {
+  renderInvitesPanel,
   renderAccessPanel,
   renderCodicesPanel,
   renderImagesPanel,
   renderIconsPanel,
   renderEmblemsPanel,
 } from './components/adminView.js';
+import { parseInviteToken, buildInviteUrl } from './utils/inviteLink.js';
+import { buildInviteRows, countPendingGrants } from './schema/inviteModel.js';
 import { openGlyphDesigner, openLibraryPicker } from './components/glyphDesigner.js';
 import { resolveCapabilities, isAdminEmail } from './utils/capabilities.js';
 import { getKind } from './schema/fieldKinds.js';
@@ -148,6 +151,12 @@ const state = {
   // Global-admin roster state
   adminUsers: [],
   adminPerms: [],
+  // Invite gate: the token carried by a ?invite= link (captured at boot, held through the sign-in
+  // popup), the block reason if a signed-in account wasn't invited (drives the invite-required
+  // screen), and the admin's live invites list.
+  pendingInviteToken: null,
+  inviteBlocked: null,
+  adminInvites: [],
   // Global-admin Images gallery: every image record, all statuses (subscribeAllImages).
   adminImages: [],
   // App-global icon overlay: every icon record, all statuses (subscribeIcons). Active ones are
@@ -396,6 +405,14 @@ const codexSwitcherLabel = document.getElementById('codex-switcher-label');
 // read access is confirmed, so a no-access user never issues a denied Firestore read.
 
 function initAuth() {
+  // Capture an ?invite= token before anything else and strip it from the URL (cosmetic: avoids a
+  // stale link being re-shared or re-triggering). Held in memory across the Google sign-in popup.
+  state.pendingInviteToken = parseInviteToken(location.search);
+  if (state.pendingInviteToken) {
+    const url = new URL(location.href);
+    url.searchParams.delete('invite');
+    history.replaceState(null, '', url);
+  }
   // Synchronous initial paint: gated + unresolved defaults to the gateway (no workspace flash);
   // local-only mode resolves straight to the open workspace.
   recomputeCaps();
@@ -424,7 +441,23 @@ function maybeDevSignIn() {
 function onAuthChanged() {
   const user = state.authManager?.currentUser || null;
   renderUserBadge();
-  if (user) state.fbManager?.upsertUser(user).catch((err) => console.warn('user upsert failed', err));
+  recomputeCaps();  // establishes canAdmin (email-based) so the upsert can bypass the invite gate for admins
+  if (user) {
+    // The upsert enforces the invite gate: a new non-admin without a live invite is BLOCKED (no row
+    // written). We surface that as the invite-required screen once the decision resolves.
+    state.fbManager
+      ?.upsertUser(user, { isAdmin: !!state.caps.canAdmin, pendingToken: state.pendingInviteToken })
+      .then((decision) => {
+        const blocked = decision && decision.action === 'blocked' ? decision.reason : null;
+        if (blocked !== state.inviteBlocked) {
+          state.inviteBlocked = blocked;
+          renderAppState();
+        }
+      })
+      .catch((err) => console.warn('user upsert failed', err));
+  } else {
+    state.inviteBlocked = null;
+  }
   watchOwnPermission();  // resets permission state; its callback re-renders once the doc arrives
   recomputeCaps();
   renderAppState();
@@ -479,6 +512,8 @@ function renderAppState() {
   const caps = state.caps;
   if (!state.authManager) return showWorkspace();      // local-only: never gated
   if (!caps.isAuthed) return showGateway();
+  // Not invited (no roster row was created) → a private-site wall, not the awaiting-access queue.
+  if (state.inviteBlocked) return showInviteRequired();
   // Admin is authorized by email — no need to wait for a permission doc. Everyone else waits for the
   // first snapshot so a real viewer/editor never flashes the awaiting-access screen on boot.
   if (!caps.canAdmin && !state.permissionLoaded) return showLoading();
@@ -503,6 +538,13 @@ function showGateway() {
 function showAwaitingAccess() {
   showOverlay(renderAwaitingAccess(state.authManager.currentUser));
   document.getElementById('awaiting-logout-btn')?.addEventListener('click', () => {
+    state.authManager.logout().catch((err) => showToast(err.message));
+  });
+}
+
+function showInviteRequired() {
+  showOverlay(renderInviteRequired(state.authManager.currentUser));
+  document.getElementById('invite-required-logout-btn')?.addEventListener('click', () => {
     state.authManager.logout().catch((err) => showToast(err.message));
   });
 }
@@ -619,6 +661,7 @@ function teardownWorkspace() {
   setOverlayIcons([]); // drop the overlay so a re-auth starts from the bundled baseline
   if (adminUsersUnsub) { adminUsersUnsub(); adminUsersUnsub = null; }
   if (adminPermsUnsub) { adminPermsUnsub(); adminPermsUnsub = null; }
+  if (adminInvitesUnsub) { adminInvitesUnsub(); adminInvitesUnsub = null; }
   if (adminImagesUnsub) { adminImagesUnsub(); adminImagesUnsub = null; }
 }
 
@@ -908,11 +951,16 @@ function renderAdminNav() {
   const panel = state.view.panel;
   const item = (key, label) =>
     `<button class="nav-item nav-admin-item${panel === key ? ' is-active' : ''}" data-admin-nav="${key}">${label}</button>`;
+  // Redemption alert: count of non-admin users still awaiting a role (see inviteModel.countPendingGrants).
+  const pending = state.fbManager?.isConfigured() ? countPendingGrants(buildRosterRows()) : 0;
+  const accessLabel = pending > 0
+    ? `Users &amp; Access <span class="nav-badge">${pending}</span>`
+    : 'Users &amp; Access';
   typeNav.innerHTML = `
     <button class="nav-item nav-admin-back" data-admin-back>‹ Back to codex</button>
     <div class="nav-admin-group">
       <span class="nav-section-label">Admin</span>
-      ${item('access', 'Users & Access')}
+      ${item('access', accessLabel)}
       ${item('codices', 'Codices')}
       ${item('images', 'Images')}
       ${item('icons', 'Icons')}
@@ -1193,6 +1241,7 @@ archiveEntryBtn.addEventListener('click', () => archiveCurrentEntry());
 
 let adminUsersUnsub = null;
 let adminPermsUnsub = null;
+let adminInvitesUnsub = null;
 let adminImagesUnsub = null;
 
 function enterGlobalAdmin() {
@@ -1225,9 +1274,17 @@ function renderAdminPanel() {
     updateRenderedPreview('<div class="admin-blurb">Admin — the app-global emblem set.</div>');
     updateRawJson('');
   } else {
-    formContainer.innerHTML = renderAccessPanel({ codexId: state.currentCodexId, rows: buildRosterRows() });
+    const inviteRows = buildInviteRows({
+      invites: state.adminInvites,
+      users: state.adminUsers,
+      nowMs: Date.now(),
+    });
+    formContainer.innerHTML =
+      renderInvitesPanel({ rows: inviteRows }) +
+      renderAccessPanel({ codexId: state.currentCodexId, rows: buildRosterRows() });
+    wireInvitesPanel();
     wireAccessPanel();
-    updateRenderedPreview('<div class="admin-blurb">Admin — manage codex access.</div>');
+    updateRenderedPreview('<div class="admin-blurb">Admin — invite users and manage codex access.</div>');
     updateRawJson('');
   }
 }
@@ -1690,6 +1747,50 @@ function wireAccessPanel() {
   });
 }
 
+function wireInvitesPanel() {
+  document.getElementById('invite-generate-btn')?.addEventListener('click', generateInvite);
+  formContainer.querySelectorAll('[data-invite-copy]').forEach((btn) => {
+    btn.addEventListener('click', () => copyInviteLink(btn.dataset.inviteCopy));
+  });
+  formContainer.querySelectorAll('[data-invite-revoke]').forEach((btn) => {
+    btn.addEventListener('click', () => changeInviteStatus(btn.dataset.inviteRevoke, 'revoked'));
+  });
+  formContainer.querySelectorAll('[data-invite-reactivate]').forEach((btn) => {
+    btn.addEventListener('click', () => changeInviteStatus(btn.dataset.inviteReactivate, 'active'));
+  });
+}
+
+// Mint an invite (random UUID = the secret token), persist it, and copy its link to the clipboard.
+// The roster/invites panel re-renders from the live subscription once the write lands.
+function generateInvite() {
+  if (!state.fbManager?.isConfigured()) return showToast('Invites need cloud mode (not available local-only)');
+  const label = (document.getElementById('invite-label')?.value || '').trim() || null;
+  const token = crypto.randomUUID();
+  const user = state.authManager?.currentUser;
+  const createdBy = user?.email || user?.uid || null;
+  state.fbManager
+    .createInvite(token, { label, createdBy })
+    .then(() => copyInviteLink(token, 'Invite link generated & copied to clipboard'))
+    .catch((err) => showToast('Could not create invite: ' + err.message));
+}
+
+function copyInviteLink(token, msg = 'Invite link copied to clipboard') {
+  const url = buildInviteUrl(location.origin, token);
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(url).then(() => showToast(msg)).catch(() => showToast(url));
+  } else {
+    showToast(url);
+  }
+}
+
+function changeInviteStatus(token, status) {
+  if (!state.fbManager?.isConfigured()) return;
+  state.fbManager
+    .setInviteStatus(token, status)
+    .then(() => showToast(status === 'revoked' ? 'Invite revoked' : 'Invite reactivated'))
+    .catch((err) => showToast('Invite update failed: ' + err.message));
+}
+
 // ── Types: new-type + archive/restore ────────────────────────────────────────
 // A type is a schema doc; archive is a status flip on it (no new rules needed). Persistence
 // mirrors the schema editor's Save: local overlay + Firestore saveSchema when configured.
@@ -1760,14 +1861,22 @@ function ensureAdminSubscriptions() {
   if (!adminUsersUnsub) {
     adminUsersUnsub = state.fbManager.subscribeUsers((users) => {
       state.adminUsers = users;
+      if (inGlobalAdmin()) renderAdminNav();  // refresh the pending-grants badge
       if (inGlobalAdmin() && state.view.panel === 'access') renderAdminPanel();
     }, subError('the user roster'));
   }
   if (!adminPermsUnsub) {
     adminPermsUnsub = state.fbManager.subscribePermissions((perms) => {
       state.adminPerms = perms;
+      if (inGlobalAdmin()) renderAdminNav();  // a new grant clears someone from the pending count
       if (inGlobalAdmin() && state.view.panel === 'access') renderAdminPanel();
     }, subError('access grants'));
+  }
+  if (!adminInvitesUnsub) {
+    adminInvitesUnsub = state.fbManager.subscribeInvites((invites) => {
+      state.adminInvites = invites;
+      if (inGlobalAdmin() && state.view.panel === 'access') renderAdminPanel();
+    }, subError('invites'));
   }
   if (!adminImagesUnsub) {
     adminImagesUnsub = state.fbManager.subscribeAllImages((images) => {

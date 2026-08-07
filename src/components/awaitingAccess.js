@@ -1,9 +1,12 @@
 /**
- * Awaiting-Access Screen.
+ * Awaiting-Access & Invite-Required screens.
  *
- * Shown to a person who is authenticated but has no role on the current codex (and isn't the
- * super-admin). They already exist in `users/{uid}` (from the sign-in upsert), so the admin can see
- * them in the roster and grant access — this screen just explains the limbo and offers sign-out.
+ * Two post-sign-in dead-ends, both offering only sign-out:
+ *  - `renderAwaitingAccess` — authenticated AND in the roster (invited, or a legacy user), but with no
+ *    role yet. The admin sees them and grants access. This is the "you're in the queue" state.
+ *  - `renderInviteRequired` — authenticated but NOT invited: no `users` row was created (the invite
+ *    gate blocked it). A private-site "you need a link" state, so random sign-ins hit a clear wall
+ *    instead of silently joining the roster. See invite-access spec.
  */
 
 export function renderAwaitingAccess(currentUser) {
@@ -21,6 +24,31 @@ export function renderAwaitingAccess(currentUser) {
       </p>
 
       <button id="awaiting-logout-btn" class="btn btn-secondary btn-sm">
+        Sign Out
+      </button>
+
+      <div style="margin-top:32px; font-size:11px; color:var(--text-dim);">
+        Protected by Firebase Authentication & Firestore Security Rules
+      </div>
+    </div>
+  `;
+}
+
+export function renderInviteRequired(currentUser) {
+  const who = currentUser?.email || currentUser?.globalName || 'your account';
+
+  return `
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:80vh; text-align:center; padding:24px;">
+      <div style="font-size:64px; margin-bottom:16px;">🔒</div>
+      <h1 style="font-family:var(--font-heading); color:var(--accent-gold); font-size:28px; margin-bottom:8px;">
+        Invite Required
+      </h1>
+      <p style="font-size:14px; color:var(--text-muted); max-width:480px; margin-bottom:24px;">
+        You're signed in as <strong>${who}</strong>, but this is a private codex. Access is by
+        invitation only — ask an admin for an invite link, then open it while signed in.
+      </p>
+
+      <button id="invite-required-logout-btn" class="btn btn-secondary btn-sm">
         Sign Out
       </button>
 
