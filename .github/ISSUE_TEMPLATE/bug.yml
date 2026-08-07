@@ -1,0 +1,69 @@
+name: Bug report
+description: Something behaves wrong. Concise enough to fix off of.
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One line — what's broken.
+      placeholder: Image picker shows stale thumbnails after a gallery edit.
+    validations:
+      required: true
+
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed vs. expected
+      description: What happens, then what should happen instead.
+      value: |
+        **Observed:**
+
+        **Expected:**
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal path to trigger it. Note the run mode — bugs often live on one side of the config boundary.
+      value: |
+        Run mode: <!-- cloud (Firebase) | local-only (codex_firebase_override='local') -->
+
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Suspected area
+      description: Best guess at where it lives. Anchors the fix to the architecture (see CLAUDE.md). Select all that apply.
+      multiple: true
+      options:
+        - Pure module (src/schema/** or src/utils/**) — Node-testable
+        - Orchestrator (src/main.js) — auth/state/handlers
+        - Component / DOM (src/components/**)
+        - Field kind (src/schema/fieldKinds.js) — the one registry
+        - Authorization (firestore.rules + capabilities.js)
+        - Config / boot (src/config/appConfig.js)
+        - Backend / Cloud Function / infra (Firestore triggers, Storage RLS)
+        - Build / deploy (vite.config.js, workflows)
+        - Not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: done
+    attributes:
+      label: Done criteria
+      description: What "fixed" means here. Deploy is gated by npm test and pushes straight to main.
+      options:
+        - label: Repro no longer triggers the bug
+        - label: Test added or updated beside the affected pure module
+        - label: "`npm test` green"
+        - label: Verified in browser preview (DOM changes only)

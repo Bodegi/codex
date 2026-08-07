@@ -1,0 +1,80 @@
+name: Task / chore
+description: a11y, performance, refactor, docs, or a decision — work that isn't a bug or a user-facing feature.
+title: "[task]: "
+labels: ["task"]
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: What & why
+      description: The work and the reason it's worth doing. For a decision, state the question to resolve — not a presumed answer.
+      placeholder: The map canvas has no keyboard/AT path — screen-reader users can't reach pin content.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type
+      description: What kind of work this is. Drives who picks it up and what "done" looks like.
+      options:
+        - Accessibility (a11y)
+        - Performance / scale
+        - Refactor / tech-debt
+        - Docs
+        - Decision / scoping
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity (suggested)
+      description: Your read on urgency. A maintainer sets the matching label at triage — GitHub issue forms can't auto-apply it.
+      options:
+        - Should-fix — noticeable gap or risk
+        - Later — genuine improvement, not urgent
+        - Blocking — blocks a core path
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where it lives
+      description: Areas this touches (see CLAUDE.md). Select all that apply.
+      multiple: true
+      options:
+        - Pure module (src/schema/** or src/utils/**) — Node-testable
+        - Orchestrator (src/main.js) — auth/state/handlers
+        - Component / DOM (src/components/**)
+        - Field kind (src/schema/fieldKinds.js) — the one registry
+        - Authorization (firestore.rules + capabilities.js)
+        - Config / boot (src/config/appConfig.js)
+        - Backend / Cloud Function / infra (Firestore triggers, Storage RLS)
+        - Build / deploy (vite.config.js, workflows)
+        - Docs / repo meta
+        - Not sure
+    validations:
+      required: false
+
+  - type: textarea
+    id: approach
+    attributes:
+      label: Approach / notes
+      description: Optional — the shape of the work, constraints, or the options on the table if this is a decision.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: done
+    attributes:
+      label: Done criteria
+      description: What "done" means here — not every task ships code. A decision is done when it's written down.
+      options:
+        - label: Decision recorded (for scoping/decision tasks) — or the change is implemented
+        - label: Test added or updated beside any pure module touched (if code changed)
+        - label: "`npm test` green (if code changed)"
+        - label: Verified in browser preview (DOM changes only)
+        - label: Docs / comments updated if behavior or an invariant changed

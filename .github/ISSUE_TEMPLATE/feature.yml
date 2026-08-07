@@ -1,0 +1,73 @@
+name: Feature
+description: A feature or change. Concise enough to build off of.
+title: "[feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: The user-observable outcome — what someone can do afterward that they can't now. Not the implementation.
+      placeholder: Authors can reorder fields in the schema builder by dragging.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity (suggested)
+      description: Your read on urgency. A maintainer sets the matching label at triage — GitHub issue forms can't auto-apply it.
+      options:
+        - Should-fix — noticeable rough edge or missing safety net
+        - Later — genuine improvement, not urgent
+        - Blocking — a user hits a dead end on a core path
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where it lives
+      description: Primary home(s) for the change (see CLAUDE.md). Put the decision in a pure module and let main.js/components call it. Select all that apply.
+      multiple: true
+      options:
+        - Pure module (src/schema/** or src/utils/**) — Node-testable
+        - Orchestrator (src/main.js) — auth/state/handlers
+        - Component / DOM (src/components/**)
+        - Field kind (src/schema/fieldKinds.js) — the one registry
+        - Authorization (firestore.rules + capabilities.js)
+        - Config / boot (src/config/appConfig.js)
+        - Backend / Cloud Function / infra (Firestore triggers, Storage RLS)
+        - Build / deploy (vite.config.js, workflows)
+    validations:
+      required: true
+
+  - type: textarea
+    id: approach
+    attributes:
+      label: Approach sketch
+      description: A few bullets — the shape of the change, the files, the seam. Enough to start; not a full design.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: Invariants to respect
+      description: Check the ones this change touches. These are the repo's load-bearing rules — decide them now, not in review.
+      options:
+        - label: Pure/impure split held — new logic goes in a pure module with a test beside it, not grown into main.js
+        - label: "If who-can-do-what changes: firestore.rules AND capabilities.js updated together, test in sync"
+        - label: "If field-related: routed through the fieldKinds registry (renderInput/renderRead/layout)"
+        - label: No new dependencies without a reason
+
+  - type: checkboxes
+    id: done
+    attributes:
+      label: Done criteria
+      description: What "shipped" means. Deploy is gated by npm test and pushes straight to main.
+      options:
+        - label: Goal is achievable in the running app
+        - label: Test added beside any pure module touched
+        - label: "`npm test` green"
+        - label: Verified in browser preview (DOM changes only)
