@@ -28,6 +28,7 @@ import { blankEntry } from './schema/entryDraft.js';
 import { validateSchema } from './schema/schemaValidate.js';
 import { escapeHtml } from './schema/inlineText.js';
 import { getIcon, findIcon, activeIcons, setOverlayIcons, bundledIcons, validateIcon } from './schema/iconRegistry.js';
+import { sanitizeSvg } from './schema/sanitizeSvg.js';
 import { buildNavModel } from './schema/navModel.js';
 import { buildRoster } from './schema/rosterModel.js';
 import {
@@ -741,8 +742,11 @@ function subscribeCodexRegistry() {
 function subscribeIconOverlay() {
   if (iconsUnsub || !(state.fbManager && state.fbManager.isConfigured())) return;
   iconsUnsub = state.fbManager.subscribeIcons((icons) => {
-    state.icons = icons;
-    const active = icons
+    // Sanitize admin-authored SVG at the ingestion choke point (T6): every downstream sink — nav
+    // `getIcon`, the overlay registry, the admin panel — reads from state.icons, so cleaning once
+    // here covers them all. Bundled icons and designer output are already clean (a no-op).
+    state.icons = icons.map((i) => (i && i.svg ? { ...i, svg: sanitizeSvg(i.svg) } : i));
+    const active = state.icons
       .filter((i) => i && i.key && i.svg && i.status !== 'archived')
       .map((i) => ({ key: i.key, svg: i.svg }));
     setOverlayIcons(active);
@@ -757,7 +761,8 @@ function subscribeIconOverlay() {
 function subscribeEmblemOverlay() {
   if (emblemsUnsub || !(state.fbManager && state.fbManager.isConfigured())) return;
   emblemsUnsub = state.fbManager.subscribeEmblems((emblems) => {
-    state.emblems = emblems;
+    // Sanitize at ingestion (T6) — resolveGlyph, the map, and the Emblems panel all read state.emblems.
+    state.emblems = emblems.map((e) => (e && e.svg ? { ...e, svg: sanitizeSvg(e.svg) } : e));
     renderNav(); // markers/content that resolve an emblem pick it up live
     if (inGlobalAdmin() && state.view.panel === 'emblems') renderAdminPanel();
   }, subError('emblems'));

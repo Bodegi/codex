@@ -31,15 +31,6 @@ _None open._
 
 ## Later (debt to acknowledge, not launch-gating)
 
-### T6. Admin SVG injected via innerHTML with only a presence check
-**`src/schema/iconRegistry.js` `validateIcon`, consumed by `getIcon`/`resolveGlyph` → innerHTML**
-
-Icon/emblem `svg` is inserted unescaped into the nav and map. `validateIcon` only checks that an
-`<svg>` element is *present* — no sanitization. Writes are admin-only per the rules, so this is
-defense-in-depth, not an open hole. But "admin-authored" isn't "safe" (an admin's account can be
-phished), and the blast radius is every signed-in user. Worth a lightweight sanitizer or a documented
-accepted-risk note.
-
 ### T7. No automated parity guard between `firestore.rules` and `capabilities.js`
 The two are kept in lockstep by hand and by the CLAUDE.md instruction. `capabilities.test.js` tests the
 JS side in isolation; nothing fails CI when the rules drift from the mirror. Consider a checklist test
@@ -59,7 +50,11 @@ probability at launch scale; worth a size check + friendly message eventually.
 - **Version-guard write path** (`saveResolve.js` + `CodexScope.saveEntry`) — conflict detection,
   force-overwrite, full-replace-so-deletions-persist, status-flip-reads-current: all sound and tested.
 - **Inline rich-text rendering** — link/image schemes are allow-listed and all editor-authored text is
-  `escapeHtml`/`escapeAttr`-escaped; the only unescaped injection left is the trusted glyph registry (T6).
+  `escapeHtml`/`escapeAttr`-escaped.
+- **Admin glyph SVG injection** — icon/emblem markup is sanitized (`sanitizeSvg`) at the ingestion
+  choke point (the icons/emblems subscriptions), stripping script/foreignObject/style, `on*` handlers,
+  and javascript:/vbscript:/data: URLs before it reaches any `innerHTML` sink. Lightweight
+  defense-in-depth behind the admin-only write rules; exhaustive entity evasion is accepted residual.
 - **Subscription error handling** — every `onSnapshot` now carries an `onError`: content subs raise a
   recoverable connection banner, the permission sub resolves off the loading spinner, and the rest toast.
 - **Boot robustness** — `localStorage` is read through `safeStorage`, and boot is wrapped in a global
