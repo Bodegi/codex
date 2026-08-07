@@ -2251,6 +2251,10 @@ async function saveEntry({ force = false } = {}) {
     showToast('Saved entry');
     finishSaveToRead();
   } catch (err) {
+    if (err.code === 'entry-too-large') {
+      showToast(err.message); // already a complete, friendly sentence
+      return;
+    }
     if (err.code !== 'version-conflict') {
       showToast('Save error: ' + err.message);
       return;

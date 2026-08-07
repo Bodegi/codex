@@ -5,6 +5,10 @@
  * (parallels authProfile.js) so it's Node-testable, and it mirrors the Firestore security rules
  * predicate-for-predicate: admin by baked email, else the current codex's permission role.
  *
+ * `capabilities.parity.test.js` guards the mirror against drift: it reads firestore.rules and asserts
+ * the admin-email allowlist and role vocabulary stay in lockstep with this file + appConfig. Change
+ * one side and the test fails — update BOTH the rules and this module together.
+ *
  * Inputs:
  *   user        the signed-in identity ({ uid, email, … }) or null
  *   permission  the user's permission doc for the CURRENT codex ({ role } ) or null

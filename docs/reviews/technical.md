@@ -31,22 +31,19 @@ _None open._
 
 ## Later (debt to acknowledge, not launch-gating)
 
-### T7. No automated parity guard between `firestore.rules` and `capabilities.js`
-The two are kept in lockstep by hand and by the CLAUDE.md instruction. `capabilities.test.js` tests the
-JS side in isolation; nothing fails CI when the rules drift from the mirror. Consider a checklist test
-or a comment-anchored diff so a future edit to one can't silently desync from the other.
-
-### T8. Firestore 1 MB document limit is unguarded
-A map field with many roads/territories/waypoints, or a very long prose entry, serializes into a single
-entry doc. Approaching 1 MB, `saveEntry` fails inside the transaction with an opaque error. Low
-probability at launch scale; worth a size check + friendly message eventually.
+_None open._
 
 ---
 
 ## Checked and OK (so the next reader doesn't re-audit)
 
 - **Rules ↔ capabilities parity** — admin-by-email, per-codex editor/viewer, schemas admin-only,
-  entry version+1 backstop, permissions id-prefix owner check: all mirrored correctly.
+  entry version+1 backstop, permissions id-prefix owner check: all mirrored correctly, and now
+  guarded against drift by `capabilities.parity.test.js` (admin-email allowlist + role vocabulary
+  asserted against `firestore.rules`).
+- **Entry document size** — `saveEntry` pre-flights the payload (`checkEntrySize`, guard below the
+  Firestore 1 MiB hard cap) and refuses over-size entries with a friendly, coded message before the
+  transaction, instead of an opaque in-transaction commit failure.
 - **Version-guard write path** (`saveResolve.js` + `CodexScope.saveEntry`) — conflict detection,
   force-overwrite, full-replace-so-deletions-persist, status-flip-reads-current: all sound and tested.
 - **Inline rich-text rendering** — link/image schemes are allow-listed and all editor-authored text is

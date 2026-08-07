@@ -45,6 +45,7 @@ import {
 } from './codexPaths.js';
 import { buildUserDoc } from './userDoc.js';
 import { resolveSave } from '../schema/saveResolve.js';
+import { checkEntrySize } from '../schema/entrySize.js';
 
 const now = () => new Date().toISOString();
 
@@ -336,6 +337,14 @@ export class CodexScope {
    */
   async saveEntry(type, id, data, baseVersion, { force = false } = {}) {
     if (!this.db) throw new Error('Firebase DB is not initialized');
+    // Pre-flight the Firestore 1 MiB doc limit (T8): fail fast with a friendly, coded error before
+    // the transaction, so an over-size entry gets a clear message instead of an opaque commit failure.
+    const size = checkEntrySize(data);
+    if (!size.ok) {
+      const err = new Error(size.message);
+      err.code = 'entry-too-large';
+      throw err;
+    }
     const ref = doc(this.db, ...entryDocPath(this.codexId, type, id));
     return runTransaction(this.db, async (tx) => {
       const snap = await tx.get(ref);

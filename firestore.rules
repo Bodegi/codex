@@ -9,6 +9,10 @@ rules_version = '2';
 //   - editor writes codex content; viewer reads only; schemas are admin-only (Types is admin work)
 //   - the shared `images` library gates on membership: editors touch their codex + own labels,
 //     everything global is admin (see the images block for the full framing)
+//
+// Parity with the app mirror is guarded by src/utils/capabilities.parity.test.js: it asserts the
+// admin-email allowlist below matches appConfig.auth.adminEmail and that every role literal here is
+// one capabilities.js recognizes. Edit an authorization predicate → update capabilities.js too.
 
 service cloud.firestore {
   match /databases/{database}/documents {
