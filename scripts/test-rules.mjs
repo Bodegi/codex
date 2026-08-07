@@ -10,11 +10,20 @@
  * projects.test; prints PASS/FAIL per case and exits non-zero on any failure. Run it after editing
  * the rules and before `npm run deploy:rules`.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { createSign } from 'node:crypto';
 
 const KEY_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS || '.secrets/firebase-deploy.json';
 const RULES_PATH = 'firestore.rules';
+
+// This is a live integration test (needs a service-account key + network to firebaserules.googleapis.com).
+// `node --test` sweeps it in via the `test-*.mjs` glob and runs it in its own subprocess, so when the key
+// is absent — a fresh clone or CI (e.g. the Pages deploy) — skip cleanly rather than crashing the suite.
+// Run it for real by providing the key (`.secrets/firebase-deploy.json` or $GOOGLE_APPLICATION_CREDENTIALS).
+if (!existsSync(KEY_PATH)) {
+  console.log(`# SKIP firestore.rules test — no credentials at ${KEY_PATH}`);
+  process.exit(0);
+}
 const ADMIN_EMAIL = 'bodegigaming@gmail.com'; // matches the isAdmin() allowlist in the rules
 const DB = '/databases/(default)/documents';
 const NOW = '2026-08-07T00:00:00.000Z';
