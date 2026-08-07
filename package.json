@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test",
+    "test:rules": "node scripts/test-rules.mjs",
     "deploy:rules": "node scripts/deploy-rules.mjs"
   },
   "devDependencies": {
