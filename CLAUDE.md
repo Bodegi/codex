@@ -80,15 +80,22 @@ rely on the UI for enforcement — the rules are the gate.
 ## Working in this repo
 
 - **Test:** `npm test` (`node --test` — runs every `src/**/*.test.js`). Add a test beside any
-  pure module you touch. Keep the suite green before committing.
+  pure module you touch. Keep the suite green before committing. (`node --test` also sweeps in
+  `scripts/test-rules.mjs` via the `test-*` glob — a *live* Firestore-rules integration test that
+  self-skips when no service-account key is present, so a fresh clone and CI stay green; provide
+  the key to run it for real. Run it standalone with `npm run test:rules`.)
 - **Dev / build:** `npm run dev` (port 5173), `npm run build`, `npm run preview`.
 - **Verify DOM changes in the browser preview**, not by asserting on DOM in Node. Local-only
   mode (`codex_firebase_override='local'`) is the fastest way to exercise the UI without auth.
 - **Windows machine, two shells** — the Bash tool is Git Bash (POSIX); the PowerShell tool is
   PowerShell. Don't mix their syntax.
 - **Commits:** write the full message to a file and `git commit -F <file>` (inline multi-line
-  messages have leaked stray characters here). Pre-launch workflow is commit/push straight to
-  `main` — no feature branches, no PRs (there's no published `main` to protect yet).
+  messages have leaked stray characters here). Workflow is commit/push straight to `main` — no
+  feature branches, no PRs. Note `main` is now **published**: every push auto-deploys to GitHub
+  Pages ([bodegi.github.io/codex](https://bodegi.github.io/codex/)) via
+  [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), gated by `npm test`. A red push
+  is a broken deploy — keep the suite green. Site config lives in `vite.config.js`
+  (`base: '/codex/'`); see the README's Deploying section.
 
 ## What's *not* in the published repo
 

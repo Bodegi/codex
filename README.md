@@ -11,6 +11,8 @@ compose structured **types** (Note, Person, Place, …) out of a fixed palette o
 components — text, prose, lists, cross-entry references, hero/gallery images, and an
 interactive map — and the reader view is generated from the schema.
 
+**Live:** [bodegi.github.io/codex](https://bodegi.github.io/codex/) (private — access is invite-gated).
+
 ## Highlights
 
 - **Schema builder, in the app.** Admins design types visually in the Structure editor: add
@@ -86,6 +88,25 @@ work never touches deployed content).
 See **[docs/authoring.md](docs/authoring.md)** for the author/admin guide: signing in and
 getting access, building types in the Structure editor, the field kinds, working with images
 and the map, and how saving / sync / local-only behave.
+
+## Deploying
+
+The app is a static SPA, so it deploys to **GitHub Pages** at
+[bodegi.github.io/codex](https://bodegi.github.io/codex/). Every push to `main` triggers
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), which runs the test suite,
+builds, and publishes `dist/` — no manual step.
+
+Pages serves from a repo subpath, so `vite.config.js` sets `base: '/codex/'`; built asset URLs
+(and `npm run dev` / `npm run preview`) are prefixed accordingly. There are **no deploy
+secrets** — the baked Firebase/Supabase config are public locators, and the Firestore rules +
+Storage RLS are the real gate.
+
+Two one-time setups live outside the repo (already done for this project):
+
+- **Pages source** is set to *GitHub Actions* (repo Settings → Pages).
+- The deployed origin `bodegi.github.io` is added to Firebase Auth → *Authorized domains* so
+  Google sign-in works, and the Firebase browser API key is referrer-restricted to the app's
+  domains as defense-in-depth.
 
 ## Project layout
 
