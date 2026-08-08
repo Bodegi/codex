@@ -83,6 +83,7 @@ import { parseInviteToken, buildInviteUrl } from './utils/inviteLink.js';
 import { buildInviteRows, countPendingGrants } from './schema/inviteModel.js';
 import { openGlyphDesigner, openLibraryPicker } from './components/glyphDesigner.js';
 import { resolveCapabilities, isAdminEmail } from './utils/capabilities.js';
+import { syncBadge } from './utils/syncBadge.js';
 import { getKind } from './schema/fieldKinds.js';
 import { initCarousel } from './components/carousel.js';
 import { initMapReadCanvases } from './components/mapComponent.js';
@@ -144,6 +145,10 @@ const state = {
   caps: { isAuthed: false, role: 'none', canRead: false, canEdit: false, canAdmin: false },
   permission: null,
   permissionLoaded: false,
+  // Live-sync health for the header badge + connection banner (both read this one value, so they can't
+  // disagree). 'healthy' until a codex-content subscription errors; 'lost' on a dropped connection,
+  // 'access-changed' on permission-denied. A good snapshot resets it. Only meaningful in cloud mode.
+  connection: 'healthy',
   workspaceReady: false,
   // Schema editor (per-type Structure mode) working state
   editingType: '',
@@ -281,14 +286,14 @@ function subscribeCodexContent() {
 
   if (schemaUnsubscribe) { schemaUnsubscribe(); schemaUnsubscribe = null; }
   schemaUnsubscribe = scope.subscribeSchemas((schemas) => {
-    hideConnectionBanner(); // a live snapshot means sync is healthy again
+    markSyncHealthy(); // a live snapshot means sync is healthy again
     applyCodexSchemas(schemas);
     onCodexContentChanged();
   }, handleContentSubscriptionError);
 
   if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
   entriesUnsubscribe = scope.subscribeEntries((entries) => {
-    hideConnectionBanner();
+    markSyncHealthy();
     state.entryIndex = indexEntries(entries);
     onCodexContentChanged();
   }, handleContentSubscriptionError);
@@ -606,12 +611,25 @@ function hideConnectionBanner() {
   if (connectionBanner) connectionBanner.style.display = 'none';
 }
 
+// A good snapshot arrived: clear any degraded state so the badge + banner both return to healthy.
+function markSyncHealthy() {
+  if (state.connection !== 'healthy') {
+    state.connection = 'healthy';
+    renderSyncStatus();
+  }
+  hideConnectionBanner();
+}
+
 // A live codex-content subscription errored (permission-denied after an access change, or a dropped
-// connection). The workspace keeps the last-loaded data; the banner tells the user sync stopped.
+// connection). The workspace keeps the last-loaded data; `state.connection` drives both the header
+// badge (glanceable) and the banner (explains + offers Reload), so they can't disagree.
 function handleContentSubscriptionError(err) {
   console.error('Codex subscription error', err);
+  const accessChanged = err?.code === 'permission-denied';
+  state.connection = accessChanged ? 'access-changed' : 'lost';
+  renderSyncStatus();
   showConnectionBanner(
-    err?.code === 'permission-denied'
+    accessChanged
       ? 'Your access to this codex changed. Reload to continue.'
       : 'Connection lost — showing the last loaded data. Reload to reconnect.'
   );
@@ -2426,19 +2444,12 @@ previewRawTextarea.addEventListener('change', () => {
   renderTypesEditor(); // rebuild editor + normalize the schema JSON
 });
 
-// Reflect the real cloud-connection state in the status badge
+// Reflect the real cloud-connection state in the status badge (see utils/syncBadge.js for the model).
 function renderSyncStatus() {
   const configured = !!(state.fbManager && state.fbManager.isConfigured());
-
-  let label;
-  if (configured) {
-    label = 'Cloud sync on';
-  } else {
-    label = 'Local only — changes reset on reload';
-  }
-
-  activeFileIndicator.className = `compliance-badge${configured ? '' : ' is-local'}`;
-  activeFileIndicator.innerHTML = `<span class="${configured ? 'pulse-dot' : 'idle-dot'}"></span> ${label}`;
+  const { label, dotClass, toneClass } = syncBadge({ configured, connection: state.connection });
+  activeFileIndicator.className = `compliance-badge${toneClass}`;
+  activeFileIndicator.innerHTML = `<span class="${dotClass}"></span> ${label}`;
 }
 
 function showToast(message) {

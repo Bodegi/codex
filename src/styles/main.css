@@ -888,6 +888,10 @@ select[multiple].form-control option {
   color: var(--text-muted);
 }
 
+.compliance-badge.is-stale {
+  color: var(--accent-crimson);
+}
+
 .pulse-dot {
   width: 8px;
   height: 8px;
@@ -902,6 +906,15 @@ select[multiple].form-control option {
   height: 8px;
   background: var(--text-muted);
   border-radius: 50%;
+}
+
+/* Degraded sync: a steady (un-pulsing) crimson dot reads as "not live" against the healthy pulse-dot. */
+.stale-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-crimson);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--accent-crimson);
 }
 
 @keyframes pulse {
