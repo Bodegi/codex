@@ -356,7 +356,7 @@ const renderCtx = {
     const entry = findEntryByTypeId(type, id);
     // `emblem` feeds the map's glyph-inheritance step: a marker linked to an
     // entry inherits that entry's emblem as a default glyph. No entry carries an `emblem` field yet
-    // (the emblem editor is post-launch), so this is a forward seam that reads `undefined` today.
+    // (the emblem editor isn't built), so this is a forward seam that reads `undefined` today.
     return entry
       ? { label: entryLabel(entry), exists: true, emblem: entry.emblem }
       : { label: id, exists: false };
