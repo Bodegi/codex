@@ -66,7 +66,7 @@ export function renderSummaryCard(schema, entry, ctx) {
   const fields = fieldMap(schema);
 
   const titleKey = card.title || schema.titleField;
-  const title = d[titleKey] || d[schema.idField] || '(untitled)';
+  const title = d[titleKey] || '(untitled)';
 
   let subtitle = '';
   if (card.subtitle) {
@@ -93,9 +93,9 @@ export function renderSummaryCard(schema, entry, ctx) {
     .join('');
   if (rowHtml) rows = `<div class="summary-card-rows">${rowHtml}</div>`;
 
-  const id = d[schema.idField];
+  // The card's open key is the entry's opaque doc id (findEntryByTypeId matches on `entry.id`).
   return `<button type="button" class="summary-card" data-index-entry="${escapeHtml(
-    id ?? ''
+    d.id ?? ''
   )}"><span class="summary-card-title">${escapeHtml(title)}</span>${subtitle}${badges}${rows}</button>`;
 }
 

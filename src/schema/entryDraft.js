@@ -3,8 +3,8 @@
  *
  * Builds the starting `formData` for a "＋ New entry": the type, `status: 'active'`, and every
  * schema field initialized to an empty value of the right shape (arrays for list/gallery,
- * empty strings otherwise) so the form renders predictably. The id is left blank — it is
- * assigned from the title on save (see `deriveEntryId`).
+ * empty strings otherwise) so the form renders predictably. The id is left blank — an opaque
+ * one is minted on save (see `newId`).
  */
 
 const ARRAY_KINDS = new Set(['list', 'gallery']);

@@ -77,8 +77,9 @@ export function renderEntryHTML(type, data, ctx) {
     return '';
   }
   const d = data || {};
-  // The title is the <h1>; the id lives in the metadata callout — neither repeats as a section field.
-  const skip = new Set([schema.idField, schema.titleField]);
+  // The title is the <h1>, so it never repeats as a section field; likewise a schema's optional
+  // idField (present only on the readable-id demo types) rides in the metadata callout, not the body.
+  const skip = new Set([schema.titleField, schema.idField].filter((k) => k != null));
 
   return [
     metadataBox(schema, d, ctx),

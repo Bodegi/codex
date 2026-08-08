@@ -6,27 +6,22 @@
  * type. Pure and Node-tested; `main.js` persists the result through its normal schema write path.
  *
  * The kit is cloned as a whole so its cross-references survive: `note`'s map points at `person`
- * (`association.refType`) and `person.favoriteNote` points at `note` (`targetType`). When a
- * cloned type id has to shift to stay unique against the codex's existing types, those in-kit
- * references are rewritten through the same remap so the kit stays internally coherent; a
- * reference to a type outside the kit is left untouched.
+ * (`association.refType`) and `person.favoriteNote` points at `note` (`targetType`). Each cloned
+ * type gets a fresh opaque id, so those in-kit references are rewritten through the same remap to
+ * keep the kit internally coherent; a reference to a type outside the kit is left untouched.
  */
 
-import { uniqueSlug } from './slug.js';
+import { newId as realNewId } from '../utils/id.js';
 
 /**
- * Clone `sources` into schemas safe to persist into a codex that already holds `existingTypes`
- * (an array of type ids). Type ids are made unique — against the codex and against each other —
- * and in-kit `targetType` / `association.refType` references are remapped to match.
+ * Clone `sources` into schemas safe to persist into any codex. Each cloned type gets a fresh
+ * opaque id (via `newId`, injectable so tests stay deterministic), and in-kit `targetType` /
+ * `association.refType` references are remapped to match. Opaque ids can't collide, so — unlike
+ * a slug-based clone — nothing about the destination codex's existing types matters here.
  */
-export function cloneStarterSchemas(sources, existingTypes = []) {
-  const taken = [...existingTypes];
+export function cloneStarterSchemas(sources, newId = realNewId) {
   const idMap = new Map();
-  for (const schema of sources) {
-    const id = uniqueSlug(schema.type, taken);
-    idMap.set(schema.type, id);
-    taken.push(id);
-  }
+  for (const schema of sources) idMap.set(schema.type, newId());
 
   const remap = (t) => (idMap.has(t) ? idMap.get(t) : t);
   return sources.map((schema) => {

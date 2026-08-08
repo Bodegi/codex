@@ -66,15 +66,19 @@ export function validateSchema(schema) {
     }
   });
 
-  // idField / titleField are present and name a real field key.
-  ['idField', 'titleField'].forEach((prop) => {
-    const val = schema[prop];
-    if (!val || String(val).trim() === '') {
-      errors.push(`Schema must define ${prop}.`);
-    } else if (!keys.has(val)) {
-      errors.push(`${prop} "${val}" does not match any field key.`);
-    }
-  });
+  // titleField is required and names a real field key. idField is optional — an entry's identity
+  // is its opaque `entry.id` doc key, not a schema field — but when present (e.g. the demo
+  // fixture's readable id field) it must still name a real field.
+  const title = schema.titleField;
+  if (!title || String(title).trim() === '') {
+    errors.push('Schema must define titleField.');
+  } else if (!keys.has(title)) {
+    errors.push(`titleField "${title}" does not match any field key.`);
+  }
+  const idField = schema.idField;
+  if (idField != null && String(idField).trim() !== '' && !keys.has(idField)) {
+    errors.push(`idField "${idField}" does not match any field key.`);
+  }
 
   return { ok: errors.length === 0, errors };
 }

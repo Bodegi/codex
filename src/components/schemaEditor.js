@@ -17,7 +17,7 @@
 
 import { escapeHtml } from '../schema/inlineText.js';
 import { fieldKinds } from '../schema/fieldKinds.js';
-import { slugify, uniqueSlug } from '../schema/slug.js';
+import { newId } from '../utils/id.js';
 
 /** Field kinds the editor's picker offers — the one registry, in declaration order. */
 export const FIELD_KIND_OPTIONS = Object.keys(fieldKinds);
@@ -50,27 +50,23 @@ export function slugToCamel(label) {
 }
 
 /**
- * A minimal, valid schema for a brand-new type: a kebab type id derived from the label
- * (unique against `existingTypes`), an id + title field so entries can be named and keyed,
- * and `status: 'active'`. Passes `validateSchema`, so the author can Save immediately and
- * grow it from there.
+ * A minimal, valid schema for a brand-new type: an opaque type id, a title field so entries
+ * can be named, and `status: 'active'`. The entry id is the opaque `entry.id` doc key, not a
+ * schema field, so there is no `idField`/id field here (contrast the demo fixture, which keeps
+ * a readable id field by design). Passes `validateSchema`, so the author can Save immediately
+ * and grow it from there.
  */
-export function newTypeSchema(label, existingTypes = []) {
-  const type = uniqueSlug(slugify(label) || 'type', existingTypes);
+export function newTypeSchema(label) {
   return {
-    type,
+    type: newId(),
     label: String(label ?? '').trim() || 'New Type',
     icon: 'dot',
-    idField: 'id',
     titleField: 'title',
     status: 'active',
     sections: [
       {
         title: 'Details',
-        fields: [
-          { key: 'id', label: 'ID', kind: 'text', placeholder: 'e.g. my-entry', showInMetadata: true },
-          { key: 'title', label: 'Title', kind: 'text', placeholder: 'e.g. My Entry' },
-        ],
+        fields: [{ key: 'title', label: 'Title', kind: 'text', placeholder: 'e.g. My Entry' }],
       },
     ],
   };

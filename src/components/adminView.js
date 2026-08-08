@@ -201,7 +201,6 @@ export function renderCodicesPanel({ active = [], archived = [], templateSources
       <div class="codex-create">
         <div class="codex-create-name-wrap">
           <input class="admin-input" id="codex-create-name" placeholder="Codex name — e.g. My D&amp;D Campaign" aria-label="New codex name">
-          <div class="admin-muted codex-create-slug-line">id: <code id="codex-create-slug">—</code></div>
         </div>
         <select class="admin-input" id="codex-create-template" aria-label="Template">${templateOptions}</select>
         <button class="btn btn-primary btn-sm" id="codex-create-btn">Create codex</button>

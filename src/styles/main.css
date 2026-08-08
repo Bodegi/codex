@@ -683,7 +683,6 @@ button.user-badge { cursor: pointer; }
   min-width: 0;
 }
 .codex-create-name-wrap #codex-create-name { width: 100%; }
-.codex-create-slug-line { word-break: break-all; }
 .codex-row {
   display: flex;
   align-items: center;

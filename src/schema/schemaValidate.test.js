@@ -86,20 +86,27 @@ test('rejects an empty section title', () => {
   assert.ok(result.errors.some((e) => /non-empty title/.test(e)));
 });
 
-test('rejects a missing idField', () => {
+test('an absent idField is fine — the entry id is the opaque doc key, not a field', () => {
   const schema = validSchema();
   delete schema.idField;
-  const result = validateSchema(schema);
-  assert.equal(result.ok, false);
-  assert.ok(result.errors.some((e) => /must define idField/.test(e)));
+  schema.sections[0].fields = schema.sections[0].fields.filter((f) => f.key !== 'id');
+  assert.equal(validateSchema(schema).ok, true);
 });
 
-test('rejects an idField that names no existing field', () => {
+test('rejects an idField that, when present, names no existing field', () => {
   const schema = validSchema();
   schema.idField = 'ghost';
   const result = validateSchema(schema);
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((e) => /idField "ghost" does not match any field key/.test(e)));
+});
+
+test('still requires titleField', () => {
+  const schema = validSchema();
+  delete schema.titleField;
+  const result = validateSchema(schema);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((e) => /must define titleField/.test(e)));
 });
 
 test('rejects a titleField that names no existing field', () => {

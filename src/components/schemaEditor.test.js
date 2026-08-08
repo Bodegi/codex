@@ -160,31 +160,35 @@ test('moveSectionTo reorders to an arbitrary index and no-ops on same/adjacent',
 
 // --- newTypeSchema ----------------------------------------------------------
 
-test('newTypeSchema derives a kebab type id from the label', () => {
-  assert.equal(newTypeSchema('Trade Route', []).type, 'trade-route');
+test('newTypeSchema mints an opaque type id', () => {
+  const a = newTypeSchema('Trade Route');
+  const b = newTypeSchema('Trade Route');
+  // Opaque and non-derived: the same label yields distinct ids that carry no slug of the label.
+  assert.notEqual(a.type, b.type);
+  assert.doesNotMatch(a.type, /trade/);
 });
 
 test('newTypeSchema produces a schema that passes validation', () => {
-  assert.equal(validateSchema(newTypeSchema('Trade Route', [])).ok, true);
+  assert.equal(validateSchema(newTypeSchema('Trade Route')).ok, true);
 });
 
-test('newTypeSchema starts active with id/title fields wired', () => {
-  const s = newTypeSchema('Trade Route', []);
+test('newTypeSchema starts active with only a title field (id is the opaque doc key)', () => {
+  const s = newTypeSchema('Trade Route');
   assert.equal(s.status, 'active');
   assert.equal(s.label, 'Trade Route');
-  assert.equal(s.idField, 'id');
+  assert.equal(s.idField, undefined);
   assert.equal(s.titleField, 'title');
   const keys = allFieldKeys(s);
-  assert.ok(keys.includes('id'));
-  assert.ok(keys.includes('title'));
+  assert.deepEqual(keys, ['title']);
 });
 
-test('newTypeSchema makes the type id unique against existing types', () => {
-  assert.equal(newTypeSchema('Trade Route', ['trade-route']).type, 'trade-route-2');
-});
-
-test('newTypeSchema falls back to a valid type id when the label has no usable characters', () => {
-  const s = newTypeSchema('!!!', []);
-  assert.ok(s.type.length > 0);
+test('newTypeSchema keeps a punctuation-only label verbatim — the id no longer derives from it', () => {
+  const s = newTypeSchema('!!!');
+  assert.equal(s.label, '!!!');
   assert.equal(validateSchema(s).ok, true);
+});
+
+test('newTypeSchema falls back to a default label for a blank one', () => {
+  assert.equal(newTypeSchema('   ').label, 'New Type');
+  assert.equal(validateSchema(newTypeSchema('   ')).ok, true);
 });

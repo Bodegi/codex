@@ -23,7 +23,7 @@ import {
 import { indexEntries, activeEntries, archivedEntries, findEntry } from './schema/entryIndex.js';
 import { switcherCodices, archivedCodices } from './schema/codexRegistry.js';
 import { buildTemplateSchemas } from './schema/codexTemplate.js';
-import { slugify, isSlugTaken, deriveEntryId } from './schema/slug.js';
+import { newId } from './utils/id.js';
 import { blankEntry } from './schema/entryDraft.js';
 import { validateSchema } from './schema/schemaValidate.js';
 import { escapeHtml } from './schema/inlineText.js';
@@ -978,8 +978,7 @@ function renderEmptyCodexState() {
 // Seed the demo fixture's example types (as a coherent kit) into the current codex, then drop the
 // admin into the first one's Structure mode so they land on a built schema, not a blank one.
 function seedStarterTypes() {
-  const existing = [...listTypes(), ...listArchivedTypes()].map((t) => t.type);
-  const schemas = cloneStarterSchemas(demoSchemas, existing);
+  const schemas = cloneStarterSchemas(demoSchemas);
   schemas.forEach((s) => persistSchema(s.type, s));
   renderTypeNav();
   showToast('Added example types');
@@ -1465,13 +1464,6 @@ function renderCodicesPanelHtml() {
 }
 
 function wireCodicesPanel() {
-  const nameInput = document.getElementById('codex-create-name');
-  const slugEl = document.getElementById('codex-create-slug');
-  if (nameInput && slugEl) {
-    nameInput.addEventListener('input', () => {
-      slugEl.textContent = slugify(nameInput.value) || '—';
-    });
-  }
   document.getElementById('codex-create-btn')?.addEventListener('click', createCodex);
   formContainer.querySelectorAll('[data-codex-rename]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1841,33 +1833,30 @@ async function saveGlyph(record, isEdit) {
   showToast(toast);
 }
 
-// Create a codex: slug from the name (rejected on collision), meta + creator grant, optional
-// template copy of another codex's types, then auto-switch to it.
+// Create a codex: an opaque id, meta + creator grant, optional template copy of another codex's
+// types, then auto-switch to it. The display name is free-form (duplicates are fine — the id is
+// what's unique).
 async function createCodex() {
   if (!(state.fbManager && state.fbManager.isConfigured())) return;
   const name = (document.getElementById('codex-create-name')?.value || '').trim();
   if (!name) return showToast('Enter a codex name');
-  const slug = slugify(name);
-  if (!slug) return showToast('That name has no letters or numbers to make an id from');
-  if (isSlugTaken(slug, state.codices.map((c) => c.codexId))) {
-    return showToast(`A codex "${slug}" already exists — pick a different name`);
-  }
+  const id = newId();
   const templateId = document.getElementById('codex-create-template')?.value || '';
   const uid = state.authManager?.currentUser?.uid;
   const nowIso = new Date().toISOString();
   try {
-    await state.fbManager.saveCodexMeta(slug, { name, status: 'active', createdBy: uid, createdAt: nowIso });
-    if (uid) await state.fbManager.savePermission(uid, slug, { role: 'editor', grantedBy: uid, grantedAt: nowIso });
+    await state.fbManager.saveCodexMeta(id, { name, status: 'active', createdBy: uid, createdAt: nowIso });
+    if (uid) await state.fbManager.savePermission(uid, id, { role: 'editor', grantedBy: uid, grantedAt: nowIso });
     if (templateId) {
       const sourceSchemas = await state.fbManager.codex(templateId).getSchemas();
-      const dest = state.fbManager.codex(slug);
+      const dest = state.fbManager.codex(id);
       await Promise.all(buildTemplateSchemas(sourceSchemas).map((s) => dest.saveSchema(s.type, s)));
     }
     showToast(`Created “${name}”`);
     // Land in the new codex's content: its empty state surfaces "＋ New type" (or a template's first
     // type once schemas load). A blank content view lets switchCodex's normalize resolve it.
     state.view = { kind: 'type', type: null, mode: 'read' };
-    switchCodex(slug);
+    switchCodex(id);
   } catch (err) {
     showToast('Create failed: ' + err.message);
   }
@@ -2026,8 +2015,7 @@ function createType() {
   const input = document.getElementById('new-type-name');
   const label = (input?.value || '').trim();
   if (!label) return showToast('Enter a type name');
-  const existing = [...listTypes(), ...listArchivedTypes()].map((t) => t.type);
-  const schema = newTypeSchema(label, existing);
+  const schema = newTypeSchema(label);
   persistSchema(schema.type, schema);
   renderTypeNav();
   showToast(`Created “${label}” type`);
@@ -2464,8 +2452,8 @@ async function loadEntry(type, id) {
 }
 
 // ── Entry lifecycle: create + soft archive/restore ───────────────────────────
-// A new entry is a blank-from-schema form in edit mode; its id is assigned from the title on
-// the first Save (deriveEntryId). Archive/restore is a `status` flip persisted like any edit.
+// A new entry is a blank-from-schema form in edit mode; its opaque id is minted on the first
+// Save (newId). Archive/restore is a `status` flip persisted like any edit.
 
 async function newEntry(type) {
   if (!state.caps.canEdit) return;
@@ -2541,7 +2529,7 @@ function finishSaveToRead() {
   highlightNav();
 }
 
-// Explicit per-entry Save (form header): assign a new entry's id from its title, then write it under a
+// Explicit per-entry Save (form header): mint a new entry's opaque id, then write it under a
 // version guard. A matched version does a full-doc write (deletions persist); a stale version raises the
 // conflict modal — keep the user's edits and let them overwrite or reload. `force` is the overwrite path.
 async function saveEntry({ force = false } = {}) {
@@ -2553,13 +2541,7 @@ async function saveEntry({ force = false } = {}) {
     showToast('Nothing to save!');
     return;
   }
-  if (!state.formData.id) {
-    const schema = getSchema(curType());
-    const title =
-      (schema && state.formData[schema.titleField]) || state.formData.title || state.formData.name || '';
-    const existing = (state.entryIndex[curType()] || []).map((e) => e.id);
-    state.formData.id = deriveEntryId(title, existing);
-  }
+  if (!state.formData.id) state.formData.id = newId();
   if (!state.formData.status) state.formData.status = 'active';
 
   const scope = codexScope();

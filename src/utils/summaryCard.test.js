@@ -58,8 +58,9 @@ test('the title comes from the summaryCard.title, else titleField', () => {
   assert.match(override, /class="summary-card-title">aurora</);
 });
 
-test('an untitled entry falls back to the id, then to a placeholder', () => {
-  assert.match(renderSummaryCard(SCHEMA, { id: 'x' }, ctx), /summary-card-title">x</);
+test('an untitled entry falls back to a placeholder — never the opaque id', () => {
+  // The id is a click key, not a name: an entry with an id but no title reads "(untitled)".
+  assert.match(renderSummaryCard(SCHEMA, { id: 'x' }, ctx), /summary-card-title">\(untitled\)</);
   assert.match(renderSummaryCard(SCHEMA, {}, ctx), /summary-card-title">\(untitled\)</);
 });
 

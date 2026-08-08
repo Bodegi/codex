@@ -23,34 +23,33 @@ const kit = () => [
   },
 ];
 
-test('clones both types when the ids are free', () => {
-  const out = cloneStarterSchemas(kit(), []);
-  assert.deepEqual(out.map((s) => s.type), ['note', 'person']);
+// A deterministic stand-in for the opaque-id mint, so assertions can name the ids.
+const counter = () => {
+  let n = 0;
+  return () => `id-${++n}`;
+};
+
+test('clones one schema per source, each with a fresh opaque id', () => {
+  const out = cloneStarterSchemas(kit(), counter());
+  assert.deepEqual(out.map((s) => s.type), ['id-1', 'id-2']);
 });
 
 test('does not mutate the sources', () => {
   const sources = kit();
-  cloneStarterSchemas(sources, ['note']);
+  cloneStarterSchemas(sources, counter());
   assert.equal(sources[0].type, 'note');
 });
 
 test('every clone is active', () => {
-  const out = cloneStarterSchemas(kit(), []);
+  const out = cloneStarterSchemas(kit(), counter());
   assert.ok(out.every((s) => s.status === 'active'));
 });
 
-test('preserves in-kit references when ids are unchanged', () => {
-  const out = cloneStarterSchemas(kit(), []);
-  assert.equal(out[0].sections[1].fields[0].association.refType, 'person');
-  assert.equal(out[1].sections[0].fields[0].targetType, 'note');
-});
-
-test('remaps in-kit references when a colliding id shifts', () => {
-  const out = cloneStarterSchemas(kit(), ['note', 'person']);
-  assert.deepEqual(out.map((s) => s.type), ['note-2', 'person-2']);
-  // note's map still points at the (renamed) person, and person still points at the (renamed) note.
-  assert.equal(out[0].sections[1].fields[0].association.refType, 'person-2');
-  assert.equal(out[1].sections[0].fields[0].targetType, 'note-2');
+test('remaps in-kit references to the clones new ids', () => {
+  const out = cloneStarterSchemas(kit(), counter());
+  // note (id-1) points at person (id-2); person (id-2) points back at note (id-1).
+  assert.equal(out[0].sections[1].fields[0].association.refType, 'id-2');
+  assert.equal(out[1].sections[0].fields[0].targetType, 'id-1');
 });
 
 test('leaves references to out-of-kit types untouched', () => {
@@ -61,7 +60,7 @@ test('leaves references to out-of-kit types untouched', () => {
       sections: [{ title: 'x', fields: [{ key: 'r', kind: 'reference', targetType: 'place' }] }],
     },
   ];
-  const out = cloneStarterSchemas(one, ['note']);
-  assert.equal(out[0].type, 'note-2');
+  const out = cloneStarterSchemas(one, counter());
+  assert.equal(out[0].type, 'id-1');
   assert.equal(out[0].sections[0].fields[0].targetType, 'place');
 });

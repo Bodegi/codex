@@ -42,8 +42,9 @@ export function buildSearchDocs(byType, getSchema, ctx) {
   for (const type of Object.keys(byType || {})) {
     const schema = getSchema(type);
     if (!schema) continue;
-    // The title rides in `doc.title` (its own heading + a searchable field in searchEntries), and the
-    // id is an internal slug — excluding both keeps snippets to body context instead of echoing them.
+    // The title rides in `doc.title` (its own heading + a searchable field in searchEntries), and a
+    // schema's optional idField (readable-id demo types) is identity, not body — excluding both keeps
+    // snippets to body context instead of echoing them.
     const fields = schemaFields(schema).filter(
       (f) => SEARCHABLE_KINDS.has(f.kind) && f.key !== schema.titleField && f.key !== schema.idField
     );
