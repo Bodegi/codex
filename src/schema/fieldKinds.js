@@ -354,7 +354,7 @@ export function getLayout(kind) {
   return fieldKinds[kind]?.layout || 'grid';
 }
 
-/** A plain string for a field's value, for the metadata callout. */
+/** A plain string for a field's value — used by the summary card and the search index. */
 export function displayValue(field, value, ctx) {
   if (field.kind === 'list') return toList(value).join(', ');
   if (field.kind === 'reference') {

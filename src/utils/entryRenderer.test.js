@@ -31,11 +31,11 @@ test('sections render as <h2> and their fields as <h3>', () => {
   assert.match(html, /<h3>Body<\/h3>/);
 });
 
-test('the id field is metadata-only, not a section heading', () => {
+test('the idField never renders — identity, not content (no metadata box, no heading, no id echo)', () => {
   const html = renderEntryHTML('note', NOTE);
-  assert.match(html, /metadata-box/);
-  assert.match(html, /welcome/);
-  assert.doesNotMatch(html, /<h3>Note ID<\/h3>/);
+  assert.doesNotMatch(html, /metadata-box|Metadata/); // the whole callout is gone
+  assert.doesNotMatch(html, /<h3>Note ID<\/h3>/);     // not resurrected as a section field
+  assert.doesNotMatch(html, /welcome/);               // the readable id value appears nowhere
 });
 
 test('list fields render as a <ul>', () => {

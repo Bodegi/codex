@@ -285,9 +285,6 @@ function fieldRow(field, si, fi, types) {
       extras.push(`<select class="se-input se-sub" data-se="field-assoc-target" ${at}>${targetOptions(types, assoc.refType)}</select>`);
     }
   }
-  extras.push(
-    `<label class="se-meta"><input type="checkbox" data-se="field-meta" ${at}${field.showInMetadata ? ' checked' : ''}> in metadata</label>`
-  );
 
   return `
     <div class="se-field" ${at} data-drop="field">
@@ -495,8 +492,6 @@ export function attachSchemaEditor(root, onIntent) {
         return onIntent({ action: 'edit-association', si: +d.si, fi: +d.fi, patch: { mode: el.value } });
       case 'field-assoc-target':
         return onIntent({ action: 'edit-association', si: +d.si, fi: +d.fi, patch: { refType: el.value } });
-      case 'field-meta':
-        return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { showInMetadata: el.checked } });
       case 'field-multi':
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { multi: el.checked } });
       case 'summary-title':

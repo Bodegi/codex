@@ -124,8 +124,7 @@ editor**:
 - **Reorder** — drag the `⠿` handles to reorder fields and sections, including moving a field to
   another section (Up/Down buttons are the precision fallback).
 - **Per-field options** — e.g. `reference` fields choose a target type and a single/multiple
-  toggle; `map` fields configure pin **association** (reference / label / both) and target type;
-  `showInMetadata` surfaces a field in the entry's metadata strip.
+  toggle; `map` fields configure pin **association** (reference / label / both) and target type.
 - **Summary card** — configure an optional card (title/subtitle field + badge/row fields) that
   drives the **Index** grid; a live preview updates as you toggle.
 - **`</> Edit JSON`** — an "Advanced" disclosure to hand-edit the type's schema as raw JSON. A

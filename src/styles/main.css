@@ -1016,40 +1016,6 @@ select[multiple].form-control option {
   font-style: italic;
 }
 
-.metadata-box {
-  background: #1e1e2e;
-  border: 1px solid var(--border-glow);
-  border-radius: var(--radius-md);
-  padding: 14px 18px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-}
-
-.metadata-box > strong {
-  display: block;
-  color: var(--accent-gold);
-  margin-bottom: 8px;
-}
-
-.metadata-box .meta-row {
-  display: flex;
-  gap: 10px;
-  padding: 2px 0;
-}
-
-.metadata-box .meta-key {
-  color: var(--text-muted);
-  min-width: 130px;
-  flex-shrink: 0;
-}
-
-.metadata-box .meta-val {
-  color: var(--text-main);
-  word-break: break-word;
-}
-
 .reader-body .inline-img {
   max-width: 100%;
   border-radius: var(--radius-sm);

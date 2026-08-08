@@ -6,7 +6,7 @@
  * an optional `ctx` (see fieldKinds.js), so this module stays free of build-tool
  * coupling and is unit-testable under plain Node.
  *
- *   metadata callout (showInMetadata fields) -> <h1> title -> hero image -> sections
+ *   <h1> title -> hero image -> sections
  *
  * The hero keeps its special top-of-body placement (above the sections), but that placement
  * is driven by the registered `hero` component's `renderRead`.
@@ -15,7 +15,7 @@
  */
 
 import { getSchema } from '../schema/schemaStore.js';
-import { getKind, getLayout, displayValue, unknownKindPlaceholder } from '../schema/fieldKinds.js';
+import { getKind, getLayout, unknownKindPlaceholder } from '../schema/fieldKinds.js';
 import { escapeHtml, formatInline } from '../schema/inlineText.js';
 
 // Re-exported for callers that still import it from here (e.g. main.js).
@@ -23,24 +23,6 @@ export { formatInline };
 
 function allFields(schema) {
   return (schema.sections || []).flatMap((s) => s.fields || []);
-}
-
-// The metadata callout at the top of the preview.
-function metadataBox(schema, d, ctx) {
-  const rows = [['type', schema.type]];
-  for (const field of allFields(schema)) {
-    if (!field.showInMetadata) continue;
-    const value = displayValue(field, d[field.key], ctx);
-    if (value == null || String(value).trim() === '') continue;
-    rows.push([field.label, value]);
-  }
-  const items = rows
-    .map(
-      ([k, v]) =>
-        `<div class="meta-row"><span class="meta-key">${escapeHtml(k)}</span><span class="meta-val">${escapeHtml(v)}</span></div>`
-    )
-    .join('');
-  return `<div class="metadata-box"><strong>Metadata</strong>${items}</div>`;
 }
 
 // The hero image (top of body), driven by the registered `hero` component's read view.
@@ -77,12 +59,11 @@ export function renderEntryHTML(type, data, ctx) {
     return '';
   }
   const d = data || {};
-  // The title is the <h1>, so it never repeats as a section field; likewise a schema's optional
-  // idField (present only on the readable-id demo types) rides in the metadata callout, not the body.
+  // The title is the <h1>, so it never repeats as a section field; a schema's optional idField
+  // (present only on the readable-id demo types) is identity, not content, so it never renders.
   const skip = new Set([schema.titleField, schema.idField].filter((k) => k != null));
 
   return [
-    metadataBox(schema, d, ctx),
     `<h1>${escapeHtml(d[schema.titleField] || schema.label)}</h1>`,
     heroImage(schema, d, ctx),
     ...(schema.sections || []).map((s) => renderSection(s, d, skip, ctx)),

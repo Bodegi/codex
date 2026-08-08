@@ -34,10 +34,10 @@ export const demoSchemas = [
       {
         title: 'Note',
         fields: [
-          { key: 'id', label: 'Note ID', kind: 'text', placeholder: 'e.g. welcome', showInMetadata: true },
+          { key: 'id', label: 'Note ID', kind: 'text', placeholder: 'e.g. welcome' },
           { key: 'title', label: 'Title', kind: 'text', placeholder: 'e.g. Welcome' },
           { key: 'body', label: 'Body', kind: 'prose' },
-          { key: 'tags', label: 'Tags', kind: 'list', showInMetadata: true },
+          { key: 'tags', label: 'Tags', kind: 'list' },
         ],
       },
       {
@@ -62,15 +62,15 @@ export const demoSchemas = [
     idField: 'id',
     titleField: 'name',
     status: 'active',
-    summaryCard: { subtitle: 'bio', badges: ['favoriteNote'], rows: [{ label: 'ID', key: 'id' }] },
+    summaryCard: { subtitle: 'bio', badges: ['favoriteNote'] },
     sections: [
       {
         title: 'Person',
         fields: [
-          { key: 'id', label: 'Person ID', kind: 'text', placeholder: 'e.g. ada', showInMetadata: true },
+          { key: 'id', label: 'Person ID', kind: 'text', placeholder: 'e.g. ada' },
           { key: 'name', label: 'Name', kind: 'text', placeholder: 'e.g. Ada' },
           { key: 'bio', label: 'Bio', kind: 'prose' },
-          { key: 'favoriteNote', label: 'Favorite Note', kind: 'reference', targetType: 'note', showInMetadata: true },
+          { key: 'favoriteNote', label: 'Favorite Note', kind: 'reference', targetType: 'note' },
         ],
       },
       {
