@@ -42,12 +42,13 @@ another.
 
 ## Reading & navigating
 
-Pick a codex, expand a type, click an entry. The reader renders it from the schema: text and
-prose, lists, links to referenced entries, image galleries with a lightbox, and interactive
-maps.
+Pick a codex and click a type: you land on its **index** — a browsable grid of that type's
+entries as summary cards. Click a card (or an entry in the sidebar) to open it. The reader
+renders an entry from the schema: text and prose, lists, links to referenced entries, image
+galleries with a lightbox, and interactive maps.
 
-If a type declares a **summary card**, an **Index** toggle appears in the reader header —
-click it for a browsable grid of that type's entries as cards; click a card to open the entry.
+The **Index** toggle in the reader header switches between an open entry and the grid. Every
+type has an index; a type with no **summary card** configured shows a minimal title-only card.
 
 ## Writing an entry (editors & admins)
 

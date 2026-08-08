@@ -26,9 +26,9 @@ const typeView = (type, mode) => ({ kind: 'type', type, mode });
 
 // ---- transitions ---------------------------------------------------------
 
-test('selectType lands in that type, read mode, regardless of prior view', () => {
-  assert.deepEqual(selectType(typeView('mod', 'edit'), 'civilization'), typeView('civilization', 'read'));
-  assert.deepEqual(selectType({ kind: 'global-admin', panel: 'codices' }, 'mod'), typeView('mod', 'read'));
+test('selectType lands on that type index (its collection home), regardless of prior view', () => {
+  assert.deepEqual(selectType(typeView('mod', 'edit'), 'civilization'), typeView('civilization', 'index'));
+  assert.deepEqual(selectType({ kind: 'global-admin', panel: 'codices' }, 'mod'), typeView('mod', 'index'));
 });
 
 test('toEdit / toRead / toSchemaAdmin / toIndex flip the mode of a type view', () => {
@@ -74,8 +74,8 @@ test('selectAdminPanel swaps the panel within the global-admin surface', () => {
   );
 });
 
-test('closeGlobalAdmin returns to a content read view on the fallback type', () => {
-  assert.deepEqual(closeGlobalAdmin({ kind: 'global-admin', panel: 'access' }, 'mod'), typeView('mod', 'read'));
+test('closeGlobalAdmin returns to the fallback type index', () => {
+  assert.deepEqual(closeGlobalAdmin({ kind: 'global-admin', panel: 'access' }, 'mod'), typeView('mod', 'index'));
 });
 
 test('openSearch enters a search view carrying the query as a string', () => {
@@ -106,12 +106,12 @@ test('normalize clamps schema-admin mode to read for a non-admin editor', () => 
   assert.equal(normalize(typeView('mod', 'edit'), { caps: EDITOR, types: TYPES }).mode, 'edit');
 });
 
-test('normalize retargets a missing type to the first available, resetting mode to read', () => {
-  assert.deepEqual(normalize(typeView('ghost', 'edit'), { caps: ADMIN, types: TYPES }), typeView('civilization', 'read'));
+test('normalize retargets a missing type to the first available, landing on its index', () => {
+  assert.deepEqual(normalize(typeView('ghost', 'edit'), { caps: ADMIN, types: TYPES }), typeView('civilization', 'index'));
 });
 
 test('normalize with no types yields the empty-content view', () => {
-  assert.deepEqual(normalize(typeView('mod', 'edit'), { caps: ADMIN, types: [] }), typeView(null, 'read'));
+  assert.deepEqual(normalize(typeView('mod', 'edit'), { caps: ADMIN, types: [] }), typeView(null, 'index'));
 });
 
 test('normalize preserves a search view (and its query) for anyone, even with no types', () => {
@@ -132,16 +132,16 @@ test('normalize preserves a global-admin view (incl. panel) for an admin', () =>
   );
 });
 
-test('normalize drops a non-admin out of global-admin into content read', () => {
+test('normalize drops a non-admin out of global-admin onto the first type index', () => {
   assert.deepEqual(
     normalize({ kind: 'global-admin', panel: 'access' }, { caps: EDITOR, types: TYPES }),
-    typeView('civilization', 'read')
+    typeView('civilization', 'index')
   );
 });
 
 test('normalize is total: garbage/undefined view resolves to a valid content view', () => {
-  assert.deepEqual(normalize(undefined, { caps: ADMIN, types: TYPES }), typeView('civilization', 'read'));
-  assert.deepEqual(normalize({}, { caps: ADMIN, types: TYPES }), typeView('civilization', 'read'));
+  assert.deepEqual(normalize(undefined, { caps: ADMIN, types: TYPES }), typeView('civilization', 'index'));
+  assert.deepEqual(normalize({}, { caps: ADMIN, types: TYPES }), typeView('civilization', 'index'));
 });
 
 test('normalize accepts a plain array of type-key strings', () => {

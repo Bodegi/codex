@@ -1278,12 +1278,12 @@ function applyViewChrome() {
   const inStructure = v.kind === 'type' && !!v.type && v.mode === 'admin';
   const inIndex = v.kind === 'type' && !!v.type && v.mode === 'index';
   editToggleBtn.hidden = !(canEdit && inTypeRead);
-  structureBtn.hidden = !(canAdmin && (inTypeRead || inStructure));
+  // Structure is reachable from the index landing too, so an admin needn't drill into an entry first.
+  structureBtn.hidden = !(canAdmin && (inTypeRead || inIndex || inStructure));
   structureBtn.textContent = inStructure ? 'Done' : 'Structure';
-  // Index is a toggle (like Structure), offered only where the type declares a summary card:
-  // "Index" to browse the grid from a read view, "Done" to return to the entry.
-  const hasSummaryCard = !!(v.type && getSchema(v.type)?.summaryCard);
-  indexToggleBtn.hidden = !(hasSummaryCard && (inTypeRead || inIndex));
+  // Index is a toggle: "Index" to browse the grid from an entry, "Done" to return to an entry. The
+  // grid renders for every type now (a minimal title-only card when none is configured), so no gate.
+  indexToggleBtn.hidden = !(inTypeRead || inIndex);
   indexToggleBtn.textContent = inIndex ? 'Done' : 'Index';
   const editingEntry = v.kind === 'type' && v.mode === 'edit';
   saveEntryBtn.hidden = !(canEdit && editingEntry);
@@ -2503,9 +2503,11 @@ async function loadEntry(type, id) {
   }
   state.formData = { ...entry };
   state.navExpanded.add(type); // keep the selected entry's section open
-  // Open an entry in read mode (preserve edit if the author was already editing this type).
+  // Opening one entry is a deliberate drill into read (selectType alone would land on the index);
+  // preserve edit if the author was already editing this type.
   const keepEditing = state.view.kind === 'type' && state.view.type === type && state.view.mode === 'edit';
-  state.view = normalize(keepEditing ? toEdit(selectType(state.view, type)) : selectType(state.view, type), viewCtx());
+  const base = selectType(state.view, type);
+  state.view = normalize(keepEditing ? toEdit(base) : toRead(base), viewCtx());
   showRenderedPane();
   renderForm();
   applyViewChrome();

@@ -21,8 +21,9 @@ interactive map — and the reader view is generated from the schema.
 - **Field components.** `text`, `prose` (inline-image + link markup), `list`, `reference`
   (single or multi-value links to other entries), `hero`, `gallery`, and `map` (drop pins,
   draw roads/territories freehand, link pins to entries).
-- **Summary cards + index view.** A type can declare a `summaryCard`; its entries then render
-  as a browsable card grid.
+- **Summary cards + index view.** Clicking a type lands on its index — a browsable grid of its
+  entries as cards. A type can declare a `summaryCard` to enrich the card; otherwise it's a
+  minimal title-only card.
 - **Live multi-user editing.** Explicit-save with optimistic-concurrency conflict handling;
   edits from other editors stream in.
 - **Runtime image upload.** Multi-file drag-and-drop into Supabase Storage; reference images

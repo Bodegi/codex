@@ -13,6 +13,10 @@
  * (the UI labels it "Structure"). `mode: 'index'` is the across-entries summary-card grid
  * (a read-only view of the whole type). `type` is `null` only in the empty-content case.
  *
+ * The index is a type's home: **a bare type view — one reached without a specific entry in
+ * hand — lands on `index`.** So `selectType` and every `normalize` retarget default to it;
+ * `read` (a single entry) is only reached deliberately, via `toRead`/`toEdit` (see `loadEntry`).
+ *
  * Transitions are pure (view -> view) and never mutate their input. `normalize` is the one
  * clamp that keeps a view valid & permitted (folding in the old `ensureTypeSelection` +
  * `applyMode` force-to-read). The DOM shell (`main.js`) owns rendering; this module is
@@ -24,9 +28,10 @@ const PANELS = new Set(['access', 'codices', 'images', 'icons', 'emblems']);
 
 const typeView = (type, mode = 'read') => ({ kind: 'type', type: type ?? null, mode });
 
-/** Select a content type. Always lands in read mode, regardless of the prior view. */
+/** Select a content type. Lands on its index (the collection is a type's home), regardless of
+ *  the prior view. Opening one entry is `toRead`/`toEdit` on top of this (see `loadEntry`). */
 export function selectType(_view, type) {
-  return typeView(type, 'read');
+  return typeView(type, 'index');
 }
 
 /** Flip a type view to read mode. No-op on a global-admin view. */
@@ -64,9 +69,9 @@ export function selectAdminPanel(view, panel) {
   return view && view.kind === 'global-admin' && PANELS.has(panel) ? { ...view, panel } : view;
 }
 
-/** Leave the global-admin door, returning to a content read view on the fallback type. */
+/** Leave the global-admin door, returning to the fallback type's index (its collection home). */
 export function closeGlobalAdmin(_view, fallbackType) {
-  return typeView(fallbackType, 'read');
+  return typeView(fallbackType, 'index');
 }
 
 /**
@@ -88,19 +93,19 @@ export function normalize(view, { caps = {}, types = [] } = {}) {
     return { kind: 'search', query: String(view.query ?? '') };
   }
 
-  // Global-admin: preserved for admins, else dropped into content.
+  // Global-admin: preserved for admins, else dropped into content (onto the first type's index).
   if (view && view.kind === 'global-admin') {
     if (canAdmin) return { kind: 'global-admin', panel: PANELS.has(view.panel) ? view.panel : 'access' };
-    return typeView(keys[0] ?? null, 'read');
+    return typeView(keys[0] ?? null, 'index');
   }
 
   // Content surface (also the fallback for undefined/garbage views).
   let type = view && view.kind === 'type' ? view.type : null;
-  let mode = view && MODES.has(view.mode) ? view.mode : 'read';
+  let mode = view && MODES.has(view.mode) ? view.mode : 'index';
 
   if (!keys.includes(type)) {
-    // Missing/absent type retargets to the first available; mode resets to read.
-    return typeView(keys[0] ?? null, 'read');
+    // Missing/absent type retargets to the first available; a bare landing means its index.
+    return typeView(keys[0] ?? null, 'index');
   }
 
   if (mode === 'edit' && !canEdit) mode = 'read';
