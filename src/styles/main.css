@@ -662,6 +662,12 @@ button.user-badge { cursor: pointer; }
   border-color: var(--accent-gold);
   box-shadow: 0 0 0 2px var(--accent-gold-glow);
 }
+.admin-filter {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  margin-bottom: 12px;
+}
 .codex-create {
   display: flex;
   flex-wrap: wrap;

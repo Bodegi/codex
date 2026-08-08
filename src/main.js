@@ -75,12 +75,16 @@ import { renderAuthGateway } from './components/authGateway.js';
 import { renderAwaitingAccess, renderInviteRequired } from './components/awaitingAccess.js';
 import {
   renderInvitesPanel,
+  renderInviteRows,
   renderAccessPanel,
+  renderRosterRows,
   renderCodicesPanel,
   renderImagesPanel,
+  renderImageCards,
   renderIconsPanel,
   renderEmblemsPanel,
 } from './components/adminView.js';
+import { filterRows } from './utils/filterRows.js';
 import { parseInviteToken, buildInviteUrl } from './utils/inviteLink.js';
 import { buildInviteRows, countPendingGrants } from './schema/inviteModel.js';
 import { openGlyphDesigner, openLibraryPicker } from './components/glyphDesigner.js';
@@ -167,6 +171,9 @@ const state = {
   adminInvites: [],
   // Global-admin Images gallery: every image record, all statuses (subscribeAllImages).
   adminImages: [],
+  // Per-panel client-side filter query (#6). The whole collection is already in memory; these narrow
+  // the rows before they reach the builder. Not a read-cost fix — pagination is the deferred half.
+  adminFilters: { images: '', access: '', invites: '' },
   // App-global icon overlay: every icon record, all statuses (subscribeIcons). Active ones are
   // pushed into iconRegistry via setOverlayIcons; the admin Icons panel reads the full list.
   icons: [],
@@ -1355,14 +1362,11 @@ function renderAdminPanel() {
     updateRenderedPreview('<div class="admin-blurb">Admin — the app-global emblem set.</div>');
     updateRawJson('');
   } else {
-    const inviteRows = buildInviteRows({
-      invites: state.adminInvites,
-      users: state.adminUsers,
-      nowMs: Date.now(),
-    });
+    const inv = invitesPanelModel();
+    const ros = rosterPanelModel();
     formContainer.innerHTML =
-      renderInvitesPanel({ rows: inviteRows }) +
-      renderAccessPanel({ codexId: state.currentCodexId, rows: buildRosterRows() });
+      renderInvitesPanel({ rows: inv.rows, query: inv.query }) +
+      renderAccessPanel({ codexId: state.currentCodexId, rows: ros.rows, query: ros.query });
     wireInvitesPanel();
     wireAccessPanel();
     updateRenderedPreview('<div class="admin-blurb">Admin — invite users and manage codex access.</div>');
@@ -1490,6 +1494,13 @@ function renderImagesPanelHtml() {
   if (!(state.fbManager && state.fbManager.isConfigured())) {
     return '<div class="admin-section"><div class="admin-muted">The image library needs cloud mode (Firebase).</div></div>';
   }
+  const m = imagesPanelModel();
+  return renderImagesPanel({ rows: m.rows, codices: m.codices, query: m.query });
+}
+
+// Shape + filter the Images gallery rows. Shared by the first render and the filter re-render so both
+// see the same sort + query; filtering is pure array work over state.adminImages (already in memory).
+function imagesPanelModel() {
   const uid = state.authManager?.currentUser?.uid || '';
   const codices = switcherCodices(state.codices, [], { isAdmin: true, uid });
   const rows = state.adminImages
@@ -1501,10 +1512,24 @@ function renderImagesPanelHtml() {
       url: publicUrl(supabaseConfig, img.id),
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
-  return renderImagesPanel({ rows, codices });
+  const query = state.adminFilters.images;
+  return { rows: filterRows(rows, query, (r) => r.label), codices, query };
+}
+
+function rerenderImageRows() {
+  const el = document.getElementById('images-results');
+  if (!el) return;
+  const m = imagesPanelModel();
+  el.innerHTML = renderImageCards(m.rows, m.codices, m.query);
+  wireImageRows();
 }
 
 function wireImagesPanel() {
+  wireAdminFilter('images-filter', 'images', rerenderImageRows);
+  wireImageRows();
+}
+
+function wireImageRows() {
   const fb = state.fbManager;
   if (!fb) return;
   const guard = (p) => Promise.resolve(p).catch((err) => showToast('Image error: ' + err.message));
@@ -1871,7 +1896,60 @@ function openCodicesAdmin() {
   goto(openGlobalAdmin(state.view, 'codices'));
 }
 
+// Debounced filter wiring shared by the three scaling panels (#6). On input it stores the query and
+// re-renders ONLY the results container (rerender), never the panel — so the box keeps focus/caret
+// mid-type. Per-key timers so the two boxes on the invites+access surface don't cancel each other.
+const adminFilterDebounce = {};
+function wireAdminFilter(inputId, key, rerender) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.addEventListener('input', () => {
+    clearTimeout(adminFilterDebounce[key]);
+    adminFilterDebounce[key] = setTimeout(() => {
+      state.adminFilters[key] = input.value;
+      rerender();
+    }, 120);
+  });
+}
+
+function rosterPanelModel() {
+  const query = state.adminFilters.access;
+  const rows = filterRows(buildRosterRows(), query, (r) => `${r.displayName || ''} ${r.email || ''}`);
+  return { rows, query };
+}
+
+function invitesPanelModel() {
+  const query = state.adminFilters.invites;
+  const rows = filterRows(
+    buildInviteRows({ invites: state.adminInvites, users: state.adminUsers, nowMs: Date.now() }),
+    query,
+    (r) => `${r.label || ''} ${r.redeemers.map((u) => u.displayName || u.email || u.uid).join(' ')}`
+  );
+  return { rows, query };
+}
+
+function rerenderRosterRows() {
+  const el = document.getElementById('access-rows');
+  if (!el) return;
+  const m = rosterPanelModel();
+  el.innerHTML = renderRosterRows(m.rows, m.query);
+  wireAccessRows();
+}
+
+function rerenderInviteRows() {
+  const el = document.getElementById('invites-rows');
+  if (!el) return;
+  const m = invitesPanelModel();
+  el.innerHTML = renderInviteRows(m.rows, m.query);
+  wireInviteRows();
+}
+
 function wireAccessPanel() {
+  wireAdminFilter('access-filter', 'access', rerenderRosterRows);
+  wireAccessRows();
+}
+
+function wireAccessRows() {
   formContainer.querySelectorAll('[data-grant-uid]').forEach((btn) => {
     btn.addEventListener('click', () => grantRole(btn.dataset.grantUid, btn.dataset.grantRole));
   });
@@ -1879,6 +1957,11 @@ function wireAccessPanel() {
 
 function wireInvitesPanel() {
   document.getElementById('invite-generate-btn')?.addEventListener('click', generateInvite);
+  wireAdminFilter('invites-filter', 'invites', rerenderInviteRows);
+  wireInviteRows();
+}
+
+function wireInviteRows() {
   formContainer.querySelectorAll('[data-invite-copy]').forEach((btn) => {
     btn.addEventListener('click', () => copyInviteLink(btn.dataset.inviteCopy));
   });

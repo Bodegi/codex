@@ -16,6 +16,15 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
+// Client-side filter box shared by the Images/Users/Invites panels. main.js holds the query per
+// panel, filters the rows through utils/filterRows before they reach the builder, and re-renders
+// only the results container below on input — so the box (and its focus) never rebuilds mid-type.
+function filterInput(id, placeholder, query) {
+  return `<input type="search" class="admin-input admin-filter" id="${escapeHtml(id)}" value="${escapeHtml(
+    query
+  )}" placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(placeholder)}" autocomplete="off">`;
+}
+
 /**
  * Invites panel (admin): generate a shareable link + manage issued invites. The private-site gate —
  * a link dropped in Discord is how a new person gets a `users` row at all. Rows
@@ -23,22 +32,26 @@ function escapeHtml(text) {
  * derived expiry). main.js owns the wiring (generate/copy/revoke). `status` is 'active'|'revoked';
  * `isExpired` is derived — an active-but-expired invite reads as "expired" and no longer redeems.
  */
-export function renderInvitesPanel({ rows = [] }) {
+export function renderInviteRows(rows = [], query = '') {
   const stateOf = (r) => (r.status === 'revoked' ? 'revoked' : r.isExpired ? 'expired' : 'active');
-
-  const rowsHtml = rows.length
-    ? rows
-        .map((r) => {
-          const st = stateOf(r);
-          const redeemers = r.redeemers.length
-            ? escapeHtml(r.redeemers.map((u) => u.displayName || u.email || u.uid).join(', '))
-            : '<span class="admin-muted">none yet</span>';
-          const expiry = r.expiresAt ? escapeHtml(new Date(r.expiresAt).toLocaleDateString()) : 'never';
-          const toggle =
-            r.status === 'revoked'
-              ? `<button class="btn btn-secondary btn-sm" data-invite-reactivate="${escapeHtml(r.token)}">Reactivate</button>`
-              : `<button class="btn btn-danger btn-sm" data-invite-revoke="${escapeHtml(r.token)}">Revoke</button>`;
-          return `
+  if (!rows.length) {
+    const msg = query.trim()
+      ? `No invites match “${escapeHtml(query.trim())}”.`
+      : 'No invites yet. Generate one to share.';
+    return `<tr><td colspan="4" class="admin-muted">${msg}</td></tr>`;
+  }
+  return rows
+    .map((r) => {
+      const st = stateOf(r);
+      const redeemers = r.redeemers.length
+        ? escapeHtml(r.redeemers.map((u) => u.displayName || u.email || u.uid).join(', '))
+        : '<span class="admin-muted">none yet</span>';
+      const expiry = r.expiresAt ? escapeHtml(new Date(r.expiresAt).toLocaleDateString()) : 'never';
+      const toggle =
+        r.status === 'revoked'
+          ? `<button class="btn btn-secondary btn-sm" data-invite-reactivate="${escapeHtml(r.token)}">Reactivate</button>`
+          : `<button class="btn btn-danger btn-sm" data-invite-revoke="${escapeHtml(r.token)}">Revoke</button>`;
+      return `
       <tr class="invite-row is-${st}">
         <td>
           <strong>${escapeHtml(r.label || '(no label)')}</strong>
@@ -51,10 +64,11 @@ export function renderInvitesPanel({ rows = [] }) {
           ${toggle}
         </td>
       </tr>`;
-        })
-        .join('')
-    : '<tr><td colspan="4" class="admin-muted">No invites yet. Generate one to share.</td></tr>';
+    })
+    .join('');
+}
 
+export function renderInvitesPanel({ rows = [], query = '' }) {
   return `
     <div class="admin-section">
       <h3>Invites</h3>
@@ -65,9 +79,10 @@ export function renderInvitesPanel({ rows = [] }) {
         <input class="admin-input" id="invite-label" placeholder="Label (optional) — e.g. Discord #recruiting" aria-label="Invite label">
         <button class="btn btn-primary btn-sm" id="invite-generate-btn">Generate invite link</button>
       </div>
+      ${filterInput('invites-filter', 'Filter invites by label or redeemer…', query)}
       <table class="admin-roster">
         <thead><tr><th>Invite</th><th>Status</th><th>Redeemed by</th><th></th></tr></thead>
-        <tbody>${rowsHtml}</tbody>
+        <tbody id="invites-rows">${renderInviteRows(rows, query)}</tbody>
       </table>
     </div>`;
 }
@@ -78,7 +93,7 @@ export function renderInvitesPanel({ rows = [] }) {
  * A non-admin still at role 'none' is flagged `is-pending` (awaiting a grant) — the roster half of
  * the redemption alert (the count badge lives on the admin nav).
  */
-export function renderAccessPanel({ codexId, rows }) {
+export function renderRosterRows(rows = [], query = '') {
   const roleBtn = (uid, role, current, label) =>
     `<button class="role-btn${current === role ? ' active' : ''}" data-grant-uid="${escapeHtml(uid)}" data-grant-role="${role}">${label}</button>`;
 
@@ -91,10 +106,15 @@ export function renderAccessPanel({ codexId, rows }) {
            ${roleBtn(r.uid, 'editor', r.role, 'Editor')}
          </div>`;
 
-  const rowsHtml = rows.length
-    ? rows
-        .map(
-          (r) => `
+  if (!rows.length) {
+    const msg = query.trim()
+      ? `No users match “${escapeHtml(query.trim())}”.`
+      : 'No one has signed in yet. Generate an invite link above and share it — new users appear here to grant access.';
+    return `<tr><td colspan="3" class="admin-muted">${msg}</td></tr>`;
+  }
+  return rows
+    .map(
+      (r) => `
       <tr class="${!r.isAdmin && r.role === 'none' ? 'is-pending' : ''}">
         <td>
           <strong>${escapeHtml(r.displayName || r.email || r.uid)}</strong>${r.isAdmin ? ' <span class="admin-badge">admin</span>' : ''}${!r.isAdmin && r.role === 'none' ? ' <span class="admin-badge status-badge status-pending">awaiting access</span>' : ''}
@@ -103,19 +123,21 @@ export function renderAccessPanel({ codexId, rows }) {
         <td class="admin-muted">${r.lastSeenAt ? escapeHtml(new Date(r.lastSeenAt).toLocaleDateString()) : '—'}</td>
         <td>${roleControl(r)}</td>
       </tr>`
-        )
-        .join('')
-    : `<tr><td colspan="3" class="admin-muted">No one has signed in yet. Generate an invite link above and share it — new users appear here to grant access.</td></tr>`;
+    )
+    .join('');
+}
 
+export function renderAccessPanel({ codexId, rows = [], query = '' }) {
   return `
     <div class="admin-section">
       <h3>Codex: ${escapeHtml(codexId)}</h3>
     </div>
     <div class="admin-section">
       <h3>Users &amp; Access</h3>
+      ${filterInput('access-filter', 'Filter users by name or email…', query)}
       <table class="admin-roster">
         <thead><tr><th>User</th><th>Last seen</th><th>Role on ${escapeHtml(codexId)}</th></tr></thead>
-        <tbody>${rowsHtml}</tbody>
+        <tbody id="access-rows">${renderRosterRows(rows, query)}</tbody>
       </table>
     </div>`;
 }
@@ -201,7 +223,7 @@ export function renderCodicesPanel({ active = [], archived = [], templateSources
  *   rows    — [{ id, label, url, status, codices: [] }] (url precomputed from the image index)
  *   codices — [{ codexId, name }] the admin may cross-assign to
  */
-export function renderImagesPanel({ rows = [], codices = [] }) {
+export function renderImageCards(rows = [], codices = [], query = '') {
   const nameOf = (id) => {
     const c = codices.find((x) => x.codexId === id);
     return (c && c.name) || id;
@@ -250,15 +272,22 @@ export function renderImagesPanel({ rows = [], codices = [] }) {
       </div>`;
   };
 
-  const body = rows.length
-    ? `<div class="gallery-grid">${rows.map(card).join('')}</div>`
-    : '<div class="admin-muted">No images yet. Editors add images from the picker while authoring an entry.</div>';
+  if (!rows.length) {
+    const msg = query.trim()
+      ? `No images match “${escapeHtml(query.trim())}”.`
+      : 'No images yet. Editors add images from the picker while authoring an entry.';
+    return `<div class="admin-muted">${msg}</div>`;
+  }
+  return `<div class="gallery-grid">${rows.map(card).join('')}</div>`;
+}
 
+export function renderImagesPanel({ rows = [], codices = [], query = '' }) {
   return `
     <div class="admin-section">
       <h3>Images</h3>
       <p class="admin-muted">Every image across all codices. Archiving hides an image everywhere; its bytes are retained.</p>
-      ${body}
+      ${filterInput('images-filter', 'Filter images by label…', query)}
+      <div id="images-results">${renderImageCards(rows, codices, query)}</div>
     </div>`;
 }
 
