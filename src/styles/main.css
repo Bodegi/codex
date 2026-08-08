@@ -1522,6 +1522,89 @@ select[multiple].form-control option {
   color: var(--text-main);
 }
 
+/* ── Reader search ─────────────────────────────────────────────────────────── */
+/* The sidebar box (sits between the codex switcher and the type nav). */
+.nav-search-wrap {
+  padding: 4px 4px 8px;
+}
+.nav-search {
+  width: 100%;
+  background: var(--bg-input, rgba(0, 0, 0, 0.2));
+  border: 1px solid var(--border-dim);
+  color: var(--text-main);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+.nav-search::placeholder { color: var(--text-dim); }
+.nav-search:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+/* Results surface (the full-width reader). */
+.search-heading { margin-bottom: 4px; }
+.search-count { margin: 0 0 16px; }
+.search-empty { margin-top: 8px; }
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.search-result {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.search-result:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent-gold);
+}
+
+.search-result-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.search-result-title {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  color: var(--accent-gold);
+}
+.search-result-type {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.search-snippet {
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+mark.search-hit {
+  background: var(--accent-gold-glow);
+  color: var(--text-main);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
 /* Schema editor — the type-level "Summary card" config block. */
 .se-summary {
   border: 1px solid var(--border-dim);

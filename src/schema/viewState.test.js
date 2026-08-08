@@ -10,6 +10,7 @@ import {
   openGlobalAdmin,
   selectAdminPanel,
   closeGlobalAdmin,
+  openSearch,
   normalize,
 } from './viewState.js';
 
@@ -77,6 +78,11 @@ test('closeGlobalAdmin returns to a content read view on the fallback type', () 
   assert.deepEqual(closeGlobalAdmin({ kind: 'global-admin', panel: 'access' }, 'mod'), typeView('mod', 'read'));
 });
 
+test('openSearch enters a search view carrying the query as a string', () => {
+  assert.deepEqual(openSearch(typeView('mod', 'read'), 'dragon'), { kind: 'search', query: 'dragon' });
+  assert.deepEqual(openSearch({ kind: 'global-admin', panel: 'access' }, ''), { kind: 'search', query: '' });
+});
+
 // ---- normalize -----------------------------------------------------------
 
 test('normalize keeps a valid type view and its mode under full caps', () => {
@@ -106,6 +112,17 @@ test('normalize retargets a missing type to the first available, resetting mode 
 
 test('normalize with no types yields the empty-content view', () => {
   assert.deepEqual(normalize(typeView('mod', 'edit'), { caps: ADMIN, types: [] }), typeView(null, 'read'));
+});
+
+test('normalize preserves a search view (and its query) for anyone, even with no types', () => {
+  assert.deepEqual(
+    normalize({ kind: 'search', query: 'dawn' }, { caps: VIEWER, types: TYPES }),
+    { kind: 'search', query: 'dawn' }
+  );
+  assert.deepEqual(
+    normalize({ kind: 'search', query: 'dawn' }, { caps: VIEWER, types: [] }),
+    { kind: 'search', query: 'dawn' }
+  );
 });
 
 test('normalize preserves a global-admin view (incl. panel) for an admin', () => {

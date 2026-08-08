@@ -47,8 +47,10 @@ import {
   openGlobalAdmin,
   selectAdminPanel,
   closeGlobalAdmin,
+  openSearch,
   normalize,
 } from './schema/viewState.js';
+import { buildSearchDocs, searchEntries } from './schema/searchIndex.js';
 import {
   renderSchemaEditor,
   attachSchemaEditor,
@@ -401,6 +403,7 @@ const doneEditBtn = document.getElementById('btn-done-edit');
 const readerTitle = document.getElementById('reader-title');
 const editorTitle = document.getElementById('editor-title');
 const typeNav = document.getElementById('type-nav');
+const navSearch = document.getElementById('nav-search');
 const codexSwitcher = document.getElementById('codex-switcher');
 const codexSwitcherLabel = document.getElementById('codex-switcher-label');
 
@@ -1188,8 +1191,11 @@ function showRenderedPane() {
 // per-type schema editor ("admin"), else the entry reader/form.
 function renderView() {
   const v = state.view;
+  // Leaving search (result click, nav, etc.) empties the box so the sidebar reads as "browsing".
+  if (v.kind !== 'search' && navSearch && navSearch.value) navSearch.value = '';
   renderNav(); // the sidebar reflects the surface: content types, or the admin nav
   if (v.kind === 'global-admin') enterGlobalAdmin();
+  else if (v.kind === 'search') enterSearch(v.query);
   else if (!v.type) renderEmptyCodexState();
   else if (v.mode === 'admin') enterSchemaAdmin(v.type);
   else if (v.mode === 'index') enterTypeIndex(v.type);
@@ -1216,6 +1222,7 @@ function applyViewChrome() {
   // The index shares the read layout (full-width reader, form hidden) — it's a read-only surface.
   const cls =
     v.kind === 'global-admin' ? 'view-global-admin'
+    : v.kind === 'search' ? 'view-content-read' // search shares the full-width reader layout
     : v.mode === 'edit' ? 'view-content-edit'
     : v.mode === 'admin' ? 'view-content-admin'
     : 'view-content-read';
@@ -1267,6 +1274,46 @@ doneEditBtn.addEventListener('click', async () => {
 
 saveEntryBtn.addEventListener('click', () => saveEntry());
 archiveEntryBtn.addEventListener('click', () => archiveCurrentEntry());
+
+// ── Sidebar search box ───────────────────────────────────────────────────────
+// Debounced: the first non-empty keystroke transitions into the search view (full re-render for the
+// chrome swap); subsequent keystrokes only re-run the results pane, so the sidebar (and the box's
+// focus) never rebuild mid-type. Clearing the box returns to wherever search was opened from. Entering
+// search is non-destructive — an open edit draft lives in state.formData and is intact on return.
+let searchDebounce = null;
+let searchReturnView = null; // where clearing the box lands you back (the view search was opened from)
+
+function runSearch(value) {
+  const q = value.trim();
+  if (state.view.kind === 'search') {
+    if (!q) return leaveSearch();
+    state.view = openSearch(state.view, value); // update the query in place
+    enterSearch(value); // re-render results only — no nav/chrome churn
+    return;
+  }
+  if (!q) return; // idle box, nothing to search
+  searchReturnView = state.view; // remember where to land when the box is cleared
+  goto(openSearch(state.view, value));
+}
+
+function leaveSearch() {
+  const back = searchReturnView;
+  searchReturnView = null;
+  goto(back || selectType(state.view, listTypes()[0]?.type ?? null));
+}
+
+navSearch.addEventListener('input', () => {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => runSearch(navSearch.value), 120);
+});
+
+navSearch.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  clearTimeout(searchDebounce);
+  navSearch.value = '';
+  if (state.view.kind === 'search') leaveSearch();
+  navSearch.blur();
+});
 
 // ── Global-admin door (admin-only) ──────────────────────────────────────────
 // Two panels: Users & Access (roster) and Codices (create/rename/archive). Per-type schema editing is
@@ -1342,6 +1389,55 @@ function enterTypeIndex(type) {
   readerTitle.textContent = (schema && schema.label) || type;
   showRenderedPane();
   updateRenderedPreview(renderTypeIndex(type, activeEntries(state.entryIndex, type), renderCtx));
+}
+
+// ── Reader search ────────────────────────────────────────────────────────────
+// A full-width read surface over the whole (active) codex. buildSearchDocs/searchEntries are pure
+// (schema/searchIndex.js); this only renders the ranked hits and hands their type/id to the existing
+// reference-link click path (data-ref-type/-id → loadEntry). The box lives in the sidebar and drives
+// this via the input handler above.
+
+// Turn a hit's snippet segments into escaped HTML, wrapping matched runs in <mark>.
+function snippetHtml(parts) {
+  return (parts || [])
+    .map((p) => (p.hit ? `<mark class="search-hit">${escapeHtml(p.text)}</mark>` : escapeHtml(p.text)))
+    .join('');
+}
+
+function renderSearchResults(query, results) {
+  const heading = `<h1 class="search-heading">Search</h1>`;
+  const q = query.trim();
+  if (!q) {
+    return `${heading}<p class="muted search-empty">Type to search entries across this codex.</p>`;
+  }
+  if (!results.length) {
+    return `${heading}<p class="muted search-empty">No entries match “${escapeHtml(q)}”.</p>`;
+  }
+  const count = `<p class="muted search-count">${results.length} match${results.length === 1 ? '' : 'es'}</p>`;
+  const rows = results
+    .map((r) => {
+      const typeLabel = getSchema(r.type)?.label || r.type;
+      return `<button type="button" class="search-result" data-ref-type="${escapeHtml(r.type)}" data-ref-id="${escapeHtml(
+        r.id
+      )}">
+        <span class="search-result-head">
+          <span class="search-result-title">${escapeHtml(r.title)}</span>
+          <span class="search-result-type">${escapeHtml(typeLabel)}</span>
+        </span>
+        <span class="search-snippet">${snippetHtml(r.parts)}</span>
+      </button>`;
+    })
+    .join('');
+  return `${heading}${count}<div class="search-results">${rows}</div>`;
+}
+
+// Render the search surface for the current query against the live entry index.
+function enterSearch(query) {
+  readerTitle.textContent = 'Search';
+  showRenderedPane();
+  const docs = buildSearchDocs(state.entryIndex, getSchema, renderCtx);
+  const results = searchEntries(docs, query);
+  updateRenderedPreview(renderSearchResults(query, results));
 }
 
 // ── Codices admin panel (create / rename / archive-restore) ──────────────────
@@ -2265,6 +2361,11 @@ async function loadEntry(type, id) {
     return;
   }
   if (!(await confirmDiscardIfDirty())) return;
+  // Opening a result leaves search (loadEntry renders directly, bypassing renderView's box clear).
+  if (state.view.kind === 'search') {
+    navSearch.value = '';
+    searchReturnView = null;
+  }
   state.formData = { ...entry };
   state.navExpanded.add(type); // keep the selected entry's section open
   // Open an entry in read mode (preserve edit if the author was already editing this type).

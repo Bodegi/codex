@@ -6,6 +6,7 @@
  * `read`/`edit` `mode`) with one discriminated union:
  *
  *   { kind: 'type', type: <typeKey>|null, mode: 'read'|'edit'|'admin'|'index' }  // content surface
+ *   { kind: 'search', query: <string> }                                          // reader search results
  *   { kind: 'global-admin', panel: 'access'|'codices'|'images'|'icons' }         // the separate door
  *
  * `mode: 'admin'` on a type means "edit that type's schema" — the per-thing form state
@@ -48,6 +49,11 @@ export function toIndex(view) {
   return view && view.kind === 'type' ? { ...view, mode: 'index' } : view;
 }
 
+/** Enter the reader's search-results surface for `query`. Permitted for anyone who can read. */
+export function openSearch(_view, query) {
+  return { kind: 'search', query: String(query ?? '') };
+}
+
 /** Enter the global-admin door on the given panel (default access). */
 export function openGlobalAdmin(_view, panel = 'access') {
   return { kind: 'global-admin', panel: PANELS.has(panel) ? panel : 'access' };
@@ -76,6 +82,11 @@ export function normalize(view, { caps = {}, types = [] } = {}) {
   const keys = (types || []).map((t) => (typeof t === 'string' ? t : t && t.type)).filter(Boolean);
   const canEdit = !!caps.canEdit;
   const canAdmin = !!caps.canAdmin;
+
+  // Search: a read surface open to anyone; the query rides along untouched.
+  if (view && view.kind === 'search') {
+    return { kind: 'search', query: String(view.query ?? '') };
+  }
 
   // Global-admin: preserved for admins, else dropped into content.
   if (view && view.kind === 'global-admin') {
