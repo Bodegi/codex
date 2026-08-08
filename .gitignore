@@ -14,14 +14,6 @@ token.txt
 *firebase-adminsdk*.json
 serviceAccount*.json
 
-# Local-only orientation docs — never published to the public repo
-HANDOFF.md
-backlog.md
-
-# Design specs are local-only build scaffolding — extract invariants to the code, then delete.
-# Kept out of the published repo (history retains any that were committed).
-docs/superpowers/specs/
-
 # Supabase CLI local artifacts — the linked-project ref, local stack, temp files. The tracked
 # Supabase config is supabase/config.toml + supabase/migrations/ only; the access token is a
 # gitignored PAT under .secrets/ (see supabase/config.toml for the deploy recipe).

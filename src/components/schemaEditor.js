@@ -29,7 +29,7 @@ const PLACEHOLDER_KINDS = new Set(['text', 'prose', 'list']);
 const BADGE_KINDS = new Set(['list', 'reference']);
 const ROW_KINDS = new Set(['text', 'prose']);
 
-/** Association modes a map marker can use (map-component.md §4.1); 'both' is the default. */
+/** Association modes a map marker can use; 'both' is the default. */
 const ASSOCIATION_MODES = ['both', 'reference', 'label'];
 
 /** Deep clone that keeps these helpers free of aliasing bugs. Schemas are JSON-able. */
@@ -122,7 +122,7 @@ export function updateField(schema, sectionIndex, fieldIndex, patch) {
 }
 
 /**
- * Merge a patch into a field's `association` config (the map kind — see map-component.md §4.1).
+ * Merge a patch into a field's `association` config (the map kind).
  * Nested + merge-based so partial edits (mode alone, refType alone) compose without clobbering the
  * sibling key, which a plain `updateField({ association })` would.
  */
@@ -134,7 +134,7 @@ export function updateFieldAssociation(schema, sectionIndex, fieldIndex, patch) 
 }
 
 /**
- * Merge a patch into the type-level `summaryCard` descriptor (see summaryCard.js §5.1) — the
+ * Merge a patch into the type-level `summaryCard` descriptor (see summaryCard.js) — the
  * fields shown when the type is browsed as an index. Nested + merge-based so partial edits
  * (title alone, badges alone) compose without clobbering the sibling keys.
  */
@@ -278,7 +278,7 @@ function fieldRow(field, si, fi, types) {
     );
   }
   if (field.kind === 'map') {
-    // Per-field association config (map-component.md §4.1): how a marker links to an entry. The
+    // Per-field association config: how a marker links to an entry. The
     // target-type picker only applies when the mode allows a reference ('both' / 'reference').
     const assoc = field.association || {};
     const mode = assoc.mode || 'both';
@@ -343,7 +343,7 @@ function fieldCheckList(fields, selectedKeys, seType) {
 
 /**
  * The type-level "Summary card" config — which fields form the card face when the type is
- * browsed as an index (summaryCard.js §5.1). Title/subtitle are single-field picks; badges
+ * browsed as an index (summaryCard.js). Title/subtitle are single-field picks; badges
  * (list/reference) and rows (text/prose) are multi-select checkbox groups.
  */
 function summaryCardBlock(schema) {

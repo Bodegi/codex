@@ -3,7 +3,7 @@
  *
  * Icon/emblem markup is admin-authored and injected via `innerHTML` into the nav and map, read by
  * every signed-in user. Firestore rules already gate *writes* to admins, so this is
- * defense-in-depth, not the primary gate (technical review T6): "admin-authored" isn't "safe" — an
+ * defense-in-depth, not the primary gate: "admin-authored" isn't "safe" — an
  * admin account can be phished, and the blast radius is everyone. This strips the known SVG XSS
  * vectors before the markup is ever stored in app state, so all downstream sinks render clean.
  *
@@ -16,7 +16,7 @@
  * javascript:/vbscript:/data: URLs), not every conceivable evasion. Exhaustive entity-obfuscation
  * and external-resource fetches (`<image href="https://…">`) are out of scope and accepted as
  * residual risk for admin-only, defense-in-depth markup. Live admin *self*-previews (an admin
- * viewing their own unsaved textarea) are also out of scope — that's self-XSS, not the T6 vector.
+ * viewing their own unsaved textarea) are also out of scope — that's self-XSS, not the vector this guards.
  */
 
 // Elements removed wholesale, content and all: they can execute script or host arbitrary HTML/CSS.

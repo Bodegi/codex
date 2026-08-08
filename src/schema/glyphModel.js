@@ -1,8 +1,8 @@
 /**
  * Codex — Glyph (icon/emblem) layer model + compose.
  *
- * The structured source of truth behind the in-app glyph designer (spec
- * docs/superpowers/specs/icon-designer.md). A glyph is an ordered **painter's stack** of SVG
+ * The structured source of truth behind the in-app glyph designer. A glyph is an ordered
+ * **painter's stack** of SVG
  * primitive layers; `layersToSvg` is the ONE place that turns that stack into markup, mirroring
  * `iconRegistry.js`'s `svg()` wrapper exactly so editor output is render-compatible with bundled
  * icons. Consumers (`getIcon`, `getEmblem`, previews) only ever read the derived `svg` string —
@@ -17,7 +17,7 @@
 
 import { ICON_KEY_PATTERN, ICON_KEY_MAX_LENGTH } from './iconRegistry.js';
 
-/** The 24×24 user space, shared with icons (spec §2, §8 — one canvas for both classes). */
+/** The 24×24 user space, shared with icons (one canvas for both classes). */
 export const VIEWBOX = '0 0 24 24';
 
 /** The SVG primitives a layer can be. `path` is emitted by the phase-3 grid tool, not hand-typed. */

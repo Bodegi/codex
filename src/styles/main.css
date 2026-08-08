@@ -1628,7 +1628,7 @@ select[multiple].form-control option {
   pointer-events: all;
 }
 
-/* Pin overlay: DOM markers stacked over the canvas (spec §5.1). The layer is click-through so
+/* Pin overlay: DOM markers stacked over the canvas. The layer is click-through so
    empty-space clicks reach the canvas for drawing; individual pins opt back into pointer events. */
 .map-pin-layer {
   position: absolute;
@@ -1661,7 +1661,7 @@ select[multiple].form-control option {
   box-shadow: 0 0 0 3px var(--accent-gold), 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 
-/* Glyph pin (§5.2): the marker's emblem/icon SVG at a constant on-screen size. Icons inherit the
+/* Glyph pin: the marker's emblem/icon SVG at a constant on-screen size. Icons inherit the
    marker color via `currentColor`; emblems carry their own fills. A drop-shadow keeps it legible
    over any backdrop. */
 .map-pin-glyph {
@@ -2372,7 +2372,7 @@ select[multiple].form-control option {
 }
 
 /* ==========================================================================
-   Glyph designer (icons + emblems) — icon-designer.md §4
+   Glyph designer (icons + emblems)
    ========================================================================== */
 .glyph-designer-overlay {
   position: fixed;

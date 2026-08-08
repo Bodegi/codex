@@ -98,11 +98,11 @@ const CURRENT_CODEX_KEY = 'codex_current_id';
 
 // Firebase config resolved once; presence drives configured vs. local-only mode. Read via safeStorage:
 // a raw localStorage access here throws (and blank-screens the whole app) in Safari private mode /
-// disabled-storage contexts — see safeStorage.js + technical review T2.
+// disabled-storage contexts — see safeStorage.js.
 const firebaseConfig = resolveFirebaseConfig(appConfig.firebase, safeStorage.getItem('codex_firebase_override'));
 
 // Supabase (image bytes) resolved once, off the same override sentinel. null in local-only mode, so the
-// image index stays empty and every id resolves to the not-found SVG (spec §7 — images need Firebase).
+// image index stays empty and every id resolves to the not-found SVG (images need Firebase).
 const supabaseConfig = resolveSupabaseConfig(appConfig.supabase, safeStorage.getItem('codex_firebase_override'));
 
 // The codex shown first: a configured build defaults to the baked codex; local-only mode is the
@@ -210,7 +210,7 @@ function codexScope() {
 
 // ── Image byte store + upload/remove (editor path) ───────────────────────────
 // The Supabase byte adapter. Its token port yields the current Firebase ID token so Supabase trusts
-// our project's JWTs (spec §5) — `authManager.auth.currentUser` is the raw Firebase user (getIdToken),
+// our project's JWTs — `authManager.auth.currentUser` is the raw Firebase user (getIdToken),
 // distinct from `authManager.currentUser` (the mapped profile). Null store in local-only mode → the
 // upload UI stays hidden, so the coordinator never sees a null store.
 const imageStore = createImageStore(supabaseConfig, () =>
@@ -353,14 +353,14 @@ const renderCtx = {
   listEntries: (type) => entriesOfType(type),
   resolveRef: (type, id) => {
     const entry = findEntryByTypeId(type, id);
-    // `emblem` feeds the map's glyph-inheritance step (map-component §5.2): a marker linked to an
+    // `emblem` feeds the map's glyph-inheritance step: a marker linked to an
     // entry inherits that entry's emblem as a default glyph. No entry carries an `emblem` field yet
     // (the emblem editor is post-launch), so this is a forward seam that reads `undefined` today.
     return entry
       ? { label: entryLabel(entry), exists: true, emblem: entry.emblem }
       : { label: id, exists: false };
   },
-  // Glyph resolution for map markers (map-component §5.2). Resolves a glyph key to SVG markup,
+  // Glyph resolution for map markers. Resolves a glyph key to SVG markup,
   // consulting the emblems collection first (full-color, the intended fit) then icons (monochrome
   // `currentColor` fallback). Returns `null` — not a default glyph — when neither has the key, so the
   // marker's fallback chain drops to its palette dot.
@@ -576,7 +576,7 @@ function showError(message) {
   document.getElementById('error-reload-btn')?.addEventListener('click', () => location.reload());
 }
 
-// The in-workspace "connection lost / access changed" bar (technical review T3 / feedback F2). Unlike
+// The in-workspace "connection lost / access changed" bar. Unlike
 // showError it does NOT tear the workspace down — the last-loaded content stays readable — it just
 // signals that live sync stopped and offers a reload. Injected once, then toggled; a successful
 // snapshot hides it again (see subscribeCodexContent), so a self-healing reconnect clears it.
@@ -785,7 +785,7 @@ function subscribeCodexRegistry() {
 function subscribeIconOverlay() {
   if (iconsUnsub || !(state.fbManager && state.fbManager.isConfigured())) return;
   iconsUnsub = state.fbManager.subscribeIcons((icons) => {
-    // Sanitize admin-authored SVG at the ingestion choke point (T6): every downstream sink — nav
+    // Sanitize admin-authored SVG at the ingestion choke point: every downstream sink — nav
     // `getIcon`, the overlay registry, the admin panel — reads from state.icons, so cleaning once
     // here covers them all. Bundled icons and designer output are already clean (a no-op).
     state.icons = icons.map((i) => (i && i.svg ? { ...i, svg: sanitizeSvg(i.svg) } : i));
@@ -804,7 +804,7 @@ function subscribeIconOverlay() {
 function subscribeEmblemOverlay() {
   if (emblemsUnsub || !(state.fbManager && state.fbManager.isConfigured())) return;
   emblemsUnsub = state.fbManager.subscribeEmblems((emblems) => {
-    // Sanitize at ingestion (T6) — resolveGlyph, the map, and the Emblems panel all read state.emblems.
+    // Sanitize at ingestion — resolveGlyph, the map, and the Emblems panel all read state.emblems.
     state.emblems = emblems.map((e) => (e && e.svg ? { ...e, svg: sanitizeSvg(e.svg) } : e));
     renderNav(); // markers/content that resolve an emblem pick it up live
     if (inGlobalAdmin() && state.view.panel === 'emblems') renderAdminPanel();
@@ -860,9 +860,8 @@ codexSwitcher.addEventListener('click', () => {
   codexSwitcherWrap.querySelector('.codex-switcher-menu')?.classList.toggle('hidden');
 });
 
-// Re-scope every codex subscription onto a different codex (§7 of the Phase-4 spec). The old manual
-// "preserve Admin across the switch" hack is gone: normalize() keeps a global-admin view as-is and
-// retargets a now-missing type, so the whole choreography reduces to re-clamp → render.
+// Re-scope every codex subscription onto a different codex. normalize() keeps a global-admin view
+// as-is and retargets a now-missing type, so the whole choreography reduces to re-clamp → render.
 async function switchCodex(codexId) {
   if (!codexId || codexId === state.currentCodexId) return;
   if (!(await confirmDiscardIfDirty())) return;
@@ -1126,9 +1125,8 @@ function highlightNav() {
   });
 }
 
-// Advanced JSON disclosure (Structure only). Reordering is now the visual editor's job
-// (Up/Down + drag-and-drop), so the schema-as-JSON editor is a de-emphasized escape hatch —
-// hidden behind this toggle rather than a co-equal Preview/Raw tab pair.
+// Advanced JSON disclosure (Structure only). Reordering is the visual editor's job
+// (Up/Down + drag-and-drop), so the schema-as-JSON editor is a de-emphasized escape hatch.
 function setPreviewMode(mode) {
   state.currentViewMode = mode;
   const raw = mode === 'raw';
@@ -1684,7 +1682,7 @@ async function saveGlyph(record, isEdit) {
 }
 
 // Create a codex: slug from the name (rejected on collision), meta + creator grant, optional
-// template copy of another codex's types, then auto-switch to it (spec §6.2).
+// template copy of another codex's types, then auto-switch to it.
 async function createCodex() {
   if (!(state.fbManager && state.fbManager.isConfigured())) return;
   const name = (document.getElementById('codex-create-name')?.value || '').trim();
@@ -1715,7 +1713,7 @@ async function createCodex() {
   }
 }
 
-// Rename edits the display name only — the codex id (Firestore key) is immutable (spec §5.4).
+// Rename edits the display name only — the codex id (Firestore key) is immutable.
 function renameCodex(codexId, name) {
   const trimmed = (name || '').trim();
   if (!trimmed) return showToast('Name cannot be empty');
@@ -2145,7 +2143,7 @@ function mountCtx() {
 
 // Generic imperative-wiring pass: after the form HTML is in the DOM, every component that
 // declares a `mount` (hero/gallery imagery, prose inline-insert) gets wired. Components report
-// edits through onChange → data[field.key], the single value path (§2.2 of the composition spec).
+// edits through onChange → data[field.key], the single value path.
 function wireComponentMounts() {
   const schema = getSchema(curType());
   if (!schema) return;
@@ -2435,7 +2433,7 @@ function showToast(message) {
   }, 3000);
 }
 
-// Global error boundary (technical review T2/T3). Last-resort catches so a failure surfaces instead of
+// Global error boundary. Last-resort catches so a failure surfaces instead of
 // leaving a frozen or blank app: an uncaught promise rejection toasts (non-fatal — the app is usually
 // still usable), and a resource/script `error` is logged for diagnosis. A *fatal boot* failure below
 // escalates to the full error screen. Registered before boot so a throw during init is still caught.
@@ -2450,7 +2448,7 @@ window.addEventListener('error', (e) => {
 // Bootstrap Auth & Application. initAuth() resolves capabilities and renders the right screen;
 // the workspace (initial nav render + content subscriptions) is set up by showWorkspace() once read
 // access is confirmed — not here — so no codex reads fire before authorization. A synchronous throw
-// here (the class that used to blank-screen the app) lands on the dedicated error screen instead.
+// here lands on the dedicated error screen instead.
 try {
   initAuth();
   renderSyncStatus();

@@ -6,7 +6,7 @@
  *    role yet. The admin sees them and grants access. This is the "you're in the queue" state.
  *  - `renderInviteRequired` — authenticated but NOT invited: no `users` row was created (the invite
  *    gate blocked it). A private-site "you need a link" state, so random sign-ins hit a clear wall
- *    instead of silently joining the roster. See invite-access spec.
+ *    instead of silently joining the roster.
  */
 
 export function renderAwaitingAccess(currentUser) {

@@ -1,5 +1,5 @@
 /**
- * Parity guard: firestore.rules ↔ capabilities.js (technical review T7).
+ * Parity guard: firestore.rules ↔ capabilities.js.
  *
  * `capabilities.test.js` proves the JS mirror behaves correctly in isolation, but nothing catches
  * the two SOURCES drifting apart. These tests read `firestore.rules` as text and assert the shared,

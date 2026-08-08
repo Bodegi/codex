@@ -18,7 +18,7 @@ function escapeHtml(text) {
 
 /**
  * Invites panel (admin): generate a shareable link + manage issued invites. The private-site gate —
- * a link dropped in Discord is how a new person gets a `users` row at all (invite-access spec). Rows
+ * a link dropped in Discord is how a new person gets a `users` row at all. Rows
  * come from `inviteModel.buildInviteRows` (invites × users join, newest-first, with redeemers +
  * derived expiry). main.js owns the wiring (generate/copy/revoke). `status` is 'active'|'revoked';
  * `isExpired` is derived — an active-but-expired invite reads as "expired" and no longer redeems.
@@ -347,7 +347,7 @@ export function renderIconsPanel({ overlayRows = [], bundledRows = [] }) {
 }
 
 /**
- * Emblems panel: the app-global full-color glyph set (icon-designer.md §2). Sibling of Icons with
+ * Emblems panel: the app-global full-color glyph set. Sibling of Icons with
  * NO bundled baseline — every emblem is admin-authored, rendered straight from the record's derived
  * `svg`. The primary authoring surface is the shared glyph designer ("Draw…"); a color-SVG paste box
  * stays as an escape hatch. A record with a structured `layers` source opens back in the designer;

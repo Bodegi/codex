@@ -21,8 +21,8 @@ export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 /**
  * Client-side upload gate. NOT the security boundary — Supabase Storage RLS is — just a friendly guard
- * that keeps junk out and gives the user a reason instead of a cryptic downstream failure (technical
- * review T4). Policy: any raster image, but no SVG (the app has a dedicated vector system in
+ * that keeps junk out and gives the user a reason instead of a cryptic downstream failure.
+ * Policy: any raster image, but no SVG (the app has a dedicated vector system in
  * icons/emblems, and excluding it is defense-in-depth against any future inline-render path), capped at
  * `maxBytes`. Returns a human-readable problem string, or null when the file is acceptable. Pure over
  * `{ type, size }` so it's Node-testable and callable from both the picker and the upload backstop.

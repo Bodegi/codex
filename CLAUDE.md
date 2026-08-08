@@ -96,10 +96,3 @@ rely on the UI for enforcement — the rules are the gate.
   [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), gated by `npm test`. A red push
   is a broken deploy — keep the suite green. Site config lives in `vite.config.js`
   (`base: '/codex/'`); see the README's Deploying section.
-
-## What's *not* in the published repo
-
-Some local-only orientation files are gitignored and won't be present in a fresh clone:
-`HANDOFF.md`, `backlog.md`, and `docs/superpowers/specs/` (design specs — invariants get
-extracted into code + comments, then the spec is disposable). Don't link to them from published
-docs; if one exists locally, treat it as working scaffolding.

@@ -37,7 +37,7 @@ test('markerColor: own color → field palette → neutral default', () => {
   assert.equal(markerColor(null, undefined), '#f59e0b');
 });
 
-test('markerLabel resolves under the field association mode (§4.1)', () => {
+test('markerLabel resolves under the field association mode', () => {
   const ctx = {
     resolveRef: (type, id) => (id === 'ada' ? { label: 'Ada', exists: true } : { label: id, exists: false }),
   };
@@ -58,7 +58,7 @@ test('markerLabel resolves under the field association mode (§4.1)', () => {
   assert.equal(markerLabel({ label: '', ref: 'ada' }, {}, ctx), 'Ada');
 });
 
-// --- glyph resolution (fallback chain, §5.2) ---
+// --- glyph resolution (fallback chain) ---
 
 test('resolveMarkerGlyph: explicit glyph wins', () => {
   const ctx = { resolveGlyph: (k) => (k === 'star' ? '<svg id="star"/>' : null) };
@@ -100,7 +100,7 @@ test('resolveMarkerGlyph: falls through to null (the palette-dot floor)', () => 
   assert.equal(resolveMarkerGlyph({ glyph: 'star' }, {}, {}), null);
 });
 
-// --- point simplification (Douglas–Peucker, §6.2) ---
+// --- point simplification (Douglas–Peucker) ---
 
 test('simplifyPoints keeps endpoints and drops points within tolerance', () => {
   // A near-straight run of points collapses to its two endpoints.
@@ -171,7 +171,7 @@ test('renderMapRead embeds the normalized value + palette for the paint pass', (
   assert.equal(JSON.parse(decoded).waypoints[0].label, 'A');
 });
 
-test('renderMapRead bakes the referenced entry title into the pin label (§7)', () => {
+test('renderMapRead bakes the referenced entry title into the pin label', () => {
   const field = { key: 'map', label: 'Map', association: { mode: 'reference', refType: 'person' } };
   const value = {
     mapImageId: 'm',
@@ -204,7 +204,7 @@ test('renderMapInput exposes the glyph picker slot (Phase 4)', () => {
   assert.match(html, /map-inspector-glyph-preview/);
 });
 
-test('renderMapRead bakes the resolved glyph SVG into the waypoint (§5.2)', () => {
+test('renderMapRead bakes the resolved glyph SVG into the waypoint', () => {
   const field = { key: 'map', label: 'Map', association: { mode: 'both', refType: 'person' } };
   const value = {
     mapImageId: 'm',

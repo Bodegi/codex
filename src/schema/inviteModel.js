@@ -1,5 +1,5 @@
 /**
- * Codex — invite-access policy (pure). See docs/superpowers/specs/invite-access.md.
+ * Codex — invite-access policy (pure).
  *
  * The private-site gate: a signed-in Google account becomes a `users/{uid}` roster row ONLY if it
  * arrived via a live invite the admin issued. This module owns every decision; `main.js`/`firebase.js`
@@ -7,17 +7,17 @@
  *
  * `isInviteRedeemable` is the pure MIRROR of the `inviteRedeemable()` predicate in firestore.rules
  * (active && not-expired). The rules are the actual gate; this mirror just lets the client pick the
- * right screen without a round-trip. If you change one, change both (spec §4).
+ * right screen without a round-trip. If you change one, change both.
  *
  * Time is passed as epoch millis (`nowMs`) so the module is deterministic; `expiresAt` is epoch
- * millis or null (no expiry), matching the stored shape (spec §3).
+ * millis or null (no expiry), matching the stored shape.
  */
 
 const DAY_MS = 86400000;
 const DEFAULT_TTL_DAYS = 7;
 
 /**
- * Build a fresh invite doc. `ttlDays` defaults to 7 (spec §9); pass `null` for no expiry. `createdAt`
+ * Build a fresh invite doc. `ttlDays` defaults to 7; pass `null` for no expiry. `createdAt`
  * is an ISO string (human-facing); `expiresAt` is epoch millis (rule-comparable) or null.
  */
 export function makeInvite({ token, label = null, createdBy, nowMs, ttlDays = DEFAULT_TTL_DAYS }) {

@@ -54,7 +54,7 @@ export function formatInline(raw, resolveImage) {
 // editor-authored content rendered to every reader/admin of the codex — a cross-privilege XSS. Links
 // permit only http/https/mailto (or a scheme-less relative/anchor url); images permit only http/https.
 // Browsers strip tab/newline/NUL from a url before resolving its scheme, so we strip those control
-// chars here too before matching (defeats `java<TAB>script:` obfuscation). See technical review T1.
+// chars here too before matching (defeats `java<TAB>script:` obfuscation).
 const SAFE_LINK_SCHEMES = new Set(['http', 'https', 'mailto']);
 
 // The url's scheme in lowercase, or null when it has none (relative / anchor / protocol-less).

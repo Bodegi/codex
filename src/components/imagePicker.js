@@ -159,7 +159,7 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
     async function uploadFiles(fileList) {
       if (!onUpload) return;
       // Split into valid uploads and rejects (wrong type / too large) so a bad file gets an inline
-      // reason instead of being silently ignored (technical review T4).
+      // reason instead of being silently ignored.
       const files = [];
       const rejects = [];
       for (const f of Array.from(fileList || [])) {

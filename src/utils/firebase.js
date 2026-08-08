@@ -4,7 +4,7 @@
  * `FirebaseManager` owns the *connection* (the Firebase app + Firestore handle) and the
  * app-level `codices` / `permissions` collections. Per-codex content (entries, schemas,
  * atlas) is reached through `fbManager.codex(codexId)`, which returns a `CodexScope` bound
- * to `codices/${codexId}/…` — explicit and hard to mis-scope. See the multi-codex spec.
+ * to `codices/${codexId}/…` — explicit and hard to mis-scope.
  */
 
 import { initializeApp } from 'firebase/app';
@@ -114,8 +114,8 @@ export class FirebaseManager {
   }
 
   /**
-   * Record the signed-in person in the global `users` roster — the private-site invite gate
-   * (invite-access spec). A NEW row is created only for an admin or a redeemable invite; everyone else
+   * Record the signed-in person in the global `users` roster — the private-site invite gate.
+   * A NEW row is created only for an admin or a redeemable invite; everyone else
    * is blocked (no write) so random sign-ins can't accrue junk rows. A returning user just refreshes
    * lastSeenAt. The create/update split and the redeemability check are enforced by firestore.rules;
    * this method mirrors that decision via the pure `resolveSignInAction` so the caller can show the
@@ -322,7 +322,7 @@ export class FirebaseManager {
 
   // ── Emblem set (app-global `emblems` collection; full-color glyphs, admin-curated) ──
   // Sibling of `icons` with no bundled baseline (rendered straight from state.emblems). Consumed by
-  // content + map markers (icon-designer.md §2). Readable by any signed-in user; writes admin-only
+  // content + map markers. Readable by any signed-in user; writes admin-only
   // (firestore.rules). The doc id is the emblem key. Records carry an optional structured `layers`
   // source; `svg` is always the derived render output that consumers read.
 
@@ -361,9 +361,9 @@ export class FirebaseManager {
 }
 
 /**
- * Per-codex content operations, all pathed under `codices/${codexId}/…`. Mirrors the method
- * surface the app used to call on `FirebaseManager` directly, so call sites just swap
- * `fbManager` → `fbManager.codex(id)`. An unconfigured scope is never constructed (see `.codex`).
+ * Per-codex content operations, all pathed under `codices/${codexId}/…`. Mirrors `FirebaseManager`'s
+ * own method surface, so a call site just swaps `fbManager` → `fbManager.codex(id)`. An unconfigured
+ * scope is never constructed (see `.codex`).
  */
 export class CodexScope {
   constructor(db, codexId) {

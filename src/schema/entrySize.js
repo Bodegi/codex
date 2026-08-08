@@ -5,7 +5,7 @@
  * per-document overhead. An entry serializes its whole form — a map field with many
  * roads/territories/waypoints, or a very long prose field, can approach that — and a write over the
  * limit fails *inside* the transaction with an opaque error. This pre-flight check catches it first,
- * with a friendly message, before the write path is entered (technical review T8).
+ * with a friendly message, before the write path is entered.
  *
  * The measure is an approximation: the UTF-8 byte length of the JSON serialization. It tracks the
  * dominant cost (string/number field values) but not Firestore's exact per-field overhead, so the

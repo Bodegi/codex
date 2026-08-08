@@ -1,11 +1,11 @@
 /**
- * Codex — Map component (Wave 3, Axis 1).
+ * Codex — Map component.
  *
  * A registered `map` field kind: load a map image as a backdrop, pan/zoom over it, drop pins,
  * and draw roads / territories on a `<canvas>` overlay. Registered in `fieldKinds.js` as a
  * `layout:'break'` component with `selfRender:true` (see below); its value rides the entry doc
  * on `data[field.key]` and saves / versions / subscribes with every other field — no bespoke
- * Firestore doc (the retired `saveMapData` / `subscribeToMapData` / `atlasDocPath` path).
+ * Firestore doc.
  *
  *   value = { mapImageId, waypoints, roads, territories }
  *   waypoint  = { id, kind:'waypoint',  x, y,        label, ref?, color? }
@@ -14,11 +14,10 @@
  *
  * All coordinates are in **image space** so a marker stays glued to the map as you pan/zoom.
  *
- * Rendering is **hybrid** (spec §5.1): roads/territories are vector strokes painted on the
- * `<canvas>`; waypoints are DOM elements in a `.map-pin-layer` stacked over it — so a pin stays a
- * crisp, clickable, constant-size on-screen marker at any zoom (the Google-Maps model, and the
- * seam glyphs slot into in Phase 4). `positionPins()` keeps the overlay glued to the canvas
- * transform; `redraw()` runs both passes.
+ * Rendering is **hybrid**: roads/territories are vector strokes painted on the `<canvas>`;
+ * waypoints are DOM elements in a `.map-pin-layer` stacked over it — so a pin stays a crisp,
+ * clickable, constant-size on-screen marker at any zoom (the Google-Maps model). `positionPins()`
+ * keeps the overlay glued to the canvas transform; `redraw()` runs both passes.
  *
  * `selfRender` (read by main.js `wireComponentMounts`): unlike hero/gallery — whose `onChange`
  * rebuilds the whole form to refresh their thumbnails — the map owns a live canvas with
@@ -30,16 +29,10 @@
  * The pure helpers (`emptyMapValue` / `normalizeMapValue` / `markerColor` / `simplifyPoints`) are
  * unit-tested.
  *
- * Phase 1 (shipped): pins are colored dots painted on the canvas. Phase 2 (shipped): pins move to a
- * DOM overlay + freehand road/territory drawing with point simplification. Phase 3 (shipped): the
- * per-field `association` config (§4.1) + the inspector entry picker — a marker carries an optional
- * `ref` (an entry id), and its display label resolves to the referenced entry's title (§7). Phase 4
- * (this): glyph rendering (§5.2) — a marker carries an optional `glyph` (an emblem/icon key); a pin
- * renders as that glyph's SVG when it resolves, else the palette dot. `resolveMarkerGlyph` is the
- * pure fallback chain (explicit glyph → inherited entry emblem → null). It resolves through
- * `ctx.resolveGlyph`, which consults the emblems collection then icons; emblems are post-launch, so
- * today only icon keys light up and everything else degrades to the dot — zero rework when emblems
- * land (spec §5.3, §10).
+ * A marker can carry an optional `ref` (an entry id) whose title becomes its display label, and an
+ * optional `glyph` (an emblem/icon key) rendered as SVG when it resolves, else the palette dot.
+ * `resolveMarkerGlyph` is the pure fallback chain (explicit glyph → inherited entry emblem → null),
+ * resolving through `ctx.resolveGlyph`, which consults the emblems collection then icons.
  */
 
 import { openImagePicker } from './imagePicker.js';
@@ -81,7 +74,7 @@ export function markerColor(marker, field) {
 }
 
 /**
- * A marker's display label under the field's association mode (§4.1). The referenced entry's title
+ * A marker's display label under the field's association mode. The referenced entry's title
  * wins in `reference` mode (even over a stale free-text label); in `both` an explicit label wins and
  * a bare marker falls back to the entry title; `label` mode ignores refs entirely. Resolution needs
  * `ctx.resolveRef` — without it (the ctx-free read paint), the stored `label` stands in, which is why
@@ -99,11 +92,11 @@ export function markerLabel(marker, field, ctx) {
 }
 
 /**
- * A marker's on-map glyph as an SVG string, or `null` (spec §5.2). The fallback chain:
+ * A marker's on-map glyph as an SVG string, or `null`. The fallback chain:
  *   1. `marker.glyph`  → `ctx.resolveGlyph(marker.glyph)`   — the explicit author choice wins.
  *   2. `marker.ref`    → the referenced entry's `emblem` key → `ctx.resolveGlyph(thatKey)`
  *                        — inherit the linked entry's emblem (a default, not a lock).
- *   3. → `null`        — fall through to the palette color dot (§5.3).
+ *   3. → `null`        — fall through to the palette color dot.
  * A key that fails to resolve (unknown, or an emblem key before the emblems collection exists) is
  * skipped, not fatal, so the chain always lands on a rendered pin. Pure over `ctx` — unit-tested.
  */
@@ -154,7 +147,7 @@ function segDistSq(p, a, b) {
 }
 
 /**
- * Douglas–Peucker simplification (spec §6.2): thin a freehand point stream down to the corners
+ * Douglas–Peucker simplification: thin a freehand point stream down to the corners
  * that carry the shape, so a dragged road/territory persists as a handful of points, not the raw
  * mouse trail. Pure and unit-tested. `tolerance` is the max allowed deviation (image-space px);
  * callers divide by `scale` so it stays a constant on-screen tolerance regardless of zoom.
@@ -186,8 +179,8 @@ export function simplifyPoints(points, tolerance = 2) {
 }
 
 /**
- * HTML for one static pin marker, centered at screen (sx, sy). The pin wears its glyph (§5.2) when
- * one resolves, else a palette-colored dot (§5.3). `glyph` may be passed pre-resolved (the ctx-free
+ * HTML for one static pin marker, centered at screen (sx, sy). The pin wears its glyph when
+ * one resolves, else a palette-colored dot. `glyph` may be passed pre-resolved (the ctx-free
  * read paint bakes it in `renderMapRead`); otherwise it resolves live through `ctx`. Icon glyphs are
  * `currentColor`, so the marker color tints them; emblems carry their own fills and ignore it. The
  * glyph SVG comes from our own icon/emblem registry (same trust as the nav's `getIcon`), so it is
@@ -212,7 +205,7 @@ function pinMarkup(wp, field, sx, sy, ctx, glyph) {
 /**
  * Paint the vector scene (roads + territories) onto a 2D context under a viewport transform. Pure
  * over its inputs (no module state); `extra.currentPoints` is the in-progress freehand/vertex path
- * (input only). Waypoints are NOT painted here — they live in the DOM pin overlay (§5.1).
+ * (input only). Waypoints are NOT painted here — they live in the DOM pin overlay.
  */
 function drawScene(c, data, transform, field, extra) {
   const canvas = c.canvas;
@@ -341,7 +334,7 @@ export function renderMapRead(field, value, ctx) {
   const palette = field?.palette ? ` data-map-palette="${escapeAttr(JSON.stringify(field.palette))}"` : '';
   // Resolve reference labels + glyphs here (the paint pass has no ctx): bake each waypoint's display
   // title into `label` and its resolved glyph SVG into `glyphSvg` so `initMapReadCanvases` can render
-  // it self-contained (§7 / markerLabel, §5.2 / resolveMarkerGlyph). `glyphSvg:''` means "no glyph".
+  // it self-contained (markerLabel + resolveMarkerGlyph). `glyphSvg:''` means "no glyph".
   const resolved = {
     ...v,
     waypoints: v.waypoints.map((wp) => ({
@@ -395,7 +388,7 @@ function paintReadMap(wrap, retried) {
   canvas.width = w;
   canvas.height = h;
   drawScene(canvas.getContext('2d'), data, { scale: 1, panX: 0, panY: 0 }, { palette }, null);
-  // Static pin overlay (§5.1): read view isn't pan/zoomed, so screen coords == image coords.
+  // Static pin overlay: read view isn't pan/zoomed, so screen coords == image coords.
   const layer = wrap.querySelector('.map-pin-layer');
   // Labels + glyphs were baked into the value by renderMapRead (no ctx here); pass the baked glyph.
   if (layer) {
@@ -423,7 +416,7 @@ const SIMPLIFY_TOLERANCE = 2;
  * Wire the authoring surface: pan/zoom, tool switching, waypoint drop (DOM pin overlay), freehand /
  * vertex road+territory drawing with point simplification, selection + label edit + delete, and the
  * map-image chooser. Reports the whole value object back through `onChange` on every commit — the
- * single value path (§2.2 of the composition spec).
+ * single value path.
  */
 export function mountMap(el, { field, value, onChange, ctx }) {
   const canvas = el.querySelector('.map-canvas-overlay');
@@ -448,7 +441,7 @@ export function mountMap(el, { field, value, onChange, ctx }) {
   let startY = 0;
 
   let activeTool = 'select';
-  let drawMode = 'freehand'; // 'freehand' (drag) | 'vertex' (click corners) — §6.1
+  let drawMode = 'freehand'; // 'freehand' (drag) | 'vertex' (click corners)
   let currentPoints = [];
   let isDrawing = false; // a freehand drag is in progress
   let selected = null; // { list, obj } for the selected marker
@@ -514,7 +507,7 @@ export function mountMap(el, { field, value, onChange, ctx }) {
   const inspector = el.querySelector('.map-inspector');
   const nameInput = el.querySelector('.map-inspector-name');
 
-  // Association picker (§4.1 / §7): shown only when the field's mode allows a reference. The mode is
+  // Association picker: shown only when the field's mode allows a reference. The mode is
   // fixed per field, so the label/picker visibility is set once at mount; the options come from
   // ctx.listEntries(refType). A marker's ref rides `selected.obj.ref`.
   const assoc = field?.association || {};
@@ -548,8 +541,8 @@ export function mountMap(el, { field, value, onChange, ctx }) {
     assocSelect.value = id;
   }
 
-  // Glyph picker (§5.2 / §7): the marker's on-map emblem/icon. Options come from ctx.listGlyphs()
-  // (emblems + icons); "— dot —" clears the glyph so the pin falls back to its palette color (§5.3).
+  // Glyph picker: the marker's on-map emblem/icon. Options come from ctx.listGlyphs()
+  // (emblems + icons); "— dot —" clears the glyph so the pin falls back to its palette color.
   // A marker's glyph rides `selected.obj.glyph`.
   const glyphSelect = el.querySelector('.map-inspector-glyph');
   const glyphPreview = el.querySelector('.map-inspector-glyph-preview');
@@ -595,7 +588,7 @@ export function mountMap(el, { field, value, onChange, ctx }) {
   });
   // Linking a marker to an entry: store (or clear) its ref and repaint — in reference/both mode the
   // pin's label re-resolves to the entry title through markerLabel. When the marker wears no explicit
-  // glyph, inherit the linked entry's emblem as a default (§5.2) — a pre-fill, not a lock; the author
+  // glyph, inherit the linked entry's emblem as a default — a pre-fill, not a lock; the author
   // can still change it. (No entry carries an emblem yet, so this is dormant until that lands.)
   assocSelect?.addEventListener('change', () => {
     if (!selected) return;
@@ -611,7 +604,7 @@ export function mountMap(el, { field, value, onChange, ctx }) {
     if (selected.list === waypoints) renderPins();
     else redraw();
   });
-  // Choosing a glyph: store (or clear) its key and repaint the pin (§5.2).
+  // Choosing a glyph: store (or clear) its key and repaint the pin.
   glyphSelect?.addEventListener('change', () => {
     if (!selected) return;
     selected.obj.glyph = glyphSelect.value || undefined;
@@ -621,7 +614,7 @@ export function mountMap(el, { field, value, onChange, ctx }) {
     else redraw();
   });
 
-  // Pin selection is native DOM (§6.1): a click on a pin element opens its inspector regardless of
+  // Pin selection is native DOM: a click on a pin element opens its inspector regardless of
   // the active tool. Delegated on the layer so it survives renderPins() rebuilds.
   pinLayer?.addEventListener('click', (e) => {
     const pinEl = e.target.closest('.map-pin');
@@ -647,7 +640,7 @@ export function mountMap(el, { field, value, onChange, ctx }) {
     });
   });
 
-  // Draw-mode toggle: freehand drag (default) ⇄ click-per-vertex precision (§6.1). Switching commits
+  // Draw-mode toggle: freehand drag (default) ⇄ click-per-vertex precision. Switching commits
   // any pending vertex path so a half-drawn shape isn't stranded across modes.
   const drawModeBtn = el.querySelector('[data-map-action="toggle-draw-mode"]');
   drawModeBtn?.addEventListener('click', () => {
@@ -695,7 +688,7 @@ export function mountMap(el, { field, value, onChange, ctx }) {
     redraw();
   });
 
-  // Commit the in-progress road/territory. Freehand strokes are simplified (§6.2) at a constant
+  // Commit the in-progress road/territory. Freehand strokes are simplified at a constant
   // on-screen tolerance; vertex-clicked paths are already sparse, so they're kept verbatim.
   function commitShape() {
     let pts = currentPoints;
@@ -736,7 +729,7 @@ export function mountMap(el, { field, value, onChange, ctx }) {
     const { x, y } = eventPoint(e);
 
     if (activeTool === 'waypoint') {
-      // Drop the pin and open the inspector for label / association (§6.1) — no blocking prompt.
+      // Drop the pin and open the inspector for label / association — no blocking prompt.
       const wp = { id: genId(), kind: 'waypoint', x, y, label: '', color: markerColor(null, field) };
       waypoints.push(wp);
       selected = { list: waypoints, obj: wp };

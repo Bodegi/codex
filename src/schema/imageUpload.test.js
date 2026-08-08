@@ -108,7 +108,7 @@ test('labelFromFilename falls back to Untitled when nothing is left', () => {
   assert.equal(labelFromFilename(''), 'Untitled');
 });
 
-// ── validateImageFile (technical review T4: type + size gate) ──
+// ── validateImageFile (type + size gate) ──
 
 test('validateImageFile accepts a normal raster image under the cap', () => {
   assert.equal(validateImageFile({ type: 'image/png', size: 1024 }), null);

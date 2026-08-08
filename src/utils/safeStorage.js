@@ -4,7 +4,7 @@
  * `localStorage` access THROWS — not returns null — in Safari private mode, storage-partitioned
  * third-party iframes, and when a user has disabled site data. The app reads it at module-load time
  * (the Firebase override + the current-codex key), so an unguarded throw there aborts boot to a blank
- * page with no error surface (pre-launch technical review T2). These wrappers swallow the failure:
+ * page with no error surface. These wrappers swallow the failure:
  * reads return null, writes/removes no-op and report success as a boolean.
  *
  * Even *reading* `globalThis.localStorage` can throw in a locked-down context, so that access lives

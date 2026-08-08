@@ -3,7 +3,7 @@
  *
  * These values ship in the build (and, once deployed, in the public bundle). The Firebase web
  * config is a project *locator*, not a secret — real access control lives in Firestore security
- * rules, not here. See HANDOFF.md §9 and the "Auth: soft gate now → enforced later" parking-lot item.
+ * rules, not here.
  *
  * Local dev override — set localStorage key `codex_firebase_override` to one of:
  *   - a JSON Firebase config `{ apiKey, authDomain, projectId }` → point a local build at a *dev*
@@ -27,7 +27,7 @@ export const appConfig = {
   },
   // Supabase Storage hosts uploaded image bytes (Firestore keeps the metadata). Like the Firebase
   // config these are public locators, not secrets — the publishable key is safe to ship because Storage
-  // RLS is the real gate (see the supabase-image-store spec §8). If left empty, resolveSupabaseConfig
+  // RLS is the real gate. If left empty, resolveSupabaseConfig
   // returns null and the image store stays off (local-only for images).
   supabase: {
     url: 'https://mdvkrumxjunrpabgeamy.supabase.co',

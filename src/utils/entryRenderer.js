@@ -9,7 +9,7 @@
  *   metadata callout (showInMetadata fields) -> <h1> title -> hero image -> sections
  *
  * The hero keeps its special top-of-body placement (above the sections), but that placement
- * is now driven by the registered `hero` component's `renderRead` rather than a bespoke helper.
+ * is driven by the registered `hero` component's `renderRead`.
  * Every other component — the gallery carousel included — renders inline where its field sits,
  * driven off `layout`: a 'break' component (gallery) emits its own block with no field heading.
  */

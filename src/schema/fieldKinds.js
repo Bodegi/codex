@@ -10,8 +10,7 @@
  *     mount?(el, { field, value, onChange, ctx }) // imperative wiring for components that need it
  *   }
  *
- * Layout drives both walkers (formRenderer / entryRenderer) instead of the old hard-coded
- * `FULL_WIDTH` / `MEDIA_KINDS` sets:
+ * Layout drives both walkers (formRenderer / entryRenderer):
  *   - 'grid'  — a `.form-group` cell in the section `.form-grid` (default).
  *   - 'full'  — a `.form-group` spanning the grid (tall controls: prose, list).
  *   - 'break' — the component escapes the grid as its own block (media: hero, gallery).

@@ -9,7 +9,7 @@
  * Auth is injected as a port, not imported: the store takes an async `getAccessToken`
  * that yields the current Firebase ID token. That token flows to Supabase through the
  * SDK's third-party-auth `accessToken` option, so Supabase trusts our Firebase project's
- * JWTs without a separate login (see spec §5/§8). The store stays decoupled from
+ * JWTs without a separate login. The store stays decoupled from
  * `AuthManager` — it depends on "a thing that returns a token", wired in `main.js`.
  */
 
@@ -54,11 +54,11 @@ export function createImageStore(config, getAccessToken) {
      * content-hash identity makes the bytes immutable (same id ⇒ same bytes), so a stored blob is
      * never rewritten. A 409 "already exists" (a re-upload race, or bytes some other codex already
      * shares) is therefore a harmless no-op, swallowed here. Any other error propagates so the caller
-     * surfaces an error toast (spec §4).
+     * surfaces an error toast.
      *
-     * Why not upsert: an upsert makes Supabase Storage exercise its UPDATE policy, and Storage's RLS
-     * context cannot see the Firebase `iss`/`aud` claims the write pin needs — so an upsert is denied
-     * even for a valid caller. Insert-only sidesteps that entirely and matches the immutable model.
+     * Insert, not upsert: an upsert makes Supabase Storage exercise its UPDATE policy, whose RLS
+     * context cannot see the Firebase `iss`/`aud` claims the write pin needs — so it's denied even
+     * for a valid caller. Insert-only matches the immutable content-hash model anyway.
      */
     async uploadBytes(hash, bytes, contentType) {
       const { error } = await client.storage

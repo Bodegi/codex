@@ -1,14 +1,14 @@
 /**
  * Codex — Glyph designer (icons + emblems).
  *
- * The visual authoring surface for glyphs (icon-designer.md §4): a modal that composes an ordered
+ * The visual authoring surface for glyphs: a modal that composes an ordered
  * painter's stack of SVG primitive layers into the same `svg` string the paste box produces today.
  * One editor, two palettes — **mono** (icons, `currentColor`, theme-tinted) and **color** (emblems,
  * literal fills) — chosen by the header toggle, which also decides the destination collection.
  *
  * All layer geometry/compose/validation lives in the pure, Node-tested `schema/glyphModel.js`; this
  * file is only DOM + wiring. Output is generated from the constrained layer model, so it can never
- * contain script/foreignObject/external refs — strictly safer than the paste path (§6.4).
+ * contain script/foreignObject/external refs — strictly safer than the paste path.
  *
  * openGlyphDesigner({ palette, lockPalette, initial, existingKeys, onSave }) → Promise<saved?>
  *   palette      — starting palette 'mono' | 'color' (icon vs emblem).

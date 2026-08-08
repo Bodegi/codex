@@ -71,7 +71,7 @@ test('formatInline shows the not-found placeholder for an unresolved img: refere
   );
 });
 
-// ── URL-scheme allowlist (technical review T1: stored XSS via javascript: links) ──
+// ── URL-scheme allowlist (stored XSS via javascript: links) ──
 
 test('formatInline strips a javascript: link to inert label text', () => {
   assert.equal(formatInline('[click](javascript:alert)'), '<p>click</p>');

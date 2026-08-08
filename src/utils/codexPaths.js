@@ -4,7 +4,7 @@
  * Pure, SDK-free segment builders so path construction is unit-testable without mocking
  * Firestore. Each returns an array of path segments spread into `doc(db, ...)` /
  * `collection(db, ...)`. Centralizing the layout here keeps the `codices/{id}/…` shape in
- * one place (see the multi-codex data-model spec).
+ * one place.
  *
  *   users/{uid}                              (Phase 2)
  *   invites/{token}                          (private-site invite gate; token == doc id == the secret)
@@ -35,7 +35,7 @@ export const userDocPath = (uid) => ['users', uid];
 export const permissionsCollectionPath = () => ['permissions'];
 export const permissionDocPath = (uid, codexId) => ['permissions', permissionId(uid, codexId)];
 
-// Invite gate: the doc id IS the secret token (invite-access spec). Admin-only per firestore.rules.
+// Invite gate: the doc id IS the secret token. Admin-only per firestore.rules.
 export const invitesCollectionPath = () => ['invites'];
 export const inviteDocPath = (token) => ['invites', token];
 

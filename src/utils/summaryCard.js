@@ -2,9 +2,8 @@
  * Codex — Summary card + type index (Axis 2 of component composition).
  *
  * The across-entries render mode. Where `entryRenderer.js` renders ONE entry in full,
- * this renders MANY entries as compact cards — the general form of the old bespoke
- * `matrixView.js` screen, driven by a per-type `summaryCard` descriptor instead of
- * hard-coded field names.
+ * this renders MANY entries as compact cards, driven by a per-type `summaryCard`
+ * descriptor.
  *
  * A type's schema may carry:
  *

@@ -4,7 +4,7 @@
  * An invite is a link the admin drops in Discord: `https://…/?invite=<token>`. These two pure
  * helpers are the only place the `invite` query-param name lives — `main.js` reads the token at
  * boot (before/through the Google sign-in popup) and the admin panel builds the link to copy.
- * SDK- and DOM-free (uses the URLSearchParams built-in), so Node-testable. See invite-access spec.
+ * SDK- and DOM-free (uses the URLSearchParams built-in), so Node-testable.
  */
 
 /**
