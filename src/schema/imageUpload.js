@@ -51,14 +51,18 @@ export function labelFromFilename(filename) {
 /**
  * Upload one image into a codex. Returns the image id (content hash).
  *   { bytes, filename, contentType, codexId, uid } — the file, already read to bytes
- *   { storage, meta } — the injected byte + metadata ports
+ *   { storage, meta, compress } — the injected byte + metadata ports, plus an optional
+ *     `compress() => { bytes, contentType }` that yields the bytes to STORE (a downscaled
+ *     WebP, or the source unchanged). The id is always hashed from the SOURCE bytes above,
+ *     so dedup is unaffected — and compression runs only on a miss, never on a re-upload.
  */
-export async function uploadImage({ bytes, filename, contentType, codexId, uid }, { storage, meta }) {
+export async function uploadImage({ bytes, filename, contentType, codexId, uid }, { storage, meta, compress }) {
   const hash = await hashBytes(bytes);
   const existing = await meta.getImage(hash);
 
   if (!existing) {
-    await storage.uploadBytes(hash, bytes, contentType);
+    const stored = compress ? await compress() : { bytes, contentType };
+    await storage.uploadBytes(hash, stored.bytes, stored.contentType);
     await meta.createImage(hash, {
       id: hash,
       label: labelFromFilename(filename),

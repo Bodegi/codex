@@ -51,10 +51,10 @@ export function createImageStore(config, getAccessToken) {
   return {
     /**
      * Store the bytes at `{bucket}/{hash}` with their content-type. A plain insert, NOT an upsert:
-     * content-hash identity makes the bytes immutable (same id ⇒ same bytes), so a stored blob is
-     * never rewritten. A 409 "already exists" (a re-upload race, or bytes some other codex already
-     * shares) is therefore a harmless no-op, swallowed here. Any other error propagates so the caller
-     * surfaces an error toast.
+     * the id is the hash of the SOURCE image, written exactly once and never rewritten (the stored
+     * bytes may be a downscaled WebP of that source — see imageOptimize.js). A 409 "already exists"
+     * (a re-upload race, or bytes some other codex already shares) is therefore a harmless no-op,
+     * swallowed here. Any other error propagates so the caller surfaces an error toast.
      *
      * Insert, not upsert: an upsert makes Supabase Storage exercise its UPDATE policy, whose RLS
      * context cannot see the Firebase `iss`/`aud` claims the write pin needs — so it's denied even

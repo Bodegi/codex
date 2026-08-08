@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { uploadImage, labelFromFilename, validateImageFile, MAX_IMAGE_BYTES } from './imageUpload.js';
+import { hashBytes } from './contentHash.js';
 
 const bytesOf = (s) => new TextEncoder().encode(s);
 
@@ -66,6 +67,27 @@ test('re-uploading into a codex it already belongs to leaves membership unchange
   await upload({ bytes: bytesOf('x') }, ports);
   assert.deepEqual(ports.db.get(id).codices, ['atm10']);
   assert.equal(ports.uploads.length, 1);
+});
+
+// --- compress port ---------------------------------------------------------
+
+test('on a miss, the compress port shapes the stored bytes/type — but the id stays the source hash', async () => {
+  const ports = fakes();
+  const compress = async () => ({ bytes: bytesOf('webp'), contentType: 'image/webp' });
+  const sourceId = await hashBytes(bytesOf('source'));
+  const id = await upload({ bytes: bytesOf('source'), contentType: 'image/png' }, { ...ports, compress });
+  assert.equal(id, sourceId); // hashed from the source, not the compressed output
+  assert.equal(ports.uploads[0].hash, sourceId);
+  assert.equal(ports.uploads[0].contentType, 'image/webp'); // stored as what compress returned
+});
+
+test('a dedup hit never invokes the compress port (no wasted encode on re-upload)', async () => {
+  const ports = fakes();
+  let calls = 0;
+  const compress = async () => (calls++, { bytes: bytesOf('webp'), contentType: 'image/webp' });
+  await upload({ bytes: bytesOf('dup') }, { ...ports, compress });
+  await upload({ bytes: bytesOf('dup'), codexId: 'other' }, { ...ports, compress });
+  assert.equal(calls, 1); // second (dedup) upload skips compression
 });
 
 // --- resurrect -------------------------------------------------------------

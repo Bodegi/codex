@@ -96,6 +96,7 @@ import { initMapReadCanvases } from './components/mapComponent.js';
 import { createImageIndex, publicUrl } from './schema/imageIndex.js';
 import { createImageStore } from './utils/imageStore.js';
 import { uploadImage, labelFromFilename, validateImageFile } from './schema/imageUpload.js';
+import { optimizeImage } from './utils/imageOptimize.js';
 import { attachLightbox } from './components/lightbox.js';
 import { openConfirm } from './components/confirmModal.js';
 import { openConflictModal } from './components/conflictModal.js';
@@ -262,7 +263,9 @@ async function uploadImageToCurrentCodex(file) {
       codexId: state.currentCodexId,
       uid: state.authManager?.currentUser?.uid || '',
     },
-    { storage: imageStore, meta: imageMetaPort }
+    // compress runs only on a dedup miss; it downscales + WebP-encodes the source, falling back to
+    // the raw bytes when that isn't a win. The id above is already hashed from the source bytes.
+    { storage: imageStore, meta: imageMetaPort, compress: () => optimizeImage(file) }
   );
   return { id, label: labelFromFilename(file.name), url: publicUrl(supabaseConfig, id) };
 }
