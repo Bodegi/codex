@@ -143,14 +143,20 @@ export function renderAccessPanel({ codexId, rows = [], query = '' }) {
 }
 
 /**
- * Codices panel: create a codex (name → slug, blank or copy-types template), and manage the
- * existing ones (rename inline, soft archive/restore). Removal is a status flag — never a delete.
- * `active`/`archived` are codex meta docs ({ codexId, name }); `templateSources` are the active
- * codices whose type structure a new codex can copy; `currentCodexId` marks the open codex
- * (which can't be archived out from under the author until they switch away).
+ * Codices panel: create a codex (name → slug, starting-types picker), and manage the existing
+ * ones (rename inline, soft archive/restore). Removal is a status flag — never a delete. The
+ * starting-types picker is the single front door to a codex's initial types — blank, the bundled
+ * starter examples, or a copy of an existing codex's structure — and, like the whole create form,
+ * writes nothing until "Create codex" is pressed. `active`/`archived` are codex meta docs
+ * ({ codexId, name }); `templateSources` are the active codices whose type structure a new codex
+ * can copy; `currentCodexId` marks the open codex (which can't be archived out from under the
+ * author until they switch away). The starter sentinel is main.js's `STARTER_TEMPLATE_ID`.
  */
 export function renderCodicesPanel({ active = [], archived = [], templateSources = [], currentCodexId }) {
-  const templateOptions = ['<option value="">Blank — no types</option>']
+  const templateOptions = [
+    '<option value="">Blank — no types</option>',
+    '<option value="__starter__">Example types (note + person)</option>',
+  ]
     .concat(
       templateSources.map(
         (c) => `<option value="${escapeHtml(c.codexId)}">Copy types from ${escapeHtml(c.name || c.codexId)}</option>`

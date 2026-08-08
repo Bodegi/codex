@@ -991,31 +991,17 @@ function loadFirstEntry(type) {
   highlightNav();
 }
 
-// A codex with no types (fresh/blank) — nothing to read yet. For admins, offer both paths out:
-// the sidebar's "＋ New type" (blank), or a one-click starter kit that flattens the builder's
-// learning curve by seeding two fully-built example types to learn from.
+// A codex with no types (fresh/blank) — nothing to read yet. Starting types are chosen at create
+// time (the Codices panel's starting-types picker), so the empty state just points admins at the
+// sidebar's "＋ New type" to add more.
 function renderEmptyCodexState() {
   readerTitle.textContent = '';
   editorTitle.textContent = '';
   const msg = state.caps.canAdmin
-    ? 'This codex has no types yet. Use “＋ New type” in the sidebar to create the first one, or start from an example to see a fully-built type.'
+    ? 'This codex has no types yet. Use “＋ New type” in the sidebar to create the first one.'
     : 'This codex has no content yet.';
-  const starter = state.caps.canAdmin
-    ? '<button class="btn btn-primary" id="seed-starter-btn">Start from an example</button>'
-    : '';
-  updateRenderedPreview(`<div class="empty-state">${escapeHtml(msg)}${starter}</div>`);
-  previewRendered.querySelector('#seed-starter-btn')?.addEventListener('click', seedStarterTypes);
+  updateRenderedPreview(`<div class="empty-state">${escapeHtml(msg)}</div>`);
   updateRawJson('');
-}
-
-// Seed the demo fixture's example types (as a coherent kit) into the current codex, then drop the
-// admin into the first one's Structure mode so they land on a built schema, not a blank one.
-function seedStarterTypes() {
-  const schemas = cloneStarterSchemas(demoSchemas);
-  schemas.forEach((s) => persistSchema(s.type, s));
-  renderTypeNav();
-  showToast('Added example types');
-  goto(toSchemaAdmin(selectType(state.view, schemas[0].type)));
 }
 
 // The sidebar reflects the current surface: the codex's types (content), or the admin nav
@@ -1873,9 +1859,14 @@ async function saveGlyph(record, isEdit) {
   showToast(toast);
 }
 
-// Create a codex: an opaque id, meta + creator grant, optional template copy of another codex's
-// types, then auto-switch to it. The display name is free-form (duplicates are fine — the id is
-// what's unique).
+// The starting-types picker's sentinel for "seed the bundled starter examples" — distinct from a
+// real codexId (which is an opaque newId) and from '' (blank).
+const STARTER_TEMPLATE_ID = '__starter__';
+
+// Create a codex: an opaque id, meta + creator grant, then the chosen starting types, then auto-
+// switch to it. The starting-types choice (blank / starter examples / copy an existing codex) is
+// resolved into schemas and written as part of this one deliberate commit — nothing hits the DB
+// before "Create codex". The display name is free-form (duplicates are fine — the id is unique).
 async function createCodex() {
   if (!(state.fbManager && state.fbManager.isConfigured())) return;
   const name = (document.getElementById('codex-create-name')?.value || '').trim();
@@ -1887,10 +1878,15 @@ async function createCodex() {
   try {
     await state.fbManager.saveCodexMeta(id, { name, status: 'active', createdBy: uid, createdAt: nowIso });
     if (uid) await state.fbManager.savePermission(uid, id, { role: 'editor', grantedBy: uid, grantedAt: nowIso });
-    if (templateId) {
-      const sourceSchemas = await state.fbManager.codex(templateId).getSchemas();
+    const startingTypes =
+      templateId === STARTER_TEMPLATE_ID
+        ? cloneStarterSchemas(demoSchemas)
+        : templateId
+        ? buildTemplateSchemas(await state.fbManager.codex(templateId).getSchemas())
+        : [];
+    if (startingTypes.length) {
       const dest = state.fbManager.codex(id);
-      await Promise.all(buildTemplateSchemas(sourceSchemas).map((s) => dest.saveSchema(s.type, s)));
+      await Promise.all(startingTypes.map((s) => dest.saveSchema(s.type, s)));
     }
     showToast(`Created “${name}”`);
     // Land in the new codex's content: its empty state surfaces "＋ New type" (or a template's first
