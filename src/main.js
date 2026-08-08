@@ -68,6 +68,7 @@ import {
   moveSectionTo,
   newTypeSchema,
 } from './components/schemaEditor.js';
+import { cloneStarterSchemas } from './schema/starterTypes.js';
 import { renderAuthGateway } from './components/authGateway.js';
 import { renderAwaitingAccess, renderInviteRequired } from './components/awaitingAccess.js';
 import {
@@ -926,15 +927,32 @@ function loadFirstEntry(type) {
   highlightNav();
 }
 
-// A codex with no types (fresh/blank) — nothing to read yet.
+// A codex with no types (fresh/blank) — nothing to read yet. For admins, offer both paths out:
+// the sidebar's "＋ New type" (blank), or a one-click starter kit that flattens the builder's
+// learning curve by seeding two fully-built example types to learn from.
 function renderEmptyCodexState() {
   readerTitle.textContent = '';
   editorTitle.textContent = '';
   const msg = state.caps.canAdmin
-    ? 'This codex has no types yet. Use “＋ New type” in the sidebar to create the first one.'
+    ? 'This codex has no types yet. Use “＋ New type” in the sidebar to create the first one, or start from an example to see a fully-built type.'
     : 'This codex has no content yet.';
-  updateRenderedPreview(`<div class="empty-state">${escapeHtml(msg)}</div>`);
+  const starter = state.caps.canAdmin
+    ? '<button class="btn btn-primary" id="seed-starter-btn">Start from an example</button>'
+    : '';
+  updateRenderedPreview(`<div class="empty-state">${escapeHtml(msg)}${starter}</div>`);
+  previewRendered.querySelector('#seed-starter-btn')?.addEventListener('click', seedStarterTypes);
   updateRawJson('');
+}
+
+// Seed the demo fixture's example types (as a coherent kit) into the current codex, then drop the
+// admin into the first one's Structure mode so they land on a built schema, not a blank one.
+function seedStarterTypes() {
+  const existing = [...listTypes(), ...listArchivedTypes()].map((t) => t.type);
+  const schemas = cloneStarterSchemas(demoSchemas, existing);
+  schemas.forEach((s) => persistSchema(s.type, s));
+  renderTypeNav();
+  showToast('Added example types');
+  goto(toSchemaAdmin(selectType(state.view, schemas[0].type)));
 }
 
 // The sidebar reflects the current surface: the codex's types (content), or the admin nav
