@@ -84,7 +84,7 @@ import { buildInviteRows, countPendingGrants } from './schema/inviteModel.js';
 import { openGlyphDesigner, openLibraryPicker } from './components/glyphDesigner.js';
 import { resolveCapabilities, isAdminEmail } from './utils/capabilities.js';
 import { syncBadge } from './utils/syncBadge.js';
-import { getKind } from './schema/fieldKinds.js';
+import { getKind, previewSample } from './schema/fieldKinds.js';
 import { initCarousel } from './components/carousel.js';
 import { initMapReadCanvases } from './components/mapComponent.js';
 import { createImageIndex, publicUrl } from './schema/imageIndex.js';
@@ -1931,12 +1931,6 @@ function typesMountEl() {
   return formContainer;
 }
 
-// A representative entry to render the type's read-view preview against.
-function sampleForType(type) {
-  const list = activeEntries(state.entryIndex, type);
-  return list.length ? list[0] : { type };
-}
-
 function setEditingType(type) {
   state.editingType = type;
   state.editorErrors = [];
@@ -1960,7 +1954,9 @@ function renderTypesEditor() {
 // rebuild the editor DOM — safe to call from text-input handlers without losing focus.
 function refreshWorkingPreview() {
   setOverlaySchema(state.editingType, state.workingSchema);
-  const sample = sampleForType(state.editingType);
+  // A filled, per-kind schematic of the layout being built (not live entry data): both previews
+  // show a representative example even for a type with no entries. See fieldKinds `previewSample`.
+  const sample = previewSample(state.workingSchema);
   const entry = renderEntryHTML(state.editingType, sample, renderCtx);
   // A live summary-card preview so the "Summary card" config gives visible feedback (the entry
   // preview above never reflects it). The card is inert here — clicks navigate only in index mode.
@@ -2096,7 +2092,7 @@ function applySchemaRawJsonEdit() {
   });
   attachSchemaEditor(mount.querySelector('.schema-editor'), handleSchemaIntent);
   setOverlaySchema(state.editingType, state.workingSchema);
-  updateRenderedPreview(renderEntryHTML(state.editingType, sampleForType(state.editingType), renderCtx));
+  updateRenderedPreview(renderEntryHTML(state.editingType, previewSample(state.workingSchema), renderCtx));
 }
 
 // Realtime Firestore Doc Subscription

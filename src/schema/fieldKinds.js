@@ -47,6 +47,12 @@ import { renderMapInput, renderMapRead, mountMap } from '../components/mapCompon
 
 const MUTED_EMPTY = '<p class="muted">Not specified.</p>';
 
+// Preview-sample constants (see `sampleValue` / `previewSample`). The image id is a sentinel that
+// never resolves, so media/map slots render the shared not-found frame — "an image goes here" — in
+// the Structure-editor layout preview rather than blank space.
+const SAMPLE_IMAGE_ID = '__preview_sample_image__';
+const SAMPLE_PROSE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.';
+
 /** Normalize a list value: array as-is, comma-string split, blank -> []. */
 export function toList(value) {
   if (Array.isArray(value)) return value;
@@ -89,6 +95,7 @@ export const fieldKinds = {
       if (value == null || String(value).trim() === '') return MUTED_EMPTY;
       return `<p>${escapeHtml(value)}</p>`;
     },
+    sampleValue: (field) => field.label,
   },
 
   prose: {
@@ -114,6 +121,7 @@ export const fieldKinds = {
         el.dispatchEvent(new Event('input', { bubbles: true }));
       });
     },
+    sampleValue: () => SAMPLE_PROSE,
   },
 
   list: {
@@ -128,6 +136,7 @@ export const fieldKinds = {
       if (items.length === 0) return MUTED_EMPTY;
       return `<ul>${items.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}</ul>`;
     },
+    sampleValue: (field) => field.label,
   },
 
   reference: {
@@ -162,6 +171,9 @@ export const fieldKinds = {
       if (value == null || String(value).trim() === '') return '<span class="muted">None</span>';
       return refLink(field.targetType, value, ctx);
     },
+    // A plain label, not a real id: it won't resolve, so the preview shows the field's label as a
+    // muted reference — a filled schematic of the slot, never a live lookup.
+    sampleValue: (field) => field.label,
   },
 
   hero: {
@@ -194,6 +206,7 @@ export const fieldKinds = {
       // cleaner than deleting the key and full-replace Save persists it explicitly.
       el.querySelector('[data-media="hero-clear"]')?.addEventListener('click', () => onChange(''));
     },
+    sampleValue: () => SAMPLE_IMAGE_ID,
   },
 
   gallery: {
@@ -246,6 +259,7 @@ export const fieldKinds = {
         });
       });
     },
+    sampleValue: () => [SAMPLE_IMAGE_ID],
   },
 
   // The map component lives in its own module (canvas engine); the registry just delegates.
@@ -256,8 +270,32 @@ export const fieldKinds = {
     renderInput: renderMapInput,
     renderRead: renderMapRead,
     mount: mountMap,
+    // A map whose background is the unresolvable sentinel → the not-found frame (see #13), with
+    // an empty scene. Enough to show the map block in the layout preview.
+    sampleValue: () => ({ mapImageId: SAMPLE_IMAGE_ID, waypoints: [], roads: [], territories: [] }),
   },
 };
+
+/**
+ * A filled, representative value for a field's kind — the Structure-editor previews render this so
+ * they show a *schematic of the layout you are building*, independent of whether any entries exist.
+ * text/list/reference → the field's label; prose → lorem ipsum; media/map → a sentinel unresolvable
+ * image id so the slot renders the shared not-found frame. Falls back to the label for a kind that
+ * declares none (and '' when it has no label).
+ */
+export function sampleValue(field) {
+  const kind = fieldKinds[field.kind];
+  return kind?.sampleValue ? kind.sampleValue(field) : field.label ?? '';
+}
+
+/** A whole-schema preview sample: `{ type, [field.key]: sampleValue(field) }` over every field. */
+export function previewSample(schema) {
+  const sample = { type: schema.type };
+  for (const section of schema.sections || []) {
+    for (const field of section.fields || []) sample[field.key] = sampleValue(field);
+  }
+  return sample;
+}
 
 /** A single reference as a link (resolvable) or muted span (missing). */
 function refLink(targetType, id, ctx) {

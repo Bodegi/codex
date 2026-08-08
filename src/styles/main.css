@@ -1109,6 +1109,19 @@ select[multiple].form-control option {
   background: rgba(255, 255, 255, 0.05);
   border-radius: var(--radius-sm);
 }
+/* Fills the map block when a read-view map's background is set but unresolved; the canvas/pin
+   overlays sit on top (absolute inset:0), so pins render over the frame. */
+.image-missing-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.05);
+}
+.image-missing-map .image-missing-glyph {
+  width: 48px;
+  height: 48px;
+}
 
 /* Reader links — internal references and inline external links. Previously unstyled, so they fell
    back to default browser blue/underline, which clashed with the parchment theme. Now they sit on

@@ -8,6 +8,8 @@ import {
   toList,
   displayValue,
   unknownKindPlaceholder,
+  sampleValue,
+  previewSample,
 } from './fieldKinds.js';
 
 // --- text ---
@@ -317,6 +319,59 @@ test('map renderRead: empty → nothing, populated → a .map-read canvas carryi
   assert.match(html, /class="map-wrapper map-read"/);
   assert.match(html, /data-map-value=/);
   assert.match(html, /src="\/i\/m.png"/);
+});
+
+// --- preview sample (filled Structure-editor previews) ---
+
+test('sampleValue: text/list/reference → the field label', () => {
+  assert.equal(sampleValue({ kind: 'text', label: 'Name' }), 'Name');
+  assert.equal(sampleValue({ kind: 'list', label: 'Exports' }), 'Exports');
+  assert.equal(sampleValue({ kind: 'reference', label: 'Favorite Note' }), 'Favorite Note');
+});
+
+test('sampleValue: prose → a lorem-ipsum snippet', () => {
+  assert.match(sampleValue({ kind: 'prose', label: 'Bio' }), /^Lorem ipsum/);
+});
+
+test('sampleValue: media/map → a sentinel unresolvable value of the right shape', () => {
+  const hero = sampleValue({ kind: 'hero', label: 'Hero' });
+  assert.equal(typeof hero, 'string');
+  assert.ok(hero); // truthy so hero renderRead emits the not-found frame, not nothing
+
+  const gallery = sampleValue({ kind: 'gallery', label: 'Gallery' });
+  assert.ok(Array.isArray(gallery) && gallery.length === 1);
+
+  const map = sampleValue({ kind: 'map', label: 'Map' });
+  assert.ok(map.mapImageId && Array.isArray(map.waypoints));
+
+  // The media sentinels never resolve: hero/gallery/map all degrade to the not-found frame.
+  const ctx = { resolveImage: () => null };
+  assert.match(fieldKinds.hero.renderRead({ kind: 'hero' }, hero, ctx), /image-missing-hero/);
+  assert.match(fieldKinds.map.renderRead({ kind: 'map', label: 'Map' }, map, ctx), /image-missing-map/);
+});
+
+test('sampleValue falls back to the label for a kind that declares none', () => {
+  assert.equal(sampleValue({ kind: 'bogus', label: 'Whatever' }), 'Whatever');
+  assert.equal(sampleValue({ kind: 'bogus' }), '');
+});
+
+test('previewSample maps every field through its kind, keyed by field key, plus the type', () => {
+  const schema = {
+    type: 'person',
+    sections: [
+      { fields: [{ key: 'name', kind: 'text', label: 'Name' }, { key: 'bio', kind: 'prose', label: 'Bio' }] },
+      { fields: [{ key: 'favoriteNote', kind: 'reference', label: 'Favorite Note' }] },
+    ],
+  };
+  const sample = previewSample(schema);
+  assert.equal(sample.type, 'person');
+  assert.equal(sample.name, 'Name');
+  assert.match(sample.bio, /^Lorem ipsum/);
+  assert.equal(sample.favoriteNote, 'Favorite Note');
+});
+
+test('previewSample tolerates a schema with no sections', () => {
+  assert.deepEqual(previewSample({ type: 'empty' }), { type: 'empty' });
 });
 
 test('unknownKindPlaceholder names the offending kind', () => {

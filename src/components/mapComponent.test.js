@@ -186,6 +186,38 @@ test('renderMapRead bakes the referenced entry title into the pin label', () => 
   assert.equal(JSON.parse(decoded).waypoints[0].label, 'Ada');
 });
 
+test('renderMapRead degrades a set-but-unresolved background to the not-found frame', () => {
+  const html = renderMapRead(
+    { key: 'map', label: 'Map' },
+    { mapImageId: 'gone', waypoints: [], roads: [], territories: [] },
+    { resolveImage: () => null } // id is set but no longer resolves
+  );
+  assert.match(html, /image-missing image-missing-map/); // placeholder in place of the img
+  assert.doesNotMatch(html, /class="map-bg-img"/); // no broken <img src="">
+  assert.match(html, /class="map-canvas-overlay"/); // canvas/pins still paint on top
+});
+
+test('renderMapRead keeps a real <img> when the background resolves', () => {
+  const html = renderMapRead(
+    { key: 'map', label: 'Map' },
+    { mapImageId: 'm', waypoints: [], roads: [], territories: [] },
+    { resolveImage: (id) => `/i/${id}` }
+  );
+  assert.match(html, /<img class="map-bg-img" src="\/i\/m"/);
+  assert.doesNotMatch(html, /image-missing-map/);
+});
+
+test('renderMapRead with pins but no background keeps the blank img (not the frame)', () => {
+  // hasContent via waypoints; an unset background stays a blank img over the black wrapper.
+  const html = renderMapRead(
+    { key: 'map', label: 'Map' },
+    { mapImageId: '', waypoints: [{ id: '1', kind: 'waypoint', x: 1, y: 2, label: 'A' }], roads: [], territories: [] },
+    { resolveImage: (id) => `/i/${id}` }
+  );
+  assert.match(html, /<img class="map-bg-img" src=""/);
+  assert.doesNotMatch(html, /image-missing-map/);
+});
+
 test('renderMapInput exposes the name + association inspector slots', () => {
   const html = renderMapInput(
     { key: 'map', kind: 'map', association: { mode: 'both', refType: 'person' } },

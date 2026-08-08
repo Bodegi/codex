@@ -36,6 +36,7 @@
  */
 
 import { openImagePicker } from './imagePicker.js';
+import { notFoundImage } from '../schema/notFoundImage.js';
 
 /** Fallback pin/stroke color when a marker has none and the field declares no palette. */
 const DEFAULT_COLOR = '#f59e0b';
@@ -330,7 +331,14 @@ export function renderMapRead(field, value, ctx) {
   const hasContent = v.mapImageId || v.waypoints.length || v.roads.length || v.territories.length;
   if (!hasContent) return '';
   const label = field?.label || 'Map';
-  const src = v.mapImageId && ctx?.resolveImage ? ctx.resolveImage(v.mapImageId) || '' : '';
+  const url = v.mapImageId && ctx?.resolveImage ? ctx.resolveImage(v.mapImageId) : '';
+  // A set-but-unresolved background (removed/archived image) degrades to the shared not-found
+  // frame — mirrors hero, so the map never leaves a broken <img> — with the canvas/pins still
+  // painting on top. An unset background keeps the black wrapper (a blank img over #000).
+  const bg =
+    v.mapImageId && !url
+      ? notFoundImage('image-missing-map')
+      : `<img class="map-bg-img" src="${escapeAttr(url)}" alt="${escapeAttr(label)}">`;
   const palette = field?.palette ? ` data-map-palette="${escapeAttr(JSON.stringify(field.palette))}"` : '';
   // Resolve reference labels + glyphs here (the paint pass has no ctx): bake each waypoint's display
   // title into `label` and its resolved glyph SVG into `glyphSvg` so `initMapReadCanvases` can render
@@ -344,7 +352,7 @@ export function renderMapRead(field, value, ctx) {
     })),
   };
   return `<div class="map-wrapper map-read" data-map-value="${escapeAttr(JSON.stringify(resolved))}"${palette}>
-      <img class="map-bg-img" src="${escapeAttr(src)}" alt="${escapeAttr(label)}">
+      ${bg}
       <canvas class="map-canvas-overlay"></canvas>
       <div class="map-pin-layer"></div>
     </div>`;
