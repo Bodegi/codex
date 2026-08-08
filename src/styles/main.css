@@ -326,15 +326,6 @@ body {
   margin-top: 8px;
   border-top: 1px solid var(--border-dim);
 }
-.nav-new-type-input {
-  width: 100%;
-  background: var(--bg-input, rgba(0, 0, 0, 0.2));
-  border: 1px solid var(--border-dim);
-  color: var(--text-main);
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-size: 12.5px;
-}
 .nav-new-type-btn {
   font-weight: 400;
   font-size: 12.5px;

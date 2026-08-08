@@ -161,6 +161,12 @@ const state = {
   editingType: '',
   workingSchema: null,
   editorErrors: [],
+  // A brand-new type in flight: its id while the builder holds an in-memory draft that hasn't been
+  // Saved. It lives only in the store overlay (never localStorage/Firestore) so an abandoned draft
+  // leaves no orphan — mirrors the entry flow (blank draft, persist on Save). `typeDraftDirty` gates
+  // the discard warning: an untouched draft leaves silently, an edited one confirms first.
+  newTypeDraft: null,
+  typeDraftDirty: false,
   // Global-admin roster state
   adminUsers: [],
   adminPerms: [],
@@ -191,7 +197,23 @@ const inSchemaAdmin = () => state.view.kind === 'type' && state.view.mode === 'a
 // The context normalize() clamps against: current capabilities + the codex's live type keys.
 const viewCtx = () => ({ caps: state.caps, types: listTypes() });
 // Apply a view transition, clamp it, and re-render the whole workspace to match.
+// True when a view is the in-flight type draft's own Structure surface — the one place the draft
+// is allowed to live. Any other target means we're leaving it.
+const isTypeDraftView = (v) =>
+  !!state.newTypeDraft && v && v.kind === 'type' && v.type === state.newTypeDraft && v.mode === 'admin';
+
+// Drop an unsaved new-type draft: it only ever sat in the store overlay (in-memory), so clearing
+// it un-persists nothing. Idempotent. The main leave-paths route through confirmDiscardIfDirty
+// (which purges on proceed); this is the safety net for the few that reach goto directly.
+function discardTypeDraft() {
+  if (!state.newTypeDraft) return;
+  setOverlaySchema(state.newTypeDraft, null);
+  state.newTypeDraft = null;
+  state.typeDraftDirty = false;
+}
+
 function goto(nextView) {
+  if (!isTypeDraftView(nextView)) discardTypeDraft();
   state.view = normalize(nextView, viewCtx());
   renderView();
 }
@@ -200,14 +222,25 @@ function goto(nextView) {
 // autosave to fall back on). Returns true when it's safe to proceed — not editing, nothing dirty, or the
 // user chose to discard. Wraps the user-initiated edit-exit paths (Done, nav, codex switch, admin).
 async function confirmDiscardIfDirty() {
-  const editing = state.view.kind === 'type' && state.view.mode === 'edit';
-  if (!editing || !state.dirty) return true;
+  const editingEntry = state.view.kind === 'type' && state.view.mode === 'edit' && state.dirty;
+  // A new-type draft the author has touched — leaving discards it (it never persisted). An untouched
+  // draft (typeDraftDirty false) skips the prompt but is still purged below, like a blank new entry.
+  const draftingType = !!state.newTypeDraft && state.typeDraftDirty;
+  if (!editingEntry && !draftingType) {
+    discardTypeDraft(); // clean up an untouched draft on the way out
+    return true;
+  }
   const ok = await openConfirm({
-    title: 'Discard unsaved changes?',
-    message: 'Your unsaved edits to this entry will be lost.',
+    title: draftingType ? 'Discard new type?' : 'Discard unsaved changes?',
+    message: draftingType
+      ? 'This new type hasn’t been saved yet — leaving will discard it.'
+      : 'Your unsaved edits to this entry will be lost.',
     confirmLabel: 'Discard',
   });
-  if (ok) state.dirty = false;
+  if (ok) {
+    state.dirty = false;
+    discardTypeDraft();
+  }
   return ok;
 }
 
@@ -1031,7 +1064,9 @@ function exitAdmin() {
 }
 
 function renderTypeNav() {
-  const types = listTypes();
+  // An unsaved new-type draft is resolvable (overlay) so its preview + picker work, but it isn't a
+  // browsable type yet — keep it out of the sidebar until Save, mirroring a new entry.
+  const types = listTypes().filter((t) => t.type !== state.newTypeDraft);
   const canEdit = !!state.caps.canEdit;
   const canAdmin = !!state.caps.canAdmin;
   const entriesByType = {};
@@ -1068,12 +1103,11 @@ function renderTypeNav() {
   wireTypeNav();
 }
 
-// The admin-only "＋ New type" affordance at the foot of the nav — an inline name + create button.
-// Creating a type drops the author into its Structure (schema) mode.
+// The admin-only "＋ New type" affordance at the foot of the nav. It opens the schema builder on an
+// in-memory draft; the type's name is the builder head's "Name" field (no separate nav input).
 function renderNewTypeRow() {
   return `
     <div class="nav-new-type">
-      <input class="nav-new-type-input" id="new-type-name" placeholder="New type name" aria-label="New type name">
       <button class="nav-item nav-new-type-btn" id="new-type-btn">＋ New type</button>
     </div>`;
 }
@@ -1264,9 +1298,15 @@ editToggleBtn.addEventListener('click', () => {
   applyViewChrome();
 });
 
-structureBtn.addEventListener('click', () => {
+structureBtn.addEventListener('click', async () => {
   if (!state.caps.canAdmin || state.view.kind !== 'type' || !state.view.type) return;
-  goto(inSchemaAdmin() ? toRead(state.view) : toSchemaAdmin(state.view));
+  if (inSchemaAdmin()) {
+    // Leaving Structure ("Done") — guard an unsaved new-type draft before it's discarded.
+    if (!(await confirmDiscardIfDirty())) return;
+    goto(toRead(state.view));
+  } else {
+    goto(toSchemaAdmin(state.view));
+  }
 });
 
 indexToggleBtn.addEventListener('click', () => {
@@ -2010,16 +2050,18 @@ function persistSchema(type, schema) {
   }
 }
 
-// Create a type from the nav's "＋ New type" input, then drop into its Structure (schema) mode.
-function createType() {
-  const input = document.getElementById('new-type-name');
-  const label = (input?.value || '').trim();
-  if (!label) return showToast('Enter a type name');
-  const schema = newTypeSchema(label);
-  persistSchema(schema.type, schema);
-  renderTypeNav();
-  showToast(`Created “${label}” type`);
-  goto(toSchemaAdmin(selectType(state.view, schema.type)));
+// "＋ New type": open the schema builder on an in-memory draft (name lives in the builder head,
+// not a separate nav input), persisting nothing until Save. The draft sits in the store overlay
+// only so getSchema/listTypes resolve it — a live preview + a picker option — while it stays out of
+// Firestore/localStorage. Abandon it and discardTypeDraft cleans it up, so no orphan is left behind.
+async function createType() {
+  if (!state.caps.canAdmin) return;
+  if (!(await confirmDiscardIfDirty())) return; // guards a dirty entry edit or a prior draft
+  const draft = newTypeSchema();
+  setOverlaySchema(draft.type, draft);
+  state.newTypeDraft = draft.type;
+  state.typeDraftDirty = false;
+  goto(toSchemaAdmin(selectType(state.view, draft.type)));
 }
 
 // Flip a type's status (archive/restore). Re-clamps the view so archiving the type you're viewing or
@@ -2108,6 +2150,13 @@ function setEditingType(type) {
   renderTypesEditor();
 }
 
+// The schema editor's "Editing type" picker: switch which type's Structure is open, guarding (and
+// discarding) an unsaved draft first so it never lingers behind the newly-selected type.
+async function pickEditingType(type) {
+  if (!(await confirmDiscardIfDirty())) return;
+  goto(toSchemaAdmin(selectType(state.view, type)));
+}
+
 // Rebuild the structured editor (after a structural change) and refresh the preview.
 function renderTypesEditor() {
   const mount = typesMountEl();
@@ -2115,6 +2164,7 @@ function renderTypesEditor() {
     types: listTypes(),
     editingType: state.editingType,
     errors: state.editorErrors,
+    isNewDraft: state.editingType === state.newTypeDraft,
   });
   attachSchemaEditor(mount.querySelector('.schema-editor'), handleSchemaIntent);
   refreshWorkingPreview();
@@ -2143,10 +2193,15 @@ function refreshWorkingPreview() {
 // the editor; text/checkbox edits only refresh the preview.
 function handleSchemaIntent(intent) {
   const s = state.workingSchema;
+  // Any edit to an unsaved draft arms the discard warning (pick-type/save aren't edits to it).
+  if (state.newTypeDraft && intent.action !== 'pick-type' && intent.action !== 'save') {
+    state.typeDraftDirty = true;
+  }
   switch (intent.action) {
     case 'pick-type':
-      // The editor's type picker navigates to that type's Structure mode (single source of truth).
-      return goto(toSchemaAdmin(selectType(state.view, intent.type)));
+      // The editor's type picker navigates to that type's Structure mode (single source of truth),
+      // guarding an unsaved draft on the way out.
+      return pickEditingType(intent.type);
     case 'edit-label':
       state.workingSchema = { ...s, label: intent.label };
       return refreshWorkingPreview();
@@ -2213,6 +2268,10 @@ function saveWorkingSchema() {
     return;
   }
   state.editorErrors = [];
+  // This save is what persists a new-type draft for the first time; clear the marker so it stops
+  // being treated as unsaved (and now shows in the nav like any other type).
+  state.newTypeDraft = null;
+  state.typeDraftDirty = false;
   saveSchemaLocal(state.editingType, state.workingSchema); // overlay + localStorage
   const scope = codexScope();
   if (scope && scope.isConfigured()) {
@@ -2222,7 +2281,7 @@ function saveWorkingSchema() {
   }
   renderTypesEditor();
   renderTypeNav(); // reflect a rename / icon change in the sidebar
-  showToast(`Saved “${state.editingType}” type`);
+  showToast(`Saved “${state.workingSchema.label}” type`);
 }
 
 function resetWorkingSchema() {
@@ -2253,12 +2312,14 @@ function applySchemaRawJsonEdit() {
   }
   clearJsonError();
 
+  if (state.newTypeDraft) state.typeDraftDirty = true;
   state.workingSchema = parsed;
   const mount = typesMountEl();
   mount.innerHTML = renderSchemaEditor(state.workingSchema, {
     types: listTypes(),
     editingType: state.editingType,
     errors: state.editorErrors,
+    isNewDraft: state.editingType === state.newTypeDraft,
   });
   attachSchemaEditor(mount.querySelector('.schema-editor'), handleSchemaIntent);
   setOverlaySchema(state.editingType, state.workingSchema);

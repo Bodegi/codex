@@ -394,11 +394,18 @@ function sectionBlock(section, si, types) {
  * listTypes() (for the type picker + reference targets); `errors` are validation
  * messages to surface after a blocked save.
  */
-export function renderSchemaEditor(schema, { types, editingType, errors = [] }) {
+export function renderSchemaEditor(schema, { types, editingType, errors = [], isNewDraft = false }) {
   const errorBlock = errors.length
     ? `<div class="se-errors">${errors.map((e) => `<div>${escapeHtml(e)}</div>`).join('')}</div>`
     : '';
   const sections = schema.sections.map((s, si) => sectionBlock(s, si, types)).join('');
+
+  // Revert/Archive act on a saved schema (a persisted base to fall back to, a status to flip). A
+  // brand-new draft has neither — it's discarded by leaving — so only Save shows for it.
+  const savedActions = isNewDraft
+    ? ''
+    : `<button type="button" class="btn btn-secondary btn-sm" data-se="reset">Revert changes</button>
+          <button type="button" class="btn btn-secondary btn-sm se-danger" data-se="archive">Archive type</button>`;
 
   return `
     <div class="schema-editor">
@@ -410,8 +417,7 @@ export function renderSchemaEditor(schema, { types, editingType, errors = [] }) 
           <input class="se-input" data-se="type-label" value="${escapeHtml(schema.label || '')}" placeholder="Type name">
         </label>
         <span class="se-head-actions">
-          <button type="button" class="btn btn-secondary btn-sm" data-se="reset">Revert changes</button>
-          <button type="button" class="btn btn-secondary btn-sm se-danger" data-se="archive">Archive type</button>
+          ${savedActions}
           <button type="button" class="btn btn-primary btn-sm" data-se="save">Save type</button>
         </span>
       </div>
