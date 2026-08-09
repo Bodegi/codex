@@ -174,9 +174,10 @@ export function renderCodicesPanel({ active = [], archived = [], templateSources
         <code class="admin-muted">${escapeHtml(c.codexId)}</code>
         ${isCurrent ? '<span class="admin-badge">current</span>' : ''}
         <span class="codex-row-actions">
-          <button class="btn btn-secondary btn-sm" data-codex-rename="${escapeHtml(c.codexId)}">Rename</button>
-          <button class="btn btn-secondary btn-sm" data-codex-archive="${escapeHtml(c.codexId)}"${isCurrent ? ' disabled title="Switch to another codex before archiving this one"' : ''}>Archive</button>
+          <button class="btn btn-secondary btn-sm" data-codex-rename="${escapeHtml(c.codexId)}" disabled>Rename</button>
+          <button class="btn btn-secondary btn-sm" data-codex-archive="${escapeHtml(c.codexId)}"${isCurrent ? ' disabled' : ''}>Archive</button>
         </span>
+        ${isCurrent ? '<span class="codex-row-hint admin-muted">Switch to another codex to archive this one</span>' : ''}
       </div>`;
         })
         .join('')

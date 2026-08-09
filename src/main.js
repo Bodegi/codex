@@ -1490,7 +1490,26 @@ function renderCodicesPanelHtml() {
 }
 
 function wireCodicesPanel() {
+  const createName = document.getElementById('codex-create-name');
   document.getElementById('codex-create-btn')?.addEventListener('click', createCodex);
+  createName?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); createCodex(); }
+  });
+
+  // Rename: commit on Enter, and keep the button disabled until the field diverges from the
+  // rendered name (`defaultValue`) so it's clear the field is the editable control and the button
+  // only appears live once there's a change to commit.
+  formContainer.querySelectorAll('[data-codex-name]').forEach((input) => {
+    const id = input.dataset.codexName;
+    const btn = formContainer.querySelector(`[data-codex-rename="${CSS.escape(id)}"]`);
+    const dirty = () => input.value.trim() !== '' && input.value !== input.defaultValue;
+    const sync = () => { if (btn) btn.disabled = !dirty(); };
+    sync();
+    input.addEventListener('input', sync);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); if (dirty()) renameCodex(id, input.value); }
+    });
+  });
   formContainer.querySelectorAll('[data-codex-rename]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.codexRename;
@@ -1499,7 +1518,14 @@ function wireCodicesPanel() {
     });
   });
   formContainer.querySelectorAll('[data-codex-archive]').forEach((btn) => {
-    btn.addEventListener('click', () => setCodexStatus(btn.dataset.codexArchive, 'archived'));
+    btn.addEventListener('click', async () => {
+      const ok = await openConfirm({
+        title: 'Archive this codex?',
+        message: 'It’s hidden from the switcher for everyone who uses it. Nothing is deleted — you can restore it from the Archived list below.',
+        confirmLabel: 'Archive',
+      });
+      if (ok) setCodexStatus(btn.dataset.codexArchive, 'archived');
+    });
   });
   formContainer.querySelectorAll('[data-codex-restore]').forEach((btn) => {
     btn.addEventListener('click', () => setCodexStatus(btn.dataset.codexRestore, 'active'));
@@ -1568,9 +1594,14 @@ function wireImageRows() {
     });
   });
   formContainer.querySelectorAll('[data-image-drop-codex]').forEach((btn) => {
-    btn.addEventListener('click', () =>
-      guard(fb.removeImageFromCodex(btn.dataset.imageDropCodex, btn.dataset.codex).then(() => showToast('Removed from codex')))
-    );
+    btn.addEventListener('click', async () => {
+      const ok = await openConfirm({
+        title: 'Remove image from this codex?',
+        message: 'It stays in the shared library and in any other codex it belongs to.',
+        confirmLabel: 'Remove',
+      });
+      if (ok) guard(fb.removeImageFromCodex(btn.dataset.imageDropCodex, btn.dataset.codex).then(() => showToast('Removed from codex')));
+    });
   });
   formContainer.querySelectorAll('[data-image-restore]').forEach((btn) => {
     btn.addEventListener('click', () =>
@@ -1979,7 +2010,19 @@ function wireAccessPanel() {
 
 function wireAccessRows() {
   formContainer.querySelectorAll('[data-grant-uid]').forEach((btn) => {
-    btn.addEventListener('click', () => grantRole(btn.dataset.grantUid, btn.dataset.grantRole));
+    btn.addEventListener('click', async () => {
+      const uid = btn.dataset.grantUid;
+      const role = btn.dataset.grantRole;
+      if (role === 'none') {
+        const ok = await openConfirm({
+          title: 'Remove access?',
+          message: 'This person loses access to this codex. Their account is untouched, and you can grant access again.',
+          confirmLabel: 'Remove access',
+        });
+        if (!ok) return;
+      }
+      grantRole(uid, role);
+    });
   });
 }
 
@@ -1994,7 +2037,14 @@ function wireInviteRows() {
     btn.addEventListener('click', () => copyInviteLink(btn.dataset.inviteCopy));
   });
   formContainer.querySelectorAll('[data-invite-revoke]').forEach((btn) => {
-    btn.addEventListener('click', () => changeInviteStatus(btn.dataset.inviteRevoke, 'revoked'));
+    btn.addEventListener('click', async () => {
+      const ok = await openConfirm({
+        title: 'Revoke this invite?',
+        message: 'The link stops working immediately. You can reactivate it later.',
+        confirmLabel: 'Revoke',
+      });
+      if (ok) changeInviteStatus(btn.dataset.inviteRevoke, 'revoked');
+    });
   });
   formContainer.querySelectorAll('[data-invite-reactivate]').forEach((btn) => {
     btn.addEventListener('click', () => changeInviteStatus(btn.dataset.inviteReactivate, 'active'));
@@ -2204,9 +2254,9 @@ function handleSchemaIntent(intent) {
     case 'save':
       return saveWorkingSchema();
     case 'reset':
-      return resetWorkingSchema();
+      return confirmRevertType();
     case 'archive':
-      return setTypeStatus(state.editingType, 'archived');
+      return confirmArchiveType();
     case 'add-section':
       state.workingSchema = addSection(s, 'New Section');
       return renderTypesEditor();
@@ -2278,6 +2328,26 @@ function saveWorkingSchema() {
   renderTypesEditor();
   renderTypeNav(); // reflect a rename / icon change in the sidebar
   showToast(`Saved “${state.workingSchema.label}” type`);
+}
+
+// Revert is destructive and irreversible — it discards working edits AND deletes the saved
+// customization, falling back to the loaded base. Confirm before doing it.
+async function confirmRevertType() {
+  const ok = await openConfirm({
+    title: 'Revert this type?',
+    message: 'Your unsaved changes are discarded and this type is reset to its base definition. This can’t be undone.',
+    confirmLabel: 'Revert changes',
+  });
+  if (ok) resetWorkingSchema();
+}
+
+async function confirmArchiveType() {
+  const ok = await openConfirm({
+    title: 'Archive this type?',
+    message: 'Its entries stop showing and it drops out of the nav. Nothing is deleted — you can restore it.',
+    confirmLabel: 'Archive',
+  });
+  if (ok) setTypeStatus(state.editingType, 'archived');
 }
 
 function resetWorkingSchema() {
@@ -2564,8 +2634,14 @@ function setEntryStatus(type, id, status) {
 }
 
 // Archive the entry currently open in the editor (header Archive button).
-function archiveCurrentEntry() {
-  if (state.formData.id) setEntryStatus(curType(), state.formData.id, 'archived');
+async function archiveCurrentEntry() {
+  if (!state.formData.id) return;
+  const ok = await openConfirm({
+    title: 'Archive this entry?',
+    message: 'It’s hidden from readers but kept intact — you can restore it from the archived list.',
+    confirmLabel: 'Archive',
+  });
+  if (ok) setEntryStatus(curType(), state.formData.id, 'archived');
 }
 
 function updateRawJson(jsonText) {

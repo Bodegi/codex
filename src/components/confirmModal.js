@@ -6,6 +6,9 @@
  * automation drives), so every destructive in-app action routes through this instead.
  * Same overlay idiom as `imagePicker.js` / `lightbox.js`: dimmed backdrop, Esc or a
  * click on Cancel / outside resolves false, the confirm button resolves true.
+ *
+ * It guards destructive actions, so it keeps focus inside the dialog while open (Tab
+ * cycles the two buttons) and returns focus to the triggering control on close.
  */
 
 function escapeHtml(text) {
@@ -35,14 +38,31 @@ export function openConfirm({ title, message, confirmLabel = 'Confirm', cancelLa
         </div>
       </div>`;
 
+    const previouslyFocused = document.activeElement;
     const done = (result) => {
       overlay.remove();
       document.removeEventListener('keydown', onKey);
+      previouslyFocused?.focus?.(); // return focus to whatever opened the dialog
       resolve(result);
     };
     const onKey = (e) => {
-      if (e.key === 'Escape') done(false);
-      if (e.key === 'Enter') done(true);
+      if (e.key === 'Escape') return done(false);
+      if (e.key === 'Enter') return done(true);
+      if (e.key === 'Tab') {
+        // Trap Tab within the dialog's two buttons so focus can't wander to the page behind.
+        const focusables = [...overlay.querySelectorAll('button')];
+        if (!focusables.length) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || !overlay.contains(active))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (active === last || !overlay.contains(active))) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
 
     overlay.addEventListener('click', (e) => {
