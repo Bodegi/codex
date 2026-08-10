@@ -63,7 +63,7 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
         <div class="image-picker-header">
           <strong>Select an image</strong>
           ${canManage && onUpload ? `<button type="button" class="btn btn-primary btn-sm image-picker-upload" data-upload title="Upload images — pick several, or drag them onto this window">＋ Upload</button>` : ''}
-          <button type="button" class="image-picker-close" aria-label="Close">×</button>
+          <button type="button" class="image-picker-close" aria-label="Close" title="Close">×</button>
         </div>
         <div class="image-picker-status" data-status hidden></div>
         <div class="image-picker-grid">${gridHtml()}</div>

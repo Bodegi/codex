@@ -30,9 +30,9 @@ export function renderCarousel(gallery, resolveImage) {
     <div class="carousel">
       <h2>Inspiration</h2>
       <div class="carousel-viewport">
-        <button type="button" class="carousel-arrow carousel-prev" aria-label="Previous">‹</button>
+        <button type="button" class="carousel-arrow carousel-prev" aria-label="Previous" title="Previous">‹</button>
         <div class="carousel-track">${slides}</div>
-        <button type="button" class="carousel-arrow carousel-next" aria-label="Next">›</button>
+        <button type="button" class="carousel-arrow carousel-next" aria-label="Next" title="Next">›</button>
       </div>
     </div>`;
 }

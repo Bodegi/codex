@@ -33,7 +33,7 @@ export function openLightbox(src, alt = '') {
   overlay.className = 'lightbox-overlay';
   overlay.innerHTML = `
     <div class="lightbox-body" role="dialog" aria-modal="true" aria-label="${escapeAttr(alt) || 'Image'}">
-      <button type="button" class="lightbox-close" aria-label="Close">×</button>
+      <button type="button" class="lightbox-close" aria-label="Close" title="Close">×</button>
       <img class="lightbox-img" src="${escapeAttr(src)}" alt="${escapeAttr(alt)}">
     </div>`;
 

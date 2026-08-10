@@ -219,9 +219,9 @@ export const fieldKinds = {
           <div class="media-gallery-item">
             ${thumb(id, ctx?.resolveImage)}
             <div class="media-gallery-actions">
-              <button type="button" data-media="gallery-left" data-index="${i}" title="Move left">◀</button>
-              <button type="button" data-media="gallery-remove" data-index="${i}" title="Remove">×</button>
-              <button type="button" data-media="gallery-right" data-index="${i}" title="Move right">▶</button>
+              <button type="button" data-media="gallery-left" data-index="${i}" title="Move left" aria-label="Move left">◀</button>
+              <button type="button" data-media="gallery-remove" data-index="${i}" title="Remove image" aria-label="Remove image">×</button>
+              <button type="button" data-media="gallery-right" data-index="${i}" title="Move right" aria-label="Move right">▶</button>
             </div>
           </div>`
         )

@@ -130,8 +130,8 @@ export function openGlyphDesigner({ palette = 'mono', lockPalette = false, initi
               <span class="gd-drag" data-drag aria-hidden="true">⠿</span>
               ${swatch}
               <span class="gd-layer-name">${esc(layer.shape)}</span>
-              <button type="button" class="gd-icon-btn" data-dup="${i}" title="Duplicate">⎘</button>
-              <button type="button" class="gd-icon-btn" data-del="${i}" title="Delete">✕</button>
+              <button type="button" class="gd-icon-btn" data-dup="${i}" title="Duplicate" aria-label="Duplicate">⎘</button>
+              <button type="button" class="gd-icon-btn" data-del="${i}" title="Delete" aria-label="Delete">✕</button>
             </div>`;
         })
         .reverse()
@@ -350,7 +350,7 @@ export function openLibraryPicker(glyphs = []) {
       <div class="glyph-library" role="dialog" aria-modal="true" aria-label="Glyph library">
         <div class="gd-header">
           <strong>Start from a glyph</strong>
-          <button type="button" class="image-picker-close" data-cancel aria-label="Close">×</button>
+          <button type="button" class="image-picker-close" data-cancel aria-label="Close" title="Close">×</button>
         </div>
         <div class="glyph-library-grid">
           ${glyphs.length

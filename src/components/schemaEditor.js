@@ -296,7 +296,7 @@ function fieldRow(field, si, fi, types) {
         <span class="se-row-controls">
           <button type="button" class="se-btn" data-se="field-up" ${at} title="Move up">Up</button>
           <button type="button" class="se-btn" data-se="field-down" ${at} title="Move down">Down</button>
-          <button type="button" class="se-btn se-danger" data-se="field-remove" ${at} title="Remove field">×</button>
+          <button type="button" class="se-btn se-danger" data-se="field-remove" ${at} title="Remove field" aria-label="Remove field">×</button>
         </span>
       </div>
       <div class="se-field-extras">${extras.join('')}</div>
@@ -378,7 +378,7 @@ function sectionBlock(section, si, types) {
         <span class="se-row-controls">
           <button type="button" class="se-btn" data-se="section-up" data-si="${si}" title="Move section up">Up</button>
           <button type="button" class="se-btn" data-se="section-down" data-si="${si}" title="Move section down">Down</button>
-          <button type="button" class="se-btn se-danger" data-se="section-remove" data-si="${si}" title="Remove section">×</button>
+          <button type="button" class="se-btn se-danger" data-se="section-remove" data-si="${si}" title="Remove section" aria-label="Remove section">×</button>
         </span>
       </div>
       <div class="se-fields" data-drop-fields="${si}">${rows}</div>

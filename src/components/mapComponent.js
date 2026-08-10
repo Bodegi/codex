@@ -284,8 +284,8 @@ export function renderMapInput(field, value, ctx) {
         </div>
         <div class="tool-group">
           <label ${lbl}>Zoom</label>
-          <button type="button" class="btn btn-secondary btn-sm" data-map-action="zoom-in">＋</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-map-action="zoom-out">－</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-map-action="zoom-in" aria-label="Zoom in" title="Zoom in">＋</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-map-action="zoom-out" aria-label="Zoom out" title="Zoom out">－</button>
           <button type="button" class="btn btn-secondary btn-sm" data-map-action="zoom-reset">Reset</button>
         </div>
       </div>
