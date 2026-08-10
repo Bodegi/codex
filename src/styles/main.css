@@ -534,10 +534,14 @@ button.user-badge { cursor: pointer; }
 }
 .app-workspace.view-content-edit .reader-panel { display: none; }
 
-/* Admin surfaces — per-type schema editor ("Structure") and the global-admin door — are two-panel:
-   the editor/subnav on the left, its preview (+ Raw JSON power tool) on the right. */
-.app-workspace.view-content-admin,
-.app-workspace.view-global-admin { grid-template-columns: 1fr 1fr; }
+/* Per-type schema editor ("Structure") is two-panel: the editor/subnav on the left, its live
+   type preview (+ Raw JSON power tool) on the right. */
+.app-workspace.view-content-admin { grid-template-columns: 1fr 1fr; }
+
+/* Global-admin (invites, roster, image/icon/emblem libraries) has nothing to preview — the panel
+   body goes full-width and the reader/preview pane is dropped entirely. */
+.app-workspace.view-global-admin { grid-template-columns: 1fr; }
+.app-workspace.view-global-admin .reader-panel { display: none; }
 
 /* The editor header (per-entry Save/Done) only exists while editing an entry. */
 .editor-header { display: none; }
@@ -632,11 +636,6 @@ button.user-badge { cursor: pointer; }
   border-color: var(--accent-gold);
   font-weight: 600;
 }
-.admin-blurb {
-  color: var(--text-muted);
-  padding: 16px;
-}
-
 /* Admin — Codices panel (create / rename / archive) */
 .admin-input {
   background: var(--bg-surface);

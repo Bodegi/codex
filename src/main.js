@@ -1382,23 +1382,15 @@ function renderAdminPanel() {
   if (state.view.panel === 'codices') {
     formContainer.innerHTML = renderCodicesPanelHtml();
     wireCodicesPanel();
-    updateRenderedPreview('<div class="admin-blurb">Admin — create and manage codices.</div>');
-    updateRawJson('');
   } else if (state.view.panel === 'images') {
     formContainer.innerHTML = renderImagesPanelHtml();
     wireImagesPanel();
-    updateRenderedPreview('<div class="admin-blurb">Admin — the shared image library across all codices.</div>');
-    updateRawJson('');
   } else if (state.view.panel === 'icons') {
     formContainer.innerHTML = renderIconsPanelHtml();
     wireIconsPanel();
-    updateRenderedPreview('<div class="admin-blurb">Admin — the app-global icon overlay.</div>');
-    updateRawJson('');
   } else if (state.view.panel === 'emblems') {
     formContainer.innerHTML = renderEmblemsPanelHtml();
     wireEmblemsPanel();
-    updateRenderedPreview('<div class="admin-blurb">Admin — the app-global emblem set.</div>');
-    updateRawJson('');
   } else {
     const inv = invitesPanelModel();
     const ros = rosterPanelModel();
@@ -1407,8 +1399,6 @@ function renderAdminPanel() {
       renderAccessPanel({ codexId: state.currentCodexId, rows: ros.rows, query: ros.query });
     wireInvitesPanel();
     wireAccessPanel();
-    updateRenderedPreview('<div class="admin-blurb">Admin — invite users and manage codex access.</div>');
-    updateRawJson('');
   }
 }
 
