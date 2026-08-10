@@ -51,6 +51,7 @@ import {
   normalize,
 } from './schema/viewState.js';
 import { buildSearchDocs, searchEntries } from './schema/searchIndex.js';
+import { referencesTo, dependentsWarning } from './schema/referenceIndex.js';
 import {
   renderSchemaEditor,
   attachSchemaEditor,
@@ -2636,9 +2637,12 @@ function setEntryStatus(type, id, status) {
 // Archive the entry currently open in the editor (header Archive button).
 async function archiveCurrentEntry() {
   if (!state.formData.id) return;
+  // Surface the back-index so the author sees what points here before the ref goes dangling.
+  const warning = dependentsWarning(referencesTo(state.entryIndex, getSchema, curType(), state.formData.id));
+  const base = 'It’s hidden from readers but kept intact — you can restore it from the archived list.';
   const ok = await openConfirm({
     title: 'Archive this entry?',
-    message: 'It’s hidden from readers but kept intact — you can restore it from the archived list.',
+    message: warning ? `${base} ${warning}` : base,
     confirmLabel: 'Archive',
   });
   if (ok) setEntryStatus(curType(), state.formData.id, 'archived');
