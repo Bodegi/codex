@@ -902,11 +902,13 @@ function renderCodexSwitcher() {
           )}">${escapeHtml(c.name || c.codexId)}</button>`
       )
       .join('') || '<div class="codex-switcher-empty">No codices available</div>';
-  // Admins get a shortcut straight to the create form.
-  const newShortcut = state.caps.canAdmin
-    ? '<button class="codex-switcher-option codex-switcher-new" data-codex-new>＋ New codex</button>'
+  // Admins get shortcuts straight to codex management: create, plus a signpost that rename/archive
+  // live on the same panel — otherwise they're buried behind Admin › Codices with no entry point (#20).
+  const adminActions = state.caps.canAdmin
+    ? '<button class="codex-switcher-option codex-switcher-new" data-codex-new>＋ New codex</button>' +
+      '<button class="codex-switcher-option codex-switcher-manage" data-codex-manage>⚙ Manage codices</button>'
     : '';
-  menu.innerHTML = optionsHtml + newShortcut;
+  menu.innerHTML = optionsHtml + adminActions;
   codexSwitcherWrap.appendChild(menu);
   menu.querySelectorAll('[data-codex-id]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -914,9 +916,11 @@ function renderCodexSwitcher() {
       switchCodex(btn.dataset.codexId);
     });
   });
-  menu.querySelector('[data-codex-new]')?.addEventListener('click', () => {
-    menu.classList.add('hidden');
-    openCodicesAdmin();
+  menu.querySelectorAll('[data-codex-new], [data-codex-manage]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      menu.classList.add('hidden');
+      openCodicesAdmin();
+    });
   });
 }
 
@@ -1182,7 +1186,13 @@ function highlightNav() {
     typeNav.querySelector(`.nav-type[data-type="${CSS.escape(type)}"]`)?.classList.add('is-expanded');
   });
 
-  if (inGlobalAdmin()) return; // the global-admin door is a header-menu surface, not a sidebar item
+  // The blanket .nav-item strip above also clears the admin panel items, so re-mark the active one
+  // here — otherwise entering admin (or jumping straight to a panel) lands with no highlight until you
+  // click a panel by hand.
+  if (inGlobalAdmin()) {
+    typeNav.querySelector(`[data-admin-nav="${CSS.escape(state.view.panel)}"]`)?.classList.add('is-active');
+    return;
+  }
   const type = curType();
   if (!type) return;
   const typeEl = typeNav.querySelector(`.nav-type[data-type="${CSS.escape(type)}"]`);
