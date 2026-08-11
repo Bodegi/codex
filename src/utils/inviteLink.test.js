@@ -30,12 +30,16 @@ test('parseInviteToken decodes a percent-encoded token', () => {
   assert.equal(parseInviteToken('?invite=a%2Bb'), 'a+b');
 });
 
-test('buildInviteUrl composes origin + token', () => {
+test('buildInviteUrl composes base + token', () => {
   assert.equal(buildInviteUrl('https://codex.app', 'tok1'), 'https://codex.app/?invite=tok1');
 });
 
-test('buildInviteUrl strips a trailing slash on the origin', () => {
+test('buildInviteUrl strips a trailing slash on the base', () => {
   assert.equal(buildInviteUrl('https://codex.app/', 'tok1'), 'https://codex.app/?invite=tok1');
+});
+
+test('buildInviteUrl keeps a deploy sub-path in the base', () => {
+  assert.equal(buildInviteUrl('https://host/codex/', 'tok1'), 'https://host/codex/?invite=tok1');
 });
 
 test('buildInviteUrl round-trips with parseInviteToken', () => {

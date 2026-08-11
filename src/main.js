@@ -2067,7 +2067,7 @@ function generateInvite() {
 }
 
 function copyInviteLink(token, msg = 'Invite link copied to clipboard') {
-  const url = buildInviteUrl(location.origin, token);
+  const url = buildInviteUrl(location.origin + import.meta.env.BASE_URL, token);
   if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(url).then(() => showToast(msg)).catch(() => showToast(url));
   } else {

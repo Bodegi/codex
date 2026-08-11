@@ -20,7 +20,11 @@ export function parseInviteToken(search) {
   return token ? token : null;
 }
 
-/** Compose the shareable invite URL for a token. Trailing slash on origin is normalized away. */
-export function buildInviteUrl(origin, token) {
-  return `${String(origin).replace(/\/+$/, '')}/?invite=${encodeURIComponent(token)}`;
+/**
+ * Compose the shareable invite URL for a token. `base` is the app's public root — origin plus any
+ * deploy sub-path (e.g. `https://host/codex/` under Vite's `base`), not the bare origin, or the
+ * link lands off the app and 404s. A trailing slash on `base` is normalized away.
+ */
+export function buildInviteUrl(base, token) {
+  return `${String(base).replace(/\/+$/, '')}/?invite=${encodeURIComponent(token)}`;
 }
