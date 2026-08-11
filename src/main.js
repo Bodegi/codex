@@ -103,6 +103,7 @@ import { optimizeImage } from './utils/imageOptimize.js';
 import { attachLightbox } from './components/lightbox.js';
 import { openConfirm } from './components/confirmModal.js';
 import { openConflictModal } from './components/conflictModal.js';
+import { openHistoryModal } from './components/historyModal.js';
 import * as safeStorage from './utils/safeStorage.js';
 
 // localStorage key persisting the active codex across reloads.
@@ -445,6 +446,7 @@ const indexToggleBtn = document.getElementById('btn-index-toggle');
 const exportCodexBtn = document.getElementById('btn-export-codex');
 const advancedJsonBtn = document.getElementById('btn-advanced-json');
 const saveEntryBtn = document.getElementById('btn-save-entry');
+const historyEntryBtn = document.getElementById('btn-history-entry');
 const archiveEntryBtn = document.getElementById('btn-archive-entry');
 const doneEditBtn = document.getElementById('btn-done-edit');
 const readerTitle = document.getElementById('reader-title');
@@ -1302,6 +1304,10 @@ function applyViewChrome() {
   saveEntryBtn.hidden = !(canEdit && editingEntry);
   // Archive only makes sense for an already-saved entry (a brand-new draft has no id yet).
   archiveEntryBtn.hidden = !(canEdit && editingEntry && !!state.formData.id);
+  // History is a cloud-only recovery surface (local-only entries reset on reload — nothing to ring),
+  // and only a saved entry has a ring.
+  const cloudEntry = !!(codexScope() && codexScope().isConfigured());
+  historyEntryBtn.hidden = !(canEdit && editingEntry && !!state.formData.id && cloudEntry);
 }
 
 editToggleBtn.addEventListener('click', () => {
@@ -1355,6 +1361,7 @@ doneEditBtn.addEventListener('click', async () => {
 });
 
 saveEntryBtn.addEventListener('click', () => saveEntry());
+historyEntryBtn.addEventListener('click', () => openEntryHistory());
 archiveEntryBtn.addEventListener('click', () => archiveCurrentEntry());
 
 // ── Sidebar search box ───────────────────────────────────────────────────────
@@ -2682,6 +2689,47 @@ async function archiveCurrentEntry() {
     confirmLabel: 'Archive',
   });
   if (ok) setEntryStatus(curType(), state.formData.id, 'archived');
+}
+
+// A prior version's timestamp, rendered for the history list. Falls back to the raw string if it
+// isn't a parseable ISO date (legacy/absent updatedAt).
+function formatWhen(iso) {
+  if (!iso) return 'unknown time';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString();
+}
+
+// Version history for the open entry (#4): fetch the retained prior versions and let the author
+// restore one. Restore loads the snapshot into the editor as unsaved edits (guarding a dirty draft
+// first); the real write happens on the next Save, which snapshots the version it supersedes.
+async function openEntryHistory() {
+  const scope = codexScope();
+  if (!(scope && scope.isConfigured()) || !state.formData.id) return;
+  const type = curType();
+  let history;
+  try {
+    history = await scope.getEntryHistory(type, state.formData.id);
+  } catch (err) {
+    showToast('Couldn’t load history: ' + err.message);
+    return;
+  }
+  const rows = history.map((snap) => ({
+    version: snap.version ?? 0,
+    when: formatWhen(snap.updatedAt),
+    summary: entryTitle(snap, type),
+    data: snap,
+  }));
+  const chosen = await openHistoryModal({ rows });
+  if (!chosen) return;
+  if (!(await confirmDiscardIfDirty())) return;
+  // Load the snapshot as fresh edits. Drop its old version/updatedAt and pin version to the live
+  // baseVersion so the next Save writes it forward as live+1 (saveEntry restamps both anyway); the
+  // conflict guard stays keyed to the live version, not the old snapshot's.
+  const { version, updatedAt, ...content } = chosen;
+  state.formData = { ...content, version: state.baseVersion };
+  state.dirty = true;
+  renderFormWithoutResubscribe();
+  showToast(`Loaded version ${version} — Save to keep it`);
 }
 
 function updateRawJson(jsonText) {

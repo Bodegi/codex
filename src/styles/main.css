@@ -2206,6 +2206,59 @@ mark.search-hit {
   margin-top: 18px;
 }
 
+/* Entry version-history modal — a scrollable list of retained prior versions. */
+.history-modal {
+  width: min(520px, 100%);
+}
+.history-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-md);
+}
+.history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-glow);
+}
+.history-row:last-child {
+  border-bottom: none;
+}
+.history-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.history-version {
+  font-family: var(--font-heading);
+  color: var(--accent-gold);
+  font-size: 13px;
+}
+.history-summary {
+  color: var(--text-main);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-when {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.history-empty {
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 /* Admin Images gallery — cards across all codices/statuses. */
 .gallery-grid {
   display: grid;

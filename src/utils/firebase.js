@@ -42,6 +42,8 @@ import {
   emblemDocPath,
   entriesCollectionPath,
   entryDocPath,
+  entryHistoryCollectionPath,
+  entryHistoryDocPath,
   schemasCollectionPath,
   schemaDocPath
 } from './codexPaths.js';
@@ -49,6 +51,7 @@ import { buildUserDoc } from './userDoc.js';
 import { makeInvite, resolveSignInAction } from '../schema/inviteModel.js';
 import { resolveSave } from '../schema/saveResolve.js';
 import { checkEntrySize } from '../schema/entrySize.js';
+import { pruneTarget } from '../schema/entryHistory.js';
 
 const now = () => new Date().toISOString();
 
@@ -382,6 +385,9 @@ export class CodexScope {
    * current doc. `force` is the "overwrite mine" path — write regardless of a stale base version.
    * Returns the new version. Full replace (not merge) is why deletions persist.
    *
+   * Since the overwrite is destructive (force especially), the same transaction first snapshots the
+   * prior doc into the `history/{version}` ring, so a bad overwrite is recoverable (issue #4).
+   *
    * CALLER CONTRACT: `data` must be the COMPLETE entry, not a partial patch. The write is a full `set`
    * with no merge (below), so any field omitted from `data` is silently erased — and it still satisfies
    * the version+1 rule, so it looks successful. Status-only flips use `saveEntryStatus` (reads-current
@@ -398,19 +404,49 @@ export class CodexScope {
       throw err;
     }
     const ref = doc(this.db, ...entryDocPath(this.codexId, type, id));
-    return runTransaction(this.db, async (tx) => {
+    let snapshotVersion = null; // the prior version copied into history this save (null on first create)
+    const nextVersion = await runTransaction(this.db, async (tx) => {
       const snap = await tx.get(ref);
-      const currentVersion = snap.exists() ? snap.data().version : undefined;
+      const current = snap.exists() ? snap.data() : null;
+      const currentVersion = current ? current.version : undefined;
       const { action, nextVersion } = resolveSave({ currentVersion, baseVersion, force });
       if (action === 'conflict') {
         const err = new Error('version-conflict');
         err.code = 'version-conflict';
-        err.current = snap.exists() ? snap.data() : null;
+        err.current = current;
         throw err;
       }
+      // Snapshot the doc we're about to overwrite (incl. the force/overwrite path) — atomic with the
+      // overwrite, so there's never an overwrite without its prior version preserved.
+      snapshotVersion = current ? this._snapshotPriorVersion(tx, type, id, current) : null;
       tx.set(ref, { ...data, type, id, version: nextVersion, updatedAt: now() });
       return nextVersion;
     });
+    this._pruneHistory(type, id, snapshotVersion);
+    return nextVersion;
+  }
+
+  /**
+   * Copy a soon-to-be-overwritten entry doc into its history ring (doc id == that version). Called
+   * INSIDE the save transaction so the snapshot and the overwrite commit atomically. Returns the
+   * snapshotted version (for post-commit pruning). A legacy doc with no `version` snapshots at 0.
+   */
+  _snapshotPriorVersion(tx, type, id, current) {
+    const version = current.version ?? 0;
+    tx.set(doc(this.db, ...entryHistoryDocPath(this.codexId, type, id, version)), current);
+    return version;
+  }
+
+  /**
+   * Best-effort trim of the history ring to the last N (entryHistory.pruneTarget) after the save
+   * commits. A missed delete just leaves history slightly longer than N (the panel lists what's
+   * actually there), so failures are swallowed — housekeeping, not correctness.
+   */
+  _pruneHistory(type, id, snapshotVersion) {
+    if (snapshotVersion == null) return;
+    const drop = pruneTarget(snapshotVersion);
+    if (drop == null) return;
+    deleteDoc(doc(this.db, ...entryHistoryDocPath(this.codexId, type, id, drop))).catch(() => {});
   }
 
   /**
@@ -422,14 +458,29 @@ export class CodexScope {
   async saveEntryStatus(type, id, status) {
     if (!this.db) throw new Error('Firebase DB is not initialized');
     const ref = doc(this.db, ...entryDocPath(this.codexId, type, id));
-    return runTransaction(this.db, async (tx) => {
+    let snapshotVersion = null;
+    const result = await runTransaction(this.db, async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists()) return undefined;
       const current = snap.data();
       const nextVersion = (current.version ?? 0) + 1;
+      snapshotVersion = this._snapshotPriorVersion(tx, type, id, current); // status flips bump version → snapshot too
       tx.set(ref, { ...current, status, version: nextVersion, updatedAt: now() });
       return nextVersion;
     });
+    this._pruneHistory(type, id, snapshotVersion);
+    return result;
+  }
+
+  /**
+   * One-shot read of an entry's history ring — the retained prior versions, newest first. Each doc is
+   * a full snapshot of the entry as it was at that version (see saveEntry). Empty when there's no
+   * history yet; `[]` when unconfigured. Sorted client-side (the ring is small — last N).
+   */
+  async getEntryHistory(type, id) {
+    if (!this.db) return [];
+    const snap = await getDocs(collection(this.db, ...entryHistoryCollectionPath(this.codexId, type, id)));
+    return snap.docs.map((d) => d.data()).sort((a, b) => (b.version ?? 0) - (a.version ?? 0));
   }
 
   /**

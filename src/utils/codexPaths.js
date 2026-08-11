@@ -58,5 +58,9 @@ export const emblemDocPath = (key) => ['emblems', key];
 export const entriesCollectionPath = (codexId) => ['codices', codexId, 'entries'];
 export const entryDocPath = (codexId, type, id) => ['codices', codexId, 'entries', entryId(type, id)];
 
+// Per-entry recovery ring: prior versions live under the entry, keyed by version (the doc id).
+export const entryHistoryCollectionPath = (codexId, type, id) => [...entryDocPath(codexId, type, id), 'history'];
+export const entryHistoryDocPath = (codexId, type, id, version) => [...entryHistoryCollectionPath(codexId, type, id), String(version)];
+
 export const schemasCollectionPath = (codexId) => ['codices', codexId, 'schemas'];
 export const schemaDocPath = (codexId, type) => ['codices', codexId, 'schemas', type];

@@ -74,6 +74,18 @@ const userData = (extra = {}) => ({
   uid: 'u1', email: 'u1@x.com', displayName: 'U One', photoURL: null, lastSeenAt: NOW, ...extra,
 });
 
+// get()/exists() mocks for a permissions/{uid}_{codexId} lookup (drives hasPerm/isEditor).
+const permMocks = (uid, codexId, { role = 'editor', exists = true } = {}) => {
+  const path = `${DB}/permissions/${uid}_${codexId}`;
+  const arg = [{ exactValue: path }];
+  return [
+    { function: 'exists', args: arg, result: { value: exists } },
+    { function: 'get', args: arg, result: { value: { data: { role } } } },
+  ];
+};
+
+const HISTORY_PATH = `${DB}/codices/cx1/entries/type_ent/history/5`;
+
 // Each case: a human label, expectation, and the simulated request (+ optional resource / mocks).
 const CASES = [
   {
@@ -147,6 +159,37 @@ const CASES = [
     label: 'admin creates an invite → invites write ALLOW',
     expectation: 'ALLOW',
     request: { auth: { uid: 'admin1', token: { email: ADMIN_EMAIL } }, method: 'create', path: `${DB}/invites/tok-x`, time: NOW, resource: { data: { token: 'tok-x', status: 'active' } } },
+  },
+  // Entry-history recovery ring (codices/{cx}/entries/{e}/history/{version}).
+  {
+    label: 'editor snapshots a prior version → history create ALLOW',
+    expectation: 'ALLOW',
+    request: { auth: { uid: 'u1', token: { email: 'u1@x.com' } }, method: 'create', path: HISTORY_PATH, time: NOW, resource: { data: { version: 5 } } },
+    functionMocks: permMocks('u1', 'cx1', { role: 'editor' }),
+  },
+  {
+    label: 'editor prunes an old snapshot → history delete ALLOW',
+    expectation: 'ALLOW',
+    request: { auth: { uid: 'u1', token: { email: 'u1@x.com' } }, method: 'delete', path: HISTORY_PATH, time: NOW },
+    functionMocks: permMocks('u1', 'cx1', { role: 'editor' }),
+  },
+  {
+    label: 'viewer reads a history snapshot → history get ALLOW',
+    expectation: 'ALLOW',
+    request: { auth: { uid: 'u1', token: { email: 'u1@x.com' } }, method: 'get', path: HISTORY_PATH, time: NOW },
+    functionMocks: permMocks('u1', 'cx1', { role: 'viewer' }),
+  },
+  {
+    label: 'viewer tries to write history → history create DENY',
+    expectation: 'DENY',
+    request: { auth: { uid: 'u1', token: { email: 'u1@x.com' } }, method: 'create', path: HISTORY_PATH, time: NOW, resource: { data: { version: 5 } } },
+    functionMocks: permMocks('u1', 'cx1', { role: 'viewer' }),
+  },
+  {
+    label: 'outsider (no permission) reads history → history get DENY',
+    expectation: 'DENY',
+    request: { auth: { uid: 'u1', token: { email: 'u1@x.com' } }, method: 'get', path: HISTORY_PATH, time: NOW },
+    functionMocks: permMocks('u1', 'cx1', { exists: false }),
   },
 ];
 

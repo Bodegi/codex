@@ -11,6 +11,8 @@ import {
   permissionDocPath,
   entriesCollectionPath,
   entryDocPath,
+  entryHistoryCollectionPath,
+  entryHistoryDocPath,
   schemasCollectionPath,
   schemaDocPath,
   imagesCollectionPath,
@@ -59,6 +61,15 @@ test('invites are a global top-level collection keyed by token', () => {
 test('entries are scoped under codices/{id}/entries', () => {
   assert.deepEqual(entriesCollectionPath('atm10'), ['codices', 'atm10', 'entries']);
   assert.deepEqual(entryDocPath('atm10', 'mod', 'create'), ['codices', 'atm10', 'entries', 'mod_create']);
+});
+
+test('entry history is a subcollection under the entry, keyed by version', () => {
+  assert.deepEqual(entryHistoryCollectionPath('atm10', 'mod', 'create'), [
+    'codices', 'atm10', 'entries', 'mod_create', 'history',
+  ]);
+  assert.deepEqual(entryHistoryDocPath('atm10', 'mod', 'create', 5), [
+    'codices', 'atm10', 'entries', 'mod_create', 'history', '5',
+  ]);
 });
 
 test('schemas are scoped under codices/{id}/schemas, keyed by type', () => {
