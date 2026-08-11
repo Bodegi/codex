@@ -721,6 +721,7 @@ button.user-badge { cursor: pointer; }
 /* Editor Panel */
 .editor-panel {
   padding: 16px 20px;
+  position: relative;
 }
 
 /* Header shared by the editor (Save/Done) and reader (Edit) panels. Display is controlled by the
@@ -868,12 +869,14 @@ select[multiple].form-control option {
   position: relative;
 }
 
-/* Faint full-logo watermark behind the reading view. Scoped to the read surface
-   (view-content-read — which also covers the index grid and search) so it never sits behind the
-   structure/admin or global-admin panels. Painted on the panel (not the scrolling body) so it
-   stays put as content scrolls; clipped to the card's rounded corners by .glass-card's
-   overflow:hidden. */
-.view-content-read .reader-panel::before {
+/* Faint full-logo watermark behind the content. It rides the reader panel wherever that's the
+   content surface (reading, the index grid, search, and the Structure preview — reader-panel is
+   display:none in edit/global-admin, so it self-limits), plus the editor panel on the global-admin
+   door (Users & Access + the libraries), which has no reader panel. Painted on the panel (not the
+   scrolling body) so it stays put as content scrolls; clipped to the card's rounded corners by
+   .glass-card's overflow:hidden. Left off entry-edit forms on purpose. */
+.reader-panel::before,
+.view-global-admin .editor-panel::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -884,7 +887,8 @@ select[multiple].form-control option {
   pointer-events: none;
 }
 
-.reader-panel > * {
+.reader-panel > *,
+.view-global-admin .editor-panel > * {
   position: relative;
   z-index: 1;
 }
