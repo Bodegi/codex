@@ -94,6 +94,19 @@ body {
   gap: 14px;
 }
 
+.brand-home {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+}
+
+.brand-home:hover .brand-wordmark { opacity: 0.85; }
+.brand-home:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 4px; }
+
 .brand-wordmark {
   height: 52px;
   width: auto;
@@ -855,11 +868,12 @@ select[multiple].form-control option {
   position: relative;
 }
 
-/* Faint full-logo watermark behind the reading view. Painted on the panel (not the scrolling
-   body) so it stays put as content scrolls; clipped to the card's rounded corners by
-   .glass-card's overflow:hidden. Suppressed in the admin raw-JSON view so it never sits behind
-   editable code. */
-.reader-panel::before {
+/* Faint full-logo watermark behind the reading view. Scoped to the read surface
+   (view-content-read — which also covers the index grid and search) so it never sits behind the
+   structure/admin or global-admin panels. Painted on the panel (not the scrolling body) so it
+   stays put as content scrolls; clipped to the card's rounded corners by .glass-card's
+   overflow:hidden. */
+.view-content-read .reader-panel::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -868,10 +882,6 @@ select[multiple].form-control option {
   background-size: min(70%, 560px) auto;
   opacity: 0.2;
   pointer-events: none;
-}
-
-.reader-panel:has(#preview-content-rendered.hidden)::before {
-  display: none;
 }
 
 .reader-panel > * {

@@ -1180,6 +1180,16 @@ async function selectTypeTab(type) {
   goto(selectType(state.view, type));
 }
 
+// The header wordmark is a home affordance: it lands on the first type's index (a type's home),
+// mirroring the sidebar's type-select entry point — dirty-guarded the same way.
+async function goHome() {
+  if (!(await confirmDiscardIfDirty())) return;
+  const home = listTypes()[0]?.type ?? null;
+  if (home) state.navExpanded.add(home);
+  goto(selectType(state.view, home));
+}
+document.getElementById('brand-home')?.addEventListener('click', goHome);
+
 // Reflect expansion (from navExpanded) + the active type/entry (or Admin) in the nav.
 function highlightNav() {
   typeNav.querySelectorAll('.nav-item').forEach((el) => el.classList.remove('is-active'));
