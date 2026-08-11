@@ -8,7 +8,7 @@
  * Local dev override — set localStorage key `codex_firebase_override` to one of:
  *   - a JSON Firebase config `{ apiKey, authDomain, projectId }` → point a local build at a *dev*
  *     Firestore project, so local work never touches deployed entries; or
- *   - the string `local` → force local-only mode (no Firestore; bundled data + manual JSON save/open).
+ *   - the string `local` → force local-only mode (no Firestore; the bundled demo codex, in-memory).
  * The override wins over the baked config; a malformed override is ignored (falls back to baked).
  */
 

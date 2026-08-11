@@ -95,6 +95,17 @@ export function listTypes() {
     .map((s) => ({ type: s.type, label: s.label, icon: s.icon }));
 }
 
+/**
+ * Every effective schema for the current codex (overlay wins), in base order then overlay-only
+ * types — archived included. Unlike `listTypes` this returns the FULL schema docs, for a faithful
+ * export snapshot (schemaStore.js is the store; exportCodex.js shapes the file).
+ */
+export function getAllSchemas() {
+  const orderedTypes = [...base.keys()];
+  overlay.forEach((_v, type) => { if (!base.has(type)) orderedTypes.push(type); });
+  return orderedTypes.map((type) => getSchema(type)).filter(Boolean);
+}
+
 /** Archived types (status === 'archived'), as `{ type, label, icon }` — for the restore list. */
 export function listArchivedTypes() {
   const orderedTypes = [...base.keys()];

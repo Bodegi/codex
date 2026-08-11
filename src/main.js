@@ -15,12 +15,14 @@ import {
   setOverlaySchema,
   listTypes,
   listArchivedTypes,
+  getAllSchemas,
   loadCodex,
   applyCodexSchemas,
   saveSchemaLocal,
   resetSchema,
 } from './schema/schemaStore.js';
 import { indexEntries, activeEntries, archivedEntries, findEntry } from './schema/entryIndex.js';
+import { buildCodexExport, exportFilename } from './schema/exportCodex.js';
 import { switcherCodices, archivedCodices } from './schema/codexRegistry.js';
 import { buildTemplateSchemas } from './schema/codexTemplate.js';
 import { newId } from './utils/id.js';
@@ -440,6 +442,7 @@ const appBody = document.querySelector('.app-body');
 const editToggleBtn = document.getElementById('btn-edit-toggle');
 const structureBtn = document.getElementById('btn-structure');
 const indexToggleBtn = document.getElementById('btn-index-toggle');
+const exportCodexBtn = document.getElementById('btn-export-codex');
 const advancedJsonBtn = document.getElementById('btn-advanced-json');
 const saveEntryBtn = document.getElementById('btn-save-entry');
 const archiveEntryBtn = document.getElementById('btn-archive-entry');
@@ -1282,6 +1285,9 @@ function applyViewChrome() {
   // grid renders for every type now (a minimal title-only card when none is configured), so no gate.
   indexToggleBtn.hidden = !(inTypeRead || inIndex);
   indexToggleBtn.textContent = inIndex ? 'Done' : 'Index';
+  // Export the whole codex (#2): any reader may take a copy, so it rides the reader surface, not the
+  // edit/admin gate. Shown while reading (read or index), where the reader-actions bar is visible.
+  exportCodexBtn.hidden = !(state.caps.canRead && (inTypeRead || inIndex));
   const editingEntry = v.kind === 'type' && v.mode === 'edit';
   saveEntryBtn.hidden = !(canEdit && editingEntry);
   // Archive only makes sense for an already-saved entry (a brand-new draft has no id yet).
@@ -1309,6 +1315,26 @@ structureBtn.addEventListener('click', async () => {
 indexToggleBtn.addEventListener('click', () => {
   if (state.view.kind !== 'type' || !state.view.type) return;
   goto(state.view.mode === 'index' ? toRead(state.view) : toIndex(state.view));
+});
+
+// Export the current codex to a JSON file (#2): gather meta + effective schemas + all entries
+// (active and archived) from live state and hand the browser a download. Image bytes aren't
+// bundled — entries keep their references (see exportCodex.js).
+exportCodexBtn.addEventListener('click', () => {
+  if (!state.caps.canRead) return;
+  const meta = state.codices.find((c) => c.codexId === state.currentCodexId) || { codexId: state.currentCodexId };
+  const entries = Object.values(state.entryIndex).flat();
+  const exportedAt = new Date().toISOString();
+  const payload = buildCodexExport({ meta, schemas: getAllSchemas(), entries, exportedAt });
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = exportFilename(meta, exportedAt);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 });
 
 doneEditBtn.addEventListener('click', async () => {
