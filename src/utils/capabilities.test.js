@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { resolveCapabilities, isAdminEmail } from './capabilities.js';
+import { resolveCapabilities, isAdminEmail, roleBadge } from './capabilities.js';
 
 const ADMIN = 'owner@example.com';
 const caps = (user, permission, adminEmail = ADMIN) =>
@@ -69,6 +69,22 @@ test('adminEmail may be a list — any listed email is a super-admin', () => {
   assert.equal(caps({ uid: 'a', email: 'second@example.com' }, null, admins).canAdmin, true);
   assert.equal(caps({ uid: 'b', email: 'OWNER@example.com' }, null, admins).canAdmin, true); // case-insensitive
   assert.equal(caps({ uid: 'c', email: 'stranger@example.com' }, null, admins).canAdmin, false);
+});
+
+test('roleBadge: editor and viewer get a labelled badge with a capability blurb', () => {
+  const ed = roleBadge(caps({ uid: 'e', email: 'friend@example.com' }, { role: 'editor' }));
+  assert.equal(ed.label, 'Editor');
+  assert.match(ed.blurb, /edit entries/);
+  const vw = roleBadge(caps({ uid: 'v', email: 'reader@example.com' }, { role: 'viewer' }));
+  assert.equal(vw.label, 'Viewer');
+  assert.match(vw.blurb, /read-only/);
+});
+
+test('roleBadge: admin, no-access, and signed-out get no badge', () => {
+  assert.equal(roleBadge(caps({ uid: 'a', email: ADMIN }, null)), null);       // admin: controls speak for themselves
+  assert.equal(roleBadge(caps({ uid: 'n', email: 'nobody@example.com' }, null)), null); // no access → never sees workspace
+  assert.equal(roleBadge(caps(null, null)), null);                              // signed out
+  assert.equal(roleBadge(null), null);
 });
 
 test('isAdminEmail matches against a string or a list, case-insensitively', () => {

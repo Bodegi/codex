@@ -91,7 +91,7 @@ import { filterRows } from './utils/filterRows.js';
 import { parseInviteToken, buildInviteUrl } from './utils/inviteLink.js';
 import { buildInviteRows, countPendingGrants } from './schema/inviteModel.js';
 import { openGlyphDesigner, openLibraryPicker } from './components/glyphDesigner.js';
-import { resolveCapabilities, isAdminEmail } from './utils/capabilities.js';
+import { resolveCapabilities, isAdminEmail, roleBadge } from './utils/capabilities.js';
 import { syncBadge } from './utils/syncBadge.js';
 import { getKind, previewSample } from './schema/fieldKinds.js';
 import { initCarousel } from './components/carousel.js';
@@ -455,6 +455,7 @@ const typeNav = document.getElementById('type-nav');
 const navSearch = document.getElementById('nav-search');
 const codexSwitcher = document.getElementById('codex-switcher');
 const codexSwitcherLabel = document.getElementById('codex-switcher-label');
+const roleBadgeEl = document.getElementById('role-badge');
 
 // ── Auth + access control (Phase 2) ─────────────────────────────────────────
 // Boot flow: on every auth change we upsert the user into the roster, (re)subscribe to their own
@@ -714,6 +715,7 @@ function showWorkspace() {
   } else {
     // Already up: capabilities may have just changed (permission arrived) — re-clamp + reflect chrome.
     state.view = normalize(state.view, viewCtx());
+    renderRoleBadge();
     applyViewChrome();
   }
 }
@@ -887,7 +889,25 @@ function activeEmblems() {
   return state.emblems.filter((e) => e && e.key && e.svg && e.status !== 'archived').map((e) => ({ key: e.key, svg: e.svg }));
 }
 
+// Paint the non-admin role signal (#22) under the switcher. roleBadge() decides who sees one
+// (editors/viewers only), so this just reflects its verdict — hidden when it returns null.
+function renderRoleBadge() {
+  if (!roleBadgeEl) return;
+  const badge = roleBadge(state.caps);
+  if (!badge) {
+    roleBadgeEl.hidden = true;
+    roleBadgeEl.innerHTML = '';
+    return;
+  }
+  roleBadgeEl.hidden = false;
+  roleBadgeEl.dataset.role = badge.role;
+  roleBadgeEl.innerHTML =
+    `<span class="role-badge-label">${escapeHtml(badge.label)}</span>` +
+    `<span class="role-badge-blurb">${escapeHtml(badge.blurb)}</span>`;
+}
+
 function renderCodexSwitcher() {
+  renderRoleBadge();
   const list = visibleCodices();
   const current = list.find((c) => c.codexId === state.currentCodexId);
   codexSwitcherLabel.textContent = (current && (current.name || current.codexId)) || state.currentCodexId;

@@ -38,3 +38,21 @@ export function resolveCapabilities({ user, permission, adminEmail } = {}) {
 
   return { isAuthed: true, ...NONE };
 }
+
+/**
+ * A user-facing role signal for the workspace chrome (#22): the role you hold on the current
+ * codex plus a one-line summary of what it lets you do. Returns null for admin (the management
+ * controls already announce their reach) and for no-access (they never reach the workspace), so
+ * only editors/viewers — who otherwise infer their role from the *absence* of controls — get a
+ * badge. Pure so the copy is Node-tested; the DOM caller just paints what this returns.
+ */
+export function roleBadge(caps) {
+  if (!caps || !caps.isAuthed) return null;
+  if (caps.role === 'editor') {
+    return { role: 'editor', label: 'Editor', blurb: 'You can add and edit entries in this codex.' };
+  }
+  if (caps.role === 'viewer') {
+    return { role: 'viewer', label: 'Viewer', blurb: 'You have read-only access to this codex.' };
+  }
+  return null;
+}
