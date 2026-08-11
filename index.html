@@ -14,6 +14,10 @@
   <div id="app" class="app-container">
     <!-- Header — app identity + auth only -->
     <header class="app-header">
+      <button id="sidebar-toggle" class="sidebar-toggle" type="button"
+        aria-label="Show navigation" aria-controls="sidebar" aria-expanded="false">
+        <span class="hamburger" aria-hidden="true"></span>
+      </button>
       <div class="header-brand">
         <button id="brand-home" class="brand-home" type="button" aria-label="Codex Studio — go to home" title="Home">
           <img class="brand-wordmark" src="/src/assets/logo-wordmark.svg" alt="">
@@ -54,8 +58,14 @@
         </nav>
       </aside>
 
+      <!-- Scrim behind the off-canvas sidebar drawer (small screens only, #8). -->
+      <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
       <!-- Content workspace -->
       <main id="main-workspace" class="app-workspace view-content-read">
+        <!-- Narrow-screen notice for the desktop-first schema editor (#8); CSS shows it
+             only in the Structure (view-content-admin) view. -->
+        <p class="admin-desktop-note">The structure editor is designed for a wider screen — it works here, but it's best on desktop.</p>
         <!-- Editor (form) panel — full-width in builder edit mode; left panel in admin -->
         <section class="editor-panel glass-card">
           <div class="editor-header">

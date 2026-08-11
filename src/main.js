@@ -440,6 +440,9 @@ const userProfileBadge = document.getElementById('user-profile-badge');
 const gatewayContainer = document.getElementById('gateway-container');
 const mainWorkspace = document.getElementById('main-workspace');
 const appBody = document.querySelector('.app-body');
+const appContainer = document.getElementById('app');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+const sidebarBackdrop = document.getElementById('sidebar-backdrop');
 const editToggleBtn = document.getElementById('btn-edit-toggle');
 const structureBtn = document.getElementById('btn-structure');
 const indexToggleBtn = document.getElementById('btn-index-toggle');
@@ -583,6 +586,8 @@ function renderAppState() {
 function showOverlay(html) {
   teardownWorkspace();
   appBody.classList.add('hidden');   // hides the sidebar + workspace together
+  appContainer.classList.remove('is-authed'); // drop the mobile drawer affordance while gated
+  closeSidebar();
   gatewayContainer.classList.remove('hidden');
   gatewayContainer.innerHTML = html;
 }
@@ -701,6 +706,7 @@ function subError(what) {
 function showWorkspace() {
   gatewayContainer.classList.add('hidden');
   appBody.classList.remove('hidden');
+  appContainer.classList.add('is-authed'); // reveal the mobile drawer toggle
   mainWorkspace.classList.remove('hidden');
   if (!state.workspaceReady) {
     state.workspaceReady = true;
@@ -1211,6 +1217,34 @@ async function goHome() {
   goto(selectType(state.view, home));
 }
 document.getElementById('brand-home')?.addEventListener('click', goHome);
+
+// ── Mobile sidebar drawer (#8) ──
+// On narrow screens the sidebar is off-canvas; the header hamburger toggles it. The
+// class lives on #app so both the drawer (in .app-body) and the header button see it.
+// No-ops on desktop, where CSS pins the sidebar and hides the toggle/scrim.
+function closeSidebar() {
+  appContainer.classList.remove('sidebar-open');
+  sidebarToggle?.setAttribute('aria-expanded', 'false');
+}
+function openSidebar() {
+  appContainer.classList.add('sidebar-open');
+  sidebarToggle?.setAttribute('aria-expanded', 'true');
+}
+function toggleSidebar() {
+  if (appContainer.classList.contains('sidebar-open')) closeSidebar();
+  else openSidebar();
+}
+sidebarToggle?.addEventListener('click', toggleSidebar);
+sidebarBackdrop?.addEventListener('click', closeSidebar);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && appContainer.classList.contains('sidebar-open')) closeSidebar();
+});
+// Any nav choice that swaps the workspace closes the drawer; a type-header just expands
+// its entries in place, so leave the drawer open for it.
+typeNav.addEventListener('click', (e) => {
+  const item = e.target.closest('.nav-item');
+  if (item && !item.matches('.nav-type-header')) closeSidebar();
+});
 
 // Reflect expansion (from navExpanded) + the active type/entry (or Admin) in the nav.
 function highlightNav() {
