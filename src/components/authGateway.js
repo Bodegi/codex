@@ -6,10 +6,13 @@
  * "access denied" branch.
  */
 
+import logoUrl from '../assets/logo-full.svg';
+
 export function renderAuthGateway() {
   return `
     <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:80vh; text-align:center; padding:24px;">
-      <h1 style="font-family:var(--font-heading); color:var(--accent-gold); font-size:28px; margin-bottom:8px;">
+      <img src="${logoUrl}" alt="Codex Studio" style="width:320px; max-width:70%; height:auto; margin-bottom:16px;">
+      <h1 style="font-family:var(--font-heading); color:var(--accent-gold); font-size:22px; margin-bottom:8px;">
         Private World Codex
       </h1>
       <p style="font-size:14px; color:var(--text-muted); max-width:480px; margin-bottom:24px;">

@@ -94,14 +94,10 @@ body {
   gap: 14px;
 }
 
-.brand-title {
-  font-family: var(--font-heading);
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  background: linear-gradient(90deg, #ffffff, #f59e0b);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+.brand-wordmark {
+  height: 52px;
+  width: auto;
+  display: block;
 }
 
 /* ── App body: sidebar + workspace ── */
@@ -856,6 +852,31 @@ select[multiple].form-control option {
 .reader-panel {
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+
+/* Faint full-logo watermark behind the reading view. Painted on the panel (not the scrolling
+   body) so it stays put as content scrolls; clipped to the card's rounded corners by
+   .glass-card's overflow:hidden. Suppressed in the admin raw-JSON view so it never sits behind
+   editable code. */
+.reader-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: url("../assets/logo-full.svg") no-repeat center;
+  background-size: min(70%, 560px) auto;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.reader-panel:has(#preview-content-rendered.hidden)::before {
+  display: none;
+}
+
+.reader-panel > * {
+  position: relative;
+  z-index: 1;
 }
 
 .reader-header {
