@@ -253,24 +253,59 @@ function assocModeOptions(selected) {
   ).join('');
 }
 
+/**
+ * One labelled control in a field's extras row: a visible `<label>` tied to the control by id, plus
+ * inline helper text (`aria-describedby`) explaining what it does. The help is a visible sibling
+ * rather than a hover `title` on purpose — a `title` is hover-only and invisible to touch and AT.
+ * `controlHtml` must carry `id="${id}"` and `aria-describedby="${id}-help"`.
+ */
+function subField(id, labelText, controlHtml, helpText) {
+  return `
+    <div class="se-sub-field">
+      <label class="se-sub-label" for="${id}">${escapeHtml(labelText)}</label>
+      ${controlHtml}
+      <span class="se-sub-help" id="${id}-help">${escapeHtml(helpText)}</span>
+    </div>`;
+}
+
 function fieldRow(field, si, fi, types) {
   const at = `data-si="${si}" data-fi="${fi}"`;
-  // Second line holds only the controls relevant to this field's kind.
+  const id = (control) => `se-${escapeHtml(field.key)}-${control}`;
+  // Second line holds only the controls relevant to this field's kind — each labelled + described.
   const extras = [];
   if (PLACEHOLDER_KINDS.has(field.kind)) {
     extras.push(
-      `<input class="se-input se-sub" data-se="field-placeholder" ${at} placeholder="placeholder text" value="${escapeHtml(field.placeholder || '')}">`
+      subField(
+        id('placeholder'),
+        'Placeholder',
+        `<input id="${id('placeholder')}" aria-describedby="${id('placeholder')}-help" class="se-input se-sub" data-se="field-placeholder" ${at} placeholder="e.g. My Entry" value="${escapeHtml(field.placeholder || '')}">`,
+        'Faint example text shown while the input is empty.'
+      )
     );
   }
   if (field.kind === 'reference') {
-    extras.push(`<select class="se-input se-sub" data-se="field-target" ${at}>${targetOptions(types, field.targetType)}</select>`);
     extras.push(
-      `<label class="se-meta"><input type="checkbox" data-se="field-multi" ${at}${field.multi ? ' checked' : ''}> multiple</label>`
+      subField(
+        id('target'),
+        'Links to',
+        `<select id="${id('target')}" aria-describedby="${id('target')}-help" class="se-input se-sub" data-se="field-target" ${at}>${targetOptions(types, field.targetType)}</select>`,
+        'The type whose entries this field can point to.'
+      )
     );
+    extras.push(`
+      <div class="se-sub-field se-sub-field-check">
+        <label class="se-meta"><input type="checkbox" id="${id('multi')}" aria-describedby="${id('multi')}-help" data-se="field-multi" ${at}${field.multi ? ' checked' : ''}> Allow multiple</label>
+        <span class="se-sub-help" id="${id('multi')}-help">Let one entry link to several targets instead of just one.</span>
+      </div>`);
   }
   if (field.kind === 'text') {
     extras.push(
-      `<input class="se-input se-sub" data-se="field-inputType" ${at} placeholder="input type (e.g. date)" value="${escapeHtml(field.inputType || '')}">`
+      subField(
+        id('inputType'),
+        'Input type',
+        `<input id="${id('inputType')}" aria-describedby="${id('inputType')}-help" class="se-input se-sub" data-se="field-inputType" ${at} placeholder="e.g. date" value="${escapeHtml(field.inputType || '')}">`,
+        'Optional HTML input type (date, number, …). Blank means plain text.'
+      )
     );
   }
   if (field.kind === 'map') {
@@ -279,10 +314,22 @@ function fieldRow(field, si, fi, types) {
     const assoc = field.association || {};
     const mode = assoc.mode || 'both';
     extras.push(
-      `<select class="se-input se-sub" data-se="field-assoc-mode" ${at} title="marker association">${assocModeOptions(mode)}</select>`
+      subField(
+        id('assoc-mode'),
+        'Marker link',
+        `<select id="${id('assoc-mode')}" aria-describedby="${id('assoc-mode')}-help" class="se-input se-sub" data-se="field-assoc-mode" ${at}>${assocModeOptions(mode)}</select>`,
+        'How a map marker ties to an entry: by reference, by free-text label, or both.'
+      )
     );
     if (mode !== 'label') {
-      extras.push(`<select class="se-input se-sub" data-se="field-assoc-target" ${at}>${targetOptions(types, assoc.refType)}</select>`);
+      extras.push(
+        subField(
+          id('assoc-target'),
+          'Marker target',
+          `<select id="${id('assoc-target')}" aria-describedby="${id('assoc-target')}-help" class="se-input se-sub" data-se="field-assoc-target" ${at}>${targetOptions(types, assoc.refType)}</select>`,
+          'The type whose entries a marker can reference.'
+        )
+      );
     }
   }
 

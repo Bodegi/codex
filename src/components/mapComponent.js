@@ -33,6 +33,11 @@
  * optional `glyph` (an emblem/icon key) rendered as SVG when it resolves, else the palette dot.
  * `resolveMarkerGlyph` is the pure fallback chain (explicit glyph → inherited entry emblem → null),
  * resolving through `ctx.resolveGlyph`, which consults the emblems collection then icons.
+ *
+ * ACCESSIBILITY GAP (issue #5, accepted): the canvas + DOM-pin surface has no keyboard or
+ * screen-reader path — markers are mouse-placed and their content is not exposed as text/AT. This
+ * is a known, deliberate limitation, not an oversight; closing it (a text alternative for the read
+ * view, keyboard authoring for the edit view) is tracked separately, not attempted here.
  */
 
 import { openImagePicker } from './imagePicker.js';

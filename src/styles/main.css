@@ -2059,6 +2059,29 @@ mark.search-hit {
   color: var(--text-muted);
 }
 
+/* A labelled control in the field-extras row: label above, control, helper text below. */
+.se-sub-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.se-sub-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.se-sub-field-check {
+  justify-content: flex-end;
+}
+.se-sub-help {
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 240px;
+  line-height: 1.35;
+}
+
 .se-row-controls {
   display: flex;
   gap: 4px;
