@@ -24,12 +24,19 @@ interactive map — and the reader view is generated from the schema.
 - **Summary cards + index view.** Clicking a type lands on its index — a browsable grid of its
   entries as cards. A type can declare a `summaryCard` to enrich the card; otherwise it's a
   minimal title-only card.
+- **Full-text search.** A persistent sidebar box searches entry titles and bodies across the
+  whole codex, with ranked, snippet-marked results.
 - **Live multi-user editing.** Explicit-save with optimistic-concurrency conflict handling;
-  edits from other editors stream in.
-- **Runtime image upload.** Multi-file drag-and-drop into Supabase Storage; reference images
-  inline in prose with `![](img:<id>)`.
+  edits from other editors stream in. Every save snapshots a per-entry **version history** you
+  can review and non-destructively restore.
+- **Runtime image upload.** Multi-file drag-and-drop into Supabase Storage, downscaled to WebP
+  client-side before upload; reference images inline in prose with `![](img:<id>)`.
+- **Export.** Any reader can download the whole codex — schemas plus active and archived entries
+  — as a versioned JSON file.
 - **Role-based access.** Baked super-admins, plus per-codex `editor` / `viewer` roles granted
   from the admin roster. Enforced by Firestore security rules, mirrored in the UI.
+- **Works on small screens.** Degrades gracefully below 860px — the sidebar becomes an
+  off-canvas drawer and editing panels collapse to a single column.
 
 ## Run it
 

@@ -13,16 +13,22 @@ How to use Codex Studio to read, write, and design a codex. For running or build
 
 - **Header** — app title on the left; on the right, **Sign in with Google** or your user badge.
   Admin tools live in the user-badge menu.
-- **Sidebar** — the **codex switcher** at the top, then the **navigation**: each type with its
-  entries beneath it. Click a type section to expand/collapse; click an entry to open it.
+- **Sidebar** — the **codex switcher** at the top, a **search box** beneath it (see
+  [Search](#search)), then the **navigation**: each type with its entries beneath it. Click a type
+  section to expand/collapse; click an entry to open it. Editors and viewers also see a small
+  **role badge** here naming their access on this codex.
 - **Editor panel** (left of the workspace) — the form you fill in when editing. Buttons: **Save**,
-  **Archive**, **Done**.
+  **History** (see [Version history](#writing-an-entry-editors--admins)), **Archive**, **Done**.
 - **Reader panel** (right) — the rendered read view. Its header carries the mode toggles
-  (**Edit**, **Structure**, **Index**, **`</> Edit JSON`**) and a **status badge** showing
-  *Cloud sync on* or *Local only*.
+  (**Edit**, **Structure**, **Index**, **`</> Edit JSON`**), an **Export** button (see
+  [Export](#export)), and a **status badge** showing *Cloud sync on* or *Local only*.
 
-Which toggles appear depends on your role: viewers read, editors get **Edit**, admins also get
-**Structure** and **`</> Edit JSON`**.
+Which controls appear depends on your role: viewers read and can search/export, editors also get
+**Edit** and **History**, admins also get **Structure** and **`</> Edit JSON`**.
+
+On small screens (below 860px) the sidebar collapses into an off-canvas drawer opened from the
+header, and the editor panels stack into a single column. The Structure editor still works there
+but is designed for a wider screen.
 
 ## Getting access
 
@@ -50,6 +56,20 @@ galleries with a lightbox, and interactive maps.
 The **Index** toggle in the reader header switches between an open entry and the grid. Every
 type has an index; a type with no **summary card** configured shows a minimal title-only card.
 
+### Search
+
+The **search box** at the top of the sidebar searches entry titles and bodies across the whole
+codex. Start typing and the reader becomes a ranked results list with matching snippets
+highlighted; click a result to open that entry. Clearing the box returns you to wherever you were
+browsing — an open edit draft is left untouched.
+
+### Export
+
+The **Export** button in the reader header (available to anyone who can read) downloads the whole
+codex — its metadata, effective type schemas (archived types included), and every entry (active
+and archived) — as a versioned JSON file. Image *bytes* aren't bundled; entries keep their image
+references, which re-resolve against the same deployment.
+
 ## Writing an entry (editors & admins)
 
 1. Open an entry (or start a new one from the type's **+ New** affordance in the sidebar).
@@ -63,8 +83,14 @@ else saved the same entry since you started editing, you'll get a **conflict** p
 than silently overwriting their work — you can review and re-save. Other editors' changes to the
 open entry stream in live while you read.
 
+**Version history.** Every save snapshots the entry (the last several versions are kept). Click
+**History** in the editor to review earlier versions and **Restore** one — restore loads it back
+into the editor without discarding anything, so you still Save to commit it.
+
 **Archive** hides an entry without deleting it (admins/editors can restore archived entries).
-There is no hard delete in the authoring UI.
+There is no hard delete in the authoring UI. Archiving is confirmed first, and if other entries
+reference the one you're archiving, the prompt warns you which ones will be left with a broken
+link.
 
 ## Field kinds
 
@@ -93,7 +119,8 @@ Prose fields accept lightweight markup:
 
 - **Upload** — the image picker (from a hero/gallery field or the prose insert-image button)
   takes **multiple files** at once: choose them or **drag-and-drop** onto the modal. Uploads run
-  with per-file progress and new thumbnails appear as they finish.
+  with per-file progress and new thumbnails appear as they finish. Images are downscaled and
+  converted to WebP in the browser before upload to keep files small.
 - **Reuse** — every uploaded image lives in the codex's image library and can be used by any
   entry (hero, gallery, or inline in prose).
 - **Where they live** — image bytes go to Supabase Storage; the metadata (id, label) to

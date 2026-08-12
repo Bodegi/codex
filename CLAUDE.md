@@ -22,8 +22,8 @@ The architecture is a deliberate split, and it's the thing to preserve:
   Firebase/Supabase SDK, no `window`. Every dependency is passed in. Each has a `*.test.js`
   beside it that runs under plain `node --test`. Examples: `fieldKinds.js`, `viewState.js`,
   `capabilities.js`, `schemaValidate.js`, `slug.js`, `navModel.js`, `imageIndex.js`,
-  `summaryCard.js`.
-- **`src/main.js` is the one impure orchestrator** (~2k lines): it owns the Firebase/auth
+  `summaryCard.js`, `searchIndex.js`, `entryHistory.js`, `referenceIndex.js`, `exportCodex.js`.
+- **`src/main.js` is the one impure orchestrator** (~3k lines): it owns the Firebase/auth
   wiring, application state, and the event handlers, and it feeds the pure modules a `ctx` edge
   adapter (`resolveImage`, `listEntries`, `resolveRef`, `listImages`, …) so they never import
   the SDK.
