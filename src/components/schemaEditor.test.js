@@ -10,6 +10,8 @@ import {
   updateField,
   updateFieldAssociation,
   updateSummaryCard,
+  setTitleField,
+  repointTitleField,
   moveField,
   moveFieldTo,
   addSection,
@@ -91,6 +93,31 @@ test('updateSummaryCard merges into the descriptor without clobbering siblings',
   assert.deepEqual(withBadges.summaryCard, { subtitle: 'name', badges: ['name'] });
   assert.equal(base.summaryCard, undefined); // input untouched (pure)
   assert.notEqual(withBadges, withTitle);
+});
+
+test('setTitleField repoints titleField without mutating the input', () => {
+  const before = schema();
+  const after = setTitleField(before, 'notes');
+  assert.equal(after.titleField, 'notes');
+  assert.equal(before.titleField, 'name'); // input untouched
+});
+
+test('repointTitleField is a no-op while titleField still names a real field', () => {
+  const before = schema();
+  assert.equal(repointTitleField(before), before); // same ref, no clone
+});
+
+test('repointTitleField repoints to the first remaining field when its target was deleted', () => {
+  // Delete the "name" field (the titleField), then repoint. Deletion is the only way it dangles.
+  const orphaned = removeField(schema(), 0, 1); // drops "name"
+  const fixed = repointTitleField(orphaned);
+  assert.equal(fixed.titleField, 'id'); // first remaining field
+  assert.equal(validateSchema(fixed).ok, true); // Save is reachable again — no JSON detour
+});
+
+test('repointTitleField clears titleField when the type has no fields left', () => {
+  const empty = { titleField: 'name', sections: [{ title: 'Core', fields: [] }] };
+  assert.equal(repointTitleField(empty).titleField, '');
 });
 
 test('moveField reorders within a section and clamps at the ends', () => {

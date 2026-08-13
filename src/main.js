@@ -58,6 +58,7 @@ import { referencesTo, dependentsWarning } from './schema/referenceIndex.js';
 import {
   renderSchemaEditor,
   attachSchemaEditor,
+  updateErrorBanner,
   deriveKey,
   allFieldKeys,
   addField,
@@ -65,6 +66,8 @@ import {
   updateField,
   updateFieldAssociation,
   updateSummaryCard,
+  setTitleField,
+  repointTitleField,
   moveField,
   moveFieldTo,
   addSection,
@@ -2307,6 +2310,7 @@ async function pickEditingType(type) {
 
 // Rebuild the structured editor (after a structural change) and refresh the preview.
 function renderTypesEditor() {
+  revalidateEditorErrors(); // so a shown banner rebuilds fresh, not stale (issue #28)
   const mount = typesMountEl();
   mount.innerHTML = renderSchemaEditor(state.workingSchema, {
     types: listTypes(),
@@ -2321,11 +2325,23 @@ function renderTypesEditor() {
 // Push the working schema into the overlay and refresh both preview panes. Does NOT
 // rebuild the editor DOM — safe to call from text-input handlers without losing focus.
 function refreshWorkingPreview() {
+  // Keep an already-shown validation banner honest as edits move the schema toward valid, patching
+  // it in place so a focused input isn't blurred by a rebuild (issue #28).
+  if (state.editorErrors.length) {
+    revalidateEditorErrors();
+    updateErrorBanner(typesMountEl().querySelector('.schema-editor'), state.editorErrors);
+  }
   setOverlaySchema(state.editingType, state.workingSchema);
   // A filled, per-kind schematic of the layout being built (not live entry data): both previews
   // show a representative example even for a type with no entries. See fieldKinds `previewSample`.
   const sample = previewSample(state.workingSchema);
-  const entry = renderEntryHTML(state.editingType, sample, renderCtx);
+  // The rendered entry, labelled symmetrically with the summary-card preview below so authors read
+  // it as a preview and don't assume there's no structure preview (issue #28 F9).
+  const entry = `<div class="se-entry-preview"><div class="se-card-preview-label">Entry preview</div>${renderEntryHTML(
+    state.editingType,
+    sample,
+    renderCtx
+  )}</div>`;
   // A live summary-card preview so the "Summary card" config gives visible feedback (the entry
   // preview above never reflects it). The card is inert here — clicks navigate only in index mode.
   const card = `<div class="se-card-preview"><div class="se-card-preview-label">Summary card preview</div>${renderSummaryCard(
@@ -2335,6 +2351,14 @@ function refreshWorkingPreview() {
   )}</div>`;
   updateRenderedPreview(entry + card);
   updateRawJson(JSON.stringify(state.workingSchema, null, 2));
+}
+
+// Re-evaluate the validation banner ONLY when one is already showing (a save has been blocked). We
+// don't surface errors proactively mid-edit — this just keeps a shown banner in sync so it shrinks
+// and clears as the author fixes things, instead of lingering stale until the next Save.
+function revalidateEditorErrors() {
+  if (!state.editorErrors.length) return;
+  state.editorErrors = validateSchema(state.workingSchema).errors;
 }
 
 // Translate an editor intent into a working-schema transform. Structural actions rebuild
@@ -2353,6 +2377,10 @@ function handleSchemaIntent(intent) {
     case 'edit-label':
       state.workingSchema = { ...s, label: intent.label };
       return refreshWorkingPreview();
+    case 'set-title-field':
+      // Repointing the title field doesn't restructure the editor — refresh the preview only.
+      state.workingSchema = setTitleField(s, intent.key);
+      return refreshWorkingPreview();
     case 'save':
       return saveWorkingSchema();
     case 'reset':
@@ -2363,7 +2391,8 @@ function handleSchemaIntent(intent) {
       state.workingSchema = addSection(s, 'New Section');
       return renderTypesEditor();
     case 'remove-section':
-      state.workingSchema = removeSection(s, intent.si);
+      // Deleting a section deletes its fields — auto-repoint titleField if it named one (issue #28 F7).
+      state.workingSchema = repointTitleField(removeSection(s, intent.si));
       return renderTypesEditor();
     case 'move-section':
       state.workingSchema = moveSection(s, intent.si, intent.delta);
@@ -2380,7 +2409,9 @@ function handleSchemaIntent(intent) {
       return renderTypesEditor();
     }
     case 'remove-field':
-      state.workingSchema = removeField(s, intent.si, intent.fi);
+      // Auto-repoint titleField when the deleted field was the title, so Save stays reachable
+      // without a raw-JSON detour (issue #28 F7).
+      state.workingSchema = repointTitleField(removeField(s, intent.si, intent.fi));
       return renderTypesEditor();
     case 'move-field':
       state.workingSchema = moveField(s, intent.si, intent.fi, intent.delta);

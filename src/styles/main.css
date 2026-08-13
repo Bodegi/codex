@@ -1686,10 +1686,20 @@ mark.search-hit {
   font-style: normal;
 }
 
-.se-summary-checks {
+/* Drag-to-order composer for the badges / rows slots — one row per eligible field, carrying a
+   drag handle (order) and a checkbox (membership), matching the field-list idiom (issue #28 F2). */
+.se-summary-order {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.se-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
 }
 
 .se-summary-check {
@@ -1703,6 +1713,12 @@ mark.search-hit {
 .se-summary-none {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* The rendered-entry preview in Structure mode — labelled symmetrically with the card preview
+   below it so both read clearly as previews (issue #28 F9). */
+.se-entry-preview {
+  padding-top: 4px;
 }
 
 /* Live summary-card preview under the entry preview in Structure mode. */

@@ -87,6 +87,27 @@ export function deriveKey(label, existingKeys = []) {
   return `${base}${n}`;
 }
 
+/** Point the type's `titleField` at a field key — which field supplies an entry's display title. */
+export function setTitleField(schema, key) {
+  const next = clone(schema);
+  next.titleField = key;
+  return next;
+}
+
+/**
+ * Keep `titleField` naming a real field. When its target was deleted (keys are immutable, so
+ * deletion is the only way it dangles), repoint to the first remaining field — or clear it when the
+ * type has no fields left. This is what lets an author delete the seed title field without wedging
+ * Save behind a raw-JSON detour (issue #28 F7). A no-op (returns the input) when it still resolves.
+ */
+export function repointTitleField(schema) {
+  const keys = allFieldKeys(schema);
+  if (keys.includes(schema.titleField)) return schema;
+  const next = clone(schema);
+  next.titleField = keys[0] || '';
+  return next;
+}
+
 /** Swap two entries of an array in place (helper for the reorder transforms). */
 function swap(arr, a, b) {
   [arr[a], arr[b]] = [arr[b], arr[a]];
@@ -298,16 +319,6 @@ function fieldRow(field, si, fi, types) {
         <span class="se-sub-help" id="${id('multi')}-help">Let one entry link to several targets instead of just one.</span>
       </div>`);
   }
-  if (field.kind === 'text') {
-    extras.push(
-      subField(
-        id('inputType'),
-        'Input type',
-        `<input id="${id('inputType')}" aria-describedby="${id('inputType')}-help" class="se-input se-sub" data-se="field-inputType" ${at} placeholder="e.g. date" value="${escapeHtml(field.inputType || '')}">`,
-        'Optional HTML input type (date, number, …). Blank means plain text.'
-      )
-    );
-  }
   if (field.kind === 'map') {
     // Per-field association config: how a marker links to an entry. The
     // target-type picker only applies when the mode allows a reference ('both' / 'reference').
@@ -355,6 +366,28 @@ function flatFields(schema) {
   return (schema.sections || []).flatMap((s) => s.fields || []);
 }
 
+/**
+ * Options for the type-level "Title field" select. Unlike the summary picks there is no "none"
+ * choice — `titleField` is required. When it currently dangles (no fields, or a just-deleted
+ * target before auto-repoint runs), a disabled placeholder holds the slot so the control never
+ * silently commits to the wrong field.
+ */
+function titleFieldOptions(fields, selected) {
+  const known = fields.some((f) => f.key === selected);
+  const placeholder = known
+    ? ''
+    : `<option value="" disabled selected>${fields.length ? '— pick a field —' : '— add a field first —'}</option>`;
+  return (
+    placeholder +
+    fields
+      .map(
+        (f) =>
+          `<option value="${escapeHtml(f.key)}"${f.key === selected ? ' selected' : ''}>${escapeHtml(f.label || f.key)}</option>`
+      )
+      .join('')
+  );
+}
+
 /** A field-key <select>'s options, with a leading "none/default" choice. */
 function fieldPickOptions(fields, selected, noneLabel) {
   return [`<option value="">${escapeHtml(noneLabel)}</option>`]
@@ -367,18 +400,31 @@ function fieldPickOptions(fields, selected, noneLabel) {
     .join('');
 }
 
-/** A checkbox per eligible field, checked when its key is already selected. */
-function fieldCheckList(fields, selectedKeys, seType) {
+/**
+ * A drag-to-compose control for one summary-card slot (badges or rows). Every eligible field is a
+ * row carrying a checkbox (membership) AND a drag handle (order), so a single list expresses both —
+ * matching the field-list idiom instead of the old orderless checkbox grid (issue #28 F2). Selected
+ * fields lead in their saved order; the rest follow in schema order. The live selection is always
+ * derived from the *checked* rows in DOM order (`summarySelectionPatch`), so a reorder and a toggle
+ * feed back through the same path. `seType` tags the container so the drop handler knows which slot.
+ */
+function summaryComposeList(fields, selectedKeys, seType) {
   if (fields.length === 0) return '<span class="se-summary-none">no eligible fields</span>';
-  const set = new Set(selectedKeys);
-  return fields
-    .map(
-      (f) =>
-        `<label class="se-summary-check"><input type="checkbox" data-se="${seType}" data-key="${escapeHtml(
-          f.key
-        )}" data-label="${escapeHtml(f.label || f.key)}"${set.has(f.key) ? ' checked' : ''}> ${escapeHtml(f.label || f.key)}</label>`
-    )
+  const byKey = new Map(fields.map((f) => [f.key, f]));
+  const chosen = selectedKeys.filter((k) => byKey.has(k)); // saved order, dropping any stale key
+  const rest = fields.filter((f) => !chosen.includes(f.key)).map((f) => f.key);
+  const set = new Set(chosen);
+  const rows = [...chosen, ...rest]
+    .map((k) => {
+      const f = byKey.get(k);
+      const label = escapeHtml(f.label || f.key);
+      return `<div class="se-summary-item">
+          <span class="se-drag" data-summary-drag draggable="true" title="Drag to reorder" aria-hidden="true">⠿</span>
+          <label class="se-summary-check"><input type="checkbox" data-se="${seType}" data-key="${escapeHtml(f.key)}" data-label="${label}"${set.has(f.key) ? ' checked' : ''}> ${label}</label>
+        </div>`;
+    })
     .join('');
+  return `<div class="se-summary-order" data-summary-order="${seType}">${rows}</div>`;
 }
 
 /**
@@ -406,11 +452,11 @@ function summaryCardBlock(schema) {
       </div>
       <div class="se-summary-group">
         <span class="se-summary-label">Badges <em>(list / reference fields → chips)</em></span>
-        <div class="se-summary-checks">${fieldCheckList(badgeFields, card.badges || [], 'summary-badge')}</div>
+        ${summaryComposeList(badgeFields, card.badges || [], 'summary-badge')}
       </div>
       <div class="se-summary-group">
         <span class="se-summary-label">Rows <em>(text fields → labelled rows)</em></span>
-        <div class="se-summary-checks">${fieldCheckList(rowFields, rowKeys, 'summary-row')}</div>
+        ${summaryComposeList(rowFields, rowKeys, 'summary-row')}
       </div>
     </div>`;
 }
@@ -459,6 +505,9 @@ export function renderSchemaEditor(schema, { types, editingType, errors = [], is
         </label>
         <label class="se-type-name">Name
           <input class="se-input" data-se="type-label" value="${escapeHtml(schema.label || '')}" placeholder="Type name">
+        </label>
+        <label class="se-type-name se-title-field">Title field
+          <select class="se-input" data-se="title-field">${titleFieldOptions(flatFields(schema), schema.titleField)}</select>
         </label>
         <span class="se-head-actions">
           ${savedActions}
@@ -517,8 +566,6 @@ export function attachSchemaEditor(root, onIntent) {
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { label: el.value } });
       case 'field-placeholder':
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { placeholder: el.value } });
-      case 'field-inputType':
-        return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { inputType: el.value } });
       default:
         return undefined;
     }
@@ -531,6 +578,8 @@ export function attachSchemaEditor(root, onIntent) {
     switch (d.se) {
       case 'type-picker':
         return onIntent({ action: 'pick-type', type: el.value });
+      case 'title-field':
+        return onIntent({ action: 'set-title-field', key: el.value });
       case 'field-kind':
         return onIntent({ action: 'change-kind', si: +d.si, fi: +d.fi, kind: el.value });
       case 'field-target':
@@ -545,25 +594,42 @@ export function attachSchemaEditor(root, onIntent) {
         return onIntent({ action: 'edit-summary', patch: { title: el.value } });
       case 'summary-subtitle':
         return onIntent({ action: 'edit-summary', patch: { subtitle: el.value } });
-      case 'summary-badge': {
-        // A checkbox group: recompute the whole ordered key array from what's now checked.
-        const badges = [...root.querySelectorAll('[data-se="summary-badge"]')]
-          .filter((c) => c.checked)
-          .map((c) => c.dataset.key);
-        return onIntent({ action: 'edit-summary', patch: { badges } });
-      }
-      case 'summary-row': {
-        const rows = [...root.querySelectorAll('[data-se="summary-row"]')]
-          .filter((c) => c.checked)
-          .map((c) => ({ label: c.dataset.label, key: c.dataset.key }));
-        return onIntent({ action: 'edit-summary', patch: { rows } });
-      }
+      case 'summary-badge':
+      case 'summary-row':
+        // Membership toggle: recompute the whole ordered array from the checked rows in DOM order —
+        // the same read a drag-reorder uses, so order and membership stay one source of truth.
+        return onIntent({ action: 'edit-summary', patch: summarySelectionPatch(root, d.se) });
       default:
         return undefined;
     }
   });
 
   wireDragAndDrop(root, onIntent);
+  wireSummaryReorder(root, onIntent);
+}
+
+/**
+ * Patch an already-rendered editor's validation banner in place — insert, update, or remove the
+ * `.se-errors` node without a full rebuild, so a focused input keeps focus while the banner is kept
+ * honest as the working schema moves toward valid (issue #28). The banner sits between the head and
+ * the first block, matching where `renderSchemaEditor` places it.
+ */
+export function updateErrorBanner(root, errors) {
+  if (!root) return;
+  let banner = root.querySelector('.se-errors');
+  if (!errors.length) {
+    if (banner) banner.remove();
+    return;
+  }
+  const html = errors.map((e) => `<div>${escapeHtml(e)}</div>`).join('');
+  if (banner) {
+    banner.innerHTML = html;
+    return;
+  }
+  banner = document.createElement('div');
+  banner.className = 'se-errors';
+  banner.innerHTML = html;
+  root.querySelector('.se-head')?.after(banner);
 }
 
 // --- DOM: drag-and-drop reordering ------------------------------------------
@@ -655,5 +721,66 @@ function wireDragAndDrop(root, onIntent) {
     } else {
       onIntent({ action: 'move-field-to', fromSi: d.si, fromFi: d.fi, toSi: spot.toSi, toFi: spot.toFi });
     }
+  });
+}
+
+// --- DOM: summary-card drag-to-order ----------------------------------------
+// The badges/rows composers reorder like the field list: only the ⠿ handle drags, a drop moves the
+// row within its group, and the order is read back from the checked rows in DOM order. Kept separate
+// from the field DnD above — it reorders a summary array, not the schema — and keyed off
+// `data-summary-drag` (not `[data-drag]`) so the two handlers never cross-fire on the shared root.
+
+/** The ordered selection for a summary slot, read from its checked rows in DOM order. */
+function summarySelectionPatch(root, seType) {
+  const checked = [...root.querySelectorAll(`[data-se="${seType}"]`)].filter((c) => c.checked);
+  return seType === 'summary-badge'
+    ? { badges: checked.map((c) => c.dataset.key) }
+    : { rows: checked.map((c) => ({ label: c.dataset.label, key: c.dataset.key })) };
+}
+
+function wireSummaryReorder(root, onIntent) {
+  let item = null; // the .se-summary-item being dragged
+  const clear = () =>
+    root
+      .querySelectorAll('.se-drop-before, .se-drop-after')
+      .forEach((el) => el.classList.remove('se-drop-before', 'se-drop-after'));
+  // Only rows in the same group are valid targets (badges can't reorder into rows).
+  const peer = (target, ref) => target && ref && target !== ref && target.parentElement === ref.parentElement;
+
+  root.addEventListener('dragstart', (e) => {
+    const handle = e.target.closest('[data-summary-drag]');
+    if (!handle) return;
+    item = handle.closest('.se-summary-item');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', ''); // Firefox requires data for the drag to start
+    if (item) e.dataTransfer.setDragImage(item, 12, 12);
+  });
+
+  root.addEventListener('dragend', () => {
+    item = null;
+    clear();
+  });
+
+  root.addEventListener('dragover', (e) => {
+    if (!item) return;
+    const target = e.target.closest('.se-summary-item');
+    clear();
+    if (!peer(target, item)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    target.classList.add(isAfter(e, target) ? 'se-drop-after' : 'se-drop-before');
+  });
+
+  root.addEventListener('drop', (e) => {
+    if (!item) return;
+    const target = e.target.closest('.se-summary-item');
+    const dragged = item;
+    item = null;
+    clear();
+    if (!peer(target, dragged)) return;
+    e.preventDefault();
+    const container = dragged.parentElement;
+    container.insertBefore(dragged, isAfter(e, target) ? target.nextSibling : target);
+    onIntent({ action: 'edit-summary', patch: summarySelectionPatch(container, container.dataset.summaryOrder) });
   });
 }

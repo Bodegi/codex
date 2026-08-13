@@ -88,8 +88,10 @@ function pickImage(ctx) {
 export const fieldKinds = {
   text: {
     renderInput(field, value, _ctx) {
-      const type = field.inputType || 'text';
-      return `<input type="${type}" class="form-control" data-field-key="${field.key}" data-field-kind="text" value="${escapeHtml(value)}" placeholder="${escapeHtml(field.placeholder || '')}">`;
+      // Always a plain text input — number/date/link/color are (becoming) first-class kinds, not a
+      // polymorphic `type=` on text (issues #31 / #32). A stray `inputType` from legacy raw JSON is
+      // ignored rather than echoed into `type="…"`.
+      return `<input type="text" class="form-control" data-field-key="${field.key}" data-field-kind="text" value="${escapeHtml(value)}" placeholder="${escapeHtml(field.placeholder || '')}">`;
     },
     renderRead(_field, value, _ctx) {
       if (value == null || String(value).trim() === '') return MUTED_EMPTY;

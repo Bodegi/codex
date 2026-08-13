@@ -14,18 +14,26 @@ import {
 
 // --- text ---
 
-test('text renderInput carries field-key/kind, escaped value, and inputType', () => {
-  const html = fieldKinds.text.renderInput({ key: 'date', kind: 'text', inputType: 'date' }, '2026-08-01');
-  assert.match(html, /data-field-key="date"/);
+test('text renderInput carries field-key/kind, escaped value, and a plain text input', () => {
+  const html = fieldKinds.text.renderInput({ key: 'name', kind: 'text' }, 'Ada');
+  assert.match(html, /data-field-key="name"/);
   assert.match(html, /data-field-kind="text"/);
-  assert.match(html, /type="date"/);
-  assert.match(html, /value="2026-08-01"/);
+  assert.match(html, /type="text"/);
+  assert.match(html, /value="Ada"/);
 });
 
 test('text renderInput defaults to a text input and escapes the value', () => {
   const html = fieldKinds.text.renderInput({ key: 'name', kind: 'text' }, 'a "b"');
   assert.match(html, /type="text"/);
   assert.match(html, /value="a &quot;b&quot;"/);
+});
+
+test('text renderInput ignores a stray inputType — always plain text, never an arbitrary type=', () => {
+  // inputType is retired (number/date/link/color graduate to first-class kinds, #31/#32). A leftover
+  // value from legacy raw JSON must be ignored, not echoed into type="…".
+  const html = fieldKinds.text.renderInput({ key: 'x', kind: 'text', inputType: 'evil" onx="1' }, '');
+  assert.match(html, /type="text"/);
+  assert.doesNotMatch(html, /onx=/);
 });
 
 test('text renderRead escapes the value; empty renders a muted placeholder', () => {
