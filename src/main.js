@@ -19,6 +19,7 @@ import {
   loadCodex,
   applyCodexSchemas,
   saveSchemaLocal,
+  markSchemaSynced,
   resetSchema,
 } from './schema/schemaStore.js';
 import { indexEntries, activeEntries, archivedEntries, findEntry } from './schema/entryIndex.js';
@@ -2190,7 +2191,10 @@ function persistSchema(type, schema) {
   saveSchemaLocal(type, schema);
   const scope = codexScope();
   if (scope && scope.isConfigured()) {
-    scope.saveSchema(type, schema).catch((err) => showToast('Firebase save error: ' + err.message));
+    scope
+      .saveSchema(type, schema)
+      .then(() => markSchemaSynced(type)) // server-acked: retire the draft (issue #27)
+      .catch((err) => showToast('Firebase save error: ' + err.message));
   }
 }
 
@@ -2419,8 +2423,12 @@ function saveWorkingSchema() {
   saveSchemaLocal(state.editingType, state.workingSchema); // overlay + localStorage
   const scope = codexScope();
   if (scope && scope.isConfigured()) {
+    const savedType = state.editingType;
     scope
-      .saveSchema(state.editingType, state.workingSchema)
+      .saveSchema(savedType, state.workingSchema)
+      // Server-acked: retire the draft so base is authoritative again (issue #27). The optimistic
+      // onSnapshot has already refreshed base, so there's nothing to flicker back to.
+      .then(() => markSchemaSynced(savedType))
       .catch((err) => showToast('Firebase save error: ' + err.message));
   }
   renderTypesEditor();

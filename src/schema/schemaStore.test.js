@@ -9,6 +9,7 @@ import {
   applyCodexSchemas,
   setOverlaySchema,
   saveSchemaLocal,
+  markSchemaSynced,
   resetSchema,
   overlayStorageKey,
 } from './schemaStore.js';
@@ -105,6 +106,31 @@ test('applyCodexSchemas replaces the live base without dropping unsaved overlay 
   applyCodexSchemas([{ ...noteSchema, label: 'Server' }, personSchema]);
   assert.equal(getSchema('note').label, 'Unsaved'); // overlay still wins
   assert.equal(getSchema('person').label, 'Person'); // new base type is visible
+});
+
+test('markSchemaSynced retires the draft so a fresh base snapshot stops being shadowed', () => {
+  const storage = makeStorage();
+  loadCodex('demo', [noteSchema], storage);
+  // Author saves an edit (overlay + localStorage), then the server acks it.
+  saveSchemaLocal('note', { ...noteSchema, label: 'Draft' }, storage);
+  assert.equal(getSchema('note').label, 'Draft');
+  markSchemaSynced('note', storage);
+
+  // Base is now authoritative: an out-of-band edit to a locally-touched type is visible…
+  applyCodexSchemas([{ ...noteSchema, label: 'Edited elsewhere' }]);
+  assert.equal(getSchema('note').label, 'Edited elsewhere');
+  // …and an out-of-band delete no longer resurrects from the overlay.
+  applyCodexSchemas([]);
+  assert.equal(getSchema('note'), undefined);
+  // The persisted draft is gone too, so a reload can't rehydrate the stale shadow.
+  assert.equal(storage.raw(overlayStorageKey('demo')), '{}');
+});
+
+test('markSchemaSynced is a no-op for a type with no draft', () => {
+  const storage = makeStorage();
+  loadCodex('demo', [noteSchema], storage);
+  assert.doesNotThrow(() => markSchemaSynced('note', storage));
+  assert.equal(getSchema('note').label, 'Note');
 });
 
 test('loadCodex tolerates missing/corrupt storage without throwing', () => {

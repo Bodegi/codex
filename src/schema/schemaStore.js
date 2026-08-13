@@ -7,8 +7,15 @@
  *
  * Two tiers, overlay wins:
  *   base     the codex's persisted schemas (Firestore / fixture), replaced live by the sub
- *   overlay  the author's unsaved local edits, persisted under a PER-CODEX localStorage key
- *            so one codex's edits never bleed into another
+ *   overlay  the author's unsaved local edits — a DRAFT BUFFER, not a cache. It exists only
+ *            while a local edit has not yet been confirmed by the source of truth, persisted
+ *            under a PER-CODEX localStorage key so one codex's edits never bleed into another
+ *            (and survive a crash mid-edit). Once a save is server-acked, `markSchemaSynced`
+ *            prunes the entry so `base` becomes authoritative again — otherwise a locally-edited
+ *            type would shadow Firestore forever, hiding out-of-band deletes/edits (issue #27).
+ *
+ * In local-only mode there is no Firestore round-trip, so nothing calls `markSchemaSynced`; the
+ * overlay stays the store's only persistence for that codex's edits, unchanged by this contract.
  *
  * `listTypes()` reflects the current codex, filtering archived types; `getSchema()` still
  * resolves an archived type (its entries can render), it's just not offered in the nav.
@@ -128,6 +135,21 @@ export function saveSchemaLocal(type, schema, storage = defaultStorage()) {
   const map = readStoredMap(storage);
   map[type] = schema;
   writeStoredMap(storage, map);
+}
+
+/**
+ * The source of truth has confirmed this type's write — retire the draft. Drops the overlay entry
+ * (memory + the per-codex localStorage key) so `base` is authoritative again. Idempotent; a no-op
+ * when the type has no overlay. Same mechanics as `resetSchema`, distinct in intent: reset discards
+ * an unwanted edit, this retires a saved one. Not called in local-only mode (no server to ack).
+ */
+export function markSchemaSynced(type, storage = defaultStorage()) {
+  overlay.delete(type);
+  const map = readStoredMap(storage);
+  if (type in map) {
+    delete map[type];
+    writeStoredMap(storage, map);
+  }
 }
 
 /** Drop a type's local edit, falling back to the loaded base. Removes it from the cache too. */
