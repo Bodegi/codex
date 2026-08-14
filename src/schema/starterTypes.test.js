@@ -62,3 +62,27 @@ test('leaves references to out-of-kit types untouched', () => {
   assert.equal(out[0].type, 'id-1');
   assert.equal(out[0].fields[0].targetType, 'place');
 });
+
+test('drops the vestigial idField and its field from the kit', () => {
+  const withId = [
+    {
+      type: 'note',
+      label: 'Note',
+      idField: 'id',
+      titleField: 'title',
+      fields: [
+        { key: 'id', label: 'Note ID', kind: 'text' },
+        { key: 'title', label: 'Title', kind: 'text' },
+      ],
+    },
+  ];
+  const [out] = cloneStarterSchemas(withId, counter());
+  assert.ok(!('idField' in out), 'idField pointer removed');
+  assert.deepEqual(out.fields.map((f) => f.key), ['title'], 'the id field is gone');
+});
+
+test('leaves a kit without an idField untouched in shape', () => {
+  const out = cloneStarterSchemas(kit(), counter());
+  // The mini kit declares no idField, so every field survives (only ids/status/refs change).
+  assert.deepEqual(out[0].fields.map((f) => f.key), ['id', 'map']);
+});

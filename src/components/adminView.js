@@ -127,23 +127,26 @@ export function renderRosterRows(rows = [], query = '') {
     .join('');
 }
 
-export function renderAccessPanel({ codexId, rows = [], query = '' }) {
+export function renderAccessPanel({ codexName, codexId, rows = [], query = '' }) {
+  // Show the codex's human name; the opaque id is only a last-resort fallback (issue #26 F4).
+  const label = codexName || codexId;
   return `
     <div class="admin-section">
-      <h3>Codex: ${escapeHtml(codexId)}</h3>
+      <h3>Codex: ${escapeHtml(label)}</h3>
     </div>
     <div class="admin-section">
       <h3>Users &amp; Access</h3>
       ${filterInput('access-filter', 'Filter users by name or email…', query)}
       <table class="admin-roster">
-        <thead><tr><th>User</th><th>Last seen</th><th>Role on ${escapeHtml(codexId)}</th></tr></thead>
+        <thead><tr><th>User</th><th>Last seen</th><th>Role on ${escapeHtml(label)}</th></tr></thead>
         <tbody id="access-rows">${renderRosterRows(rows, query)}</tbody>
       </table>
     </div>`;
 }
 
 /**
- * Codices panel: create a codex (name → slug, starting-types picker), and manage the existing
+ * Codices panel: create a codex (a human name + starting-types picker; the id is an opaque mint,
+ * not a slug), and manage the existing
  * ones (rename inline, soft archive/restore). Removal is a status flag — never a delete. The
  * starting-types picker is the single front door to a codex's initial types — blank, the bundled
  * starter examples, or a copy of an existing codex's structure — and, like the whole create form,

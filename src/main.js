@@ -118,9 +118,10 @@ const firebaseConfig = resolveFirebaseConfig(appConfig.firebase, safeStorage.get
 // image index stays empty and every id resolves to the not-found SVG (images need Firebase).
 const supabaseConfig = resolveSupabaseConfig(appConfig.supabase, safeStorage.getItem('codex_firebase_override'));
 
-// The codex shown first: a configured build defaults to the baked codex; local-only mode is the
-// single demo-fixture codex (no switcher, no Firestore).
-const DEFAULT_CODEX_ID = firebaseConfig ? (appConfig.defaultCodexId || 'atm10') : demoCodexId;
+// The codex shown first: a configured build uses the baked default if the deployer set one, else
+// starts with no codex (null) and adopts the first one the registry returns — never a hardcoded
+// slug that may name no real codex (issue #26 F3). Local-only mode is the single demo-fixture codex.
+const DEFAULT_CODEX_ID = firebaseConfig ? (appConfig.defaultCodexId || null) : demoCodexId;
 
 // Application State
 const state = {
@@ -258,7 +259,8 @@ if (state.firebaseConfig) {
 // The active codex's Firestore scope (entries / schemas under codices/${id}/…), or null in
 // local-only mode. Every Firestore read/write goes through this so nothing is hardwired to one codex.
 function codexScope() {
-  return state.fbManager ? state.fbManager.codex(state.currentCodexId) : null;
+  // No current codex (the pre-registry / no-codices neutral state) has no scope — callers no-op.
+  return state.fbManager && state.currentCodexId ? state.fbManager.codex(state.currentCodexId) : null;
 }
 
 // ── Image byte store + upload/remove (editor path) ───────────────────────────
@@ -554,7 +556,7 @@ function watchOwnPermission() {
   state.permission = null;
   state.permissionLoaded = false;
   const user = state.authManager?.currentUser;
-  if (!(user && state.fbManager && state.fbManager.isConfigured())) return;
+  if (!(user && state.currentCodexId && state.fbManager && state.fbManager.isConfigured())) return;
   permissionUnsub = state.fbManager.subscribePermission(
     user.uid,
     state.currentCodexId,
@@ -850,6 +852,33 @@ function visibleCodices() {
   return switcherCodices(state.codices, state.ownPermissions, { isAdmin: !!state.caps.canAdmin, uid });
 }
 
+// Once the registry loads, a current codex id that names no visible codex — a purged slug, a stale
+// stored id, or the null first-run seed — would strand the app on a phantom. Adopt the first codex the
+// user can actually see; with none, stay in the neutral no-codex state (the switcher shows a prompt).
+// A no-op when the current id already resolves, so it's safe to call on every registry snapshot.
+function reconcileCurrentCodex() {
+  const list = visibleCodices();
+  if (state.currentCodexId && list.some((c) => c.codexId === state.currentCodexId)) return;
+  const next = list[0]?.codexId;
+  if (next) {
+    switchCodex(next); // full re-scope; its watchOwnPermission resolves the access state
+    return;
+  }
+  // No codex to adopt (a signed-in user with no grants). Nothing will subscribe a per-codex
+  // permission doc, so resolve the access state here — otherwise a non-admin hangs on the
+  // "Checking access…" loader (renderAppState gates on permissionLoaded) instead of landing on
+  // the awaiting-access screen. An admin is authorized by email and is unaffected.
+  state.permissionLoaded = true;
+  recomputeCaps();
+  renderAppState();
+}
+
+/** The current codex's human name, falling back to its id only when the meta is unnamed/unknown. */
+function currentCodexName() {
+  const meta = state.codices.find((c) => c.codexId === state.currentCodexId);
+  return (meta && meta.name) || state.currentCodexId;
+}
+
 // Populate the registry once per session: an admin lists every codex; a normal user derives their
 // list from their own permission grants. App-global — not re-run on codex switch.
 function subscribeCodexRegistry() {
@@ -862,6 +891,7 @@ function subscribeCodexRegistry() {
     if (!codicesUnsub) {
       codicesUnsub = state.fbManager.subscribeCodices((codices) => {
         state.codices = codices;
+        reconcileCurrentCodex();
         renderCodexSwitcher();
         if (inGlobalAdmin() && state.view.panel === 'codices') renderAdminPanel();
       }, subError('codices'));
@@ -873,6 +903,7 @@ function subscribeCodexRegistry() {
         perms.map((p) => state.fbManager.getCodexMeta(p.codexId).then((m) => (m ? { ...m, codexId: p.codexId } : null)))
       );
       state.codices = metas.filter(Boolean);
+      reconcileCurrentCodex();
       renderCodexSwitcher();
     }, subError('your codices'));
   }
@@ -937,7 +968,9 @@ function renderCodexSwitcher() {
   renderRoleBadge();
   const list = visibleCodices();
   const current = list.find((c) => c.codexId === state.currentCodexId);
-  codexSwitcherLabel.textContent = (current && (current.name || current.codexId)) || state.currentCodexId;
+  // A resolved codex shows its name (id only as a last resort). With no current codex — the neutral
+  // first-run / post-reset state — show a prompt, never a raw id posing as a name (issue #26 F3).
+  codexSwitcherLabel.textContent = current ? current.name || current.codexId : 'Select a codex';
 
   codexSwitcherWrap.querySelector('.codex-switcher-menu')?.remove();
   // Local-only (single codex) leaves the control inert.
@@ -1548,7 +1581,7 @@ function renderAdminPanel() {
     const ros = rosterPanelModel();
     formContainer.innerHTML =
       renderInvitesPanel({ rows: inv.rows, query: inv.query }) +
-      renderAccessPanel({ codexId: state.currentCodexId, rows: ros.rows, query: ros.query });
+      renderAccessPanel({ codexName: currentCodexName(), codexId: state.currentCodexId, rows: ros.rows, query: ros.query });
     wireInvitesPanel();
     wireAccessPanel();
   }

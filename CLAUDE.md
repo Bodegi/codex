@@ -83,6 +83,21 @@ current codex's permission role (`editor` / `viewer` / none). **If you change wh
 change both `firestore.rules` and `capabilities.js` together**, and keep the test in sync. Never
 rely on the UI for enforcement — the rules are the gate.
 
+## Opaque ids never face the user
+
+Codices, types, and entries are keyed by opaque `crypto.randomUUID()` ids (migration #14). An id is
+a **storage key, never an identity a human reads.** Any surface that touches one follows three rules:
+
+- **Display the human label**, not the id — codex `name`, a type's `label`, an entry's `titleField`
+  value — falling back to the id only when no label exists.
+- **Order and seed from human keys**, not ids (e.g. nav entries sort by `titleField`, not doc id).
+- **Never seed a UI value from an id that may not resolve.** There is no baked default codex slug;
+  the app starts with no codex and adopts the first the registry returns (`reconcileCurrentCodex`),
+  and the switcher shows a prompt — not a raw id — when the current codex has no meta doc.
+
+The demo fixture is the one deliberate exception: it keeps a readable `id` field by design, so the
+starter-kit clone (`starterTypes.js`) strips it before a real codex inherits it.
+
 ## Working in this repo
 
 - **Test:** `npm test` (`node --test` — runs every `src/**/*.test.js`). Add a test beside any

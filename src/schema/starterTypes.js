@@ -9,6 +9,10 @@
  * (`association.refType`) and `person.favoriteNote` points at `note` (`targetType`). Each cloned
  * type gets a fresh opaque id, so those in-kit references are rewritten through the same remap to
  * keep the kit internally coherent; a reference to a type outside the kit is left untouched.
+ *
+ * The demo fixture keeps a readable `id` field by design; a real codex keys entries by the opaque
+ * `entry.id` doc key, so that field is vestigial in a starter kit — it's dropped here (along with the
+ * `idField` pointer) so a fresh codex starts without an empty "Note ID"/"Person ID" box (issue #26).
  */
 
 import { newId as realNewId } from '../utils/id.js';
@@ -28,6 +32,11 @@ export function cloneStarterSchemas(sources, newId = realNewId) {
     const clone = JSON.parse(JSON.stringify(schema));
     clone.type = idMap.get(schema.type);
     clone.status = 'active';
+    // Drop the demo's readable-id field: opaque `entry.id` is a codex's identity, so it's vestigial.
+    if (clone.idField) {
+      clone.fields = (clone.fields ?? []).filter((f) => f.key !== clone.idField);
+      delete clone.idField;
+    }
     for (const field of clone.fields ?? []) {
       if (field.targetType) field.targetType = remap(field.targetType);
       if (field.association?.refType) field.association.refType = remap(field.association.refType);
