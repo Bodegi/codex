@@ -4,8 +4,8 @@
  * The single codex shown in local-only mode (no Firebase) and the shared content for
  * headless smoke tests + unit-test fixtures. Deliberately generic (no ATM10 lore): a
  * `note` type and a `person` type, chosen so the two schemas between them exercise every
- * field kind (text / prose / list / reference / hero / gallery / map) and a real cross-entry
- * reference (`person.favoriteNote` → a `note`).
+ * field kind (text / prose / number / date / select / boolean / list / reference / hero / gallery /
+ * map) and a real cross-entry reference (`person.favoriteNote` → a `note`).
  *
  * This is NOT "the app's data" — it is demo/test content. Real codices live in Firestore.
  * Its shape mirrors a codex's Firestore payload (schemas + entries-by-type) so the
@@ -74,6 +74,15 @@ export const demoSchemas = [
         ],
       },
       {
+        title: 'Details',
+        fields: [
+          { key: 'age', label: 'Age', kind: 'number', placeholder: 'e.g. 36' },
+          { key: 'birthday', label: 'Birthday', kind: 'date' },
+          { key: 'alignment', label: 'Alignment', kind: 'select', options: ['Lawful', 'Neutral', 'Chaotic'] },
+          { key: 'active', label: 'Active', kind: 'boolean' },
+        ],
+      },
+      {
         title: 'Imagery',
         fields: [{ key: 'heroImage', label: 'Hero Image', kind: 'hero' }],
       },
@@ -114,6 +123,10 @@ export const demoEntriesByType = {
       name: 'Ada',
       bio: 'A demo person who likes the **welcome** note.',
       favoriteNote: 'welcome',
+      age: 36,
+      birthday: '1815-12-10',
+      alignment: 'Lawful',
+      active: true,
       heroImage: '',
     },
   ],

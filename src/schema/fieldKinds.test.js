@@ -10,6 +10,7 @@ import {
   unknownKindPlaceholder,
   sampleValue,
   previewSample,
+  paletteComponents,
 } from './fieldKinds.js';
 
 // --- text ---
@@ -209,6 +210,96 @@ test('displayValue joins multi-reference labels', () => {
     'DWARVES, ORCS'
   );
   assert.equal(displayValue({ kind: 'reference', targetType: 'civilization', multi: true }, [], ctx), '');
+});
+
+// --- number ---
+
+test('number renderInput is a number input carrying field-key/kind + escaped value', () => {
+  const html = fieldKinds.number.renderInput({ key: 'pop', kind: 'number' }, 42);
+  assert.match(html, /type="number"/);
+  assert.match(html, /data-field-key="pop"/);
+  assert.match(html, /data-field-kind="number"/);
+  assert.match(html, /value="42"/);
+});
+
+test('number renderRead shows the value; empty renders a muted placeholder', () => {
+  assert.match(fieldKinds.number.renderRead({ key: 'pop' }, 42), /<p>42<\/p>/);
+  assert.match(fieldKinds.number.renderRead({ key: 'pop' }, ''), /class="muted"/);
+});
+
+// --- date ---
+
+test('date renderInput is a date input carrying field-key/kind + value', () => {
+  const html = fieldKinds.date.renderInput({ key: 'founded', kind: 'date' }, '2025-01-01');
+  assert.match(html, /type="date"/);
+  assert.match(html, /data-field-kind="date"/);
+  assert.match(html, /value="2025-01-01"/);
+});
+
+test('date renderRead shows the value; empty renders a muted placeholder', () => {
+  assert.match(fieldKinds.date.renderRead({ key: 'founded' }, '2025-01-01'), /2025-01-01/);
+  assert.match(fieldKinds.date.renderRead({ key: 'founded' }, ''), /class="muted"/);
+});
+
+// --- select ---
+
+test('select renderInput builds options from field.options with the current value selected', () => {
+  const html = fieldKinds.select.renderInput(
+    { key: 'tier', kind: 'select', options: ['Gold', 'Silver'] },
+    'Silver'
+  );
+  assert.match(html, /<select/);
+  assert.match(html, /data-field-kind="select"/);
+  assert.match(html, /<option value="">— none —<\/option>/);
+  assert.match(html, /<option value="Silver" selected>Silver<\/option>/);
+  assert.match(html, /<option value="Gold">Gold<\/option>/);
+});
+
+test('select renderInput preserves a stored value no longer in the option list', () => {
+  // A since-removed choice must survive edit → save, mirroring the reference control.
+  const html = fieldKinds.select.renderInput({ key: 'tier', kind: 'select', options: ['Gold'] }, 'Bronze');
+  assert.match(html, /<option value="Bronze" selected>Bronze \(unavailable\)<\/option>/);
+  assert.match(html, /<option value="Gold">Gold<\/option>/);
+});
+
+test('select renderRead shows the chosen value; empty renders a muted placeholder', () => {
+  assert.match(fieldKinds.select.renderRead({ key: 'tier' }, 'Gold'), /<p>Gold<\/p>/);
+  assert.match(fieldKinds.select.renderRead({ key: 'tier' }, ''), /class="muted"/);
+});
+
+// --- boolean ---
+
+test('boolean renderInput is a checkbox, checked only when the value is truthy', () => {
+  const on = fieldKinds.boolean.renderInput({ key: 'active', kind: 'boolean' }, true);
+  assert.match(on, /type="checkbox"/);
+  assert.match(on, /data-field-kind="boolean"/);
+  assert.match(on, /checked/);
+  const off = fieldKinds.boolean.renderInput({ key: 'active', kind: 'boolean' }, false);
+  assert.doesNotMatch(off, /checked/);
+});
+
+test('boolean renderRead reads true as Yes and everything else as No', () => {
+  assert.match(fieldKinds.boolean.renderRead({ key: 'active' }, true), /<p>Yes<\/p>/);
+  assert.match(fieldKinds.boolean.renderRead({ key: 'active' }, false), /<p>No<\/p>/);
+  assert.match(fieldKinds.boolean.renderRead({ key: 'active' }, undefined), /<p>No<\/p>/);
+});
+
+test('displayValue reads a boolean as Yes/No', () => {
+  assert.equal(displayValue({ kind: 'boolean' }, true), 'Yes');
+  assert.equal(displayValue({ kind: 'boolean' }, false), 'No');
+});
+
+// --- palette model ---
+
+test('paletteComponents projects every registry kind as { kind, title, description, icon }', () => {
+  const palette = paletteComponents();
+  assert.equal(palette.length, Object.keys(fieldKinds).length);
+  const select = palette.find((c) => c.kind === 'select');
+  assert.equal(select.title, 'Select');
+  assert.match(select.description, /fixed list/);
+  assert.match(select.icon, /<svg/);
+  // No jargon leaks: every component carries a human title distinct from its kind key.
+  for (const c of palette) assert.ok(c.title && c.title !== c.kind ? true : c.title.length > 0);
 });
 
 // --- helpers ---

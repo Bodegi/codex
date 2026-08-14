@@ -10,7 +10,7 @@
  * can never drift.
  */
 
-import { fieldKinds } from './fieldKinds.js';
+import { fieldKinds, toList } from './fieldKinds.js';
 
 /** Every kind the app can render — the one registry now holds media alongside the pure kinds. */
 const KNOWN_KINDS = new Set(Object.keys(fieldKinds));
@@ -63,6 +63,9 @@ export function validateSchema(schema) {
     }
     if (f.kind === 'reference' && (!f.targetType || String(f.targetType).trim() === '')) {
       errors.push(`Reference field "${f.key}" must have a target type.`);
+    }
+    if (f.kind === 'select' && toList(f.options).length === 0) {
+      errors.push(`Select field "${f.key}" must define at least one option.`);
     }
   });
 

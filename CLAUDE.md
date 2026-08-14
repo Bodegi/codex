@@ -50,9 +50,13 @@ compose. This is central; read its header before touching anything field-related
   `data[field.key]`.
 - `selfRender` — optional; tells the builder not to rebuild the whole form after a commit (the
   map owns a live canvas that a teardown would reset).
+- `title` / `description` / `icon` — palette metadata (human name, one-line hint, SVG glyph). The
+  Structure editor's picker is a named, described component palette (`components/componentPalette.js`),
+  not a raw kind key; `paletteComponents()` projects these out in registry order.
 
-The seven kinds: `text`, `prose`, `list`, `reference`, `hero`, `gallery`, `map`. The first four
-are pure and Node-tested; the media/map kinds need the DOM (`mount` is browser-only).
+The eleven kinds: `text`, `prose`, `number`, `date`, `select`, `boolean`, `list`, `reference`,
+`hero`, `gallery`, `map`. All but the media/map kinds are pure and Node-tested; the media/map kinds
+need the DOM (`mount` is browser-only).
 
 ## Run modes & config
 

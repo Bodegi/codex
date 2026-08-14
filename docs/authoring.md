@@ -94,17 +94,23 @@ link.
 
 ## Field kinds
 
-When designing a type you pick a **kind** per field. The palette:
+When designing a type you **add a field from the component palette** — a picker of named, described
+components (＋ add field, or click a field's component chip to change it), so you choose "Paragraph"
+or "Banner image" rather than an internal key. The components:
 
-| Kind | For | Notes |
+| Component | For | Notes |
 | --- | --- | --- |
-| **text** | short single-line values (title, id, a label) | |
-| **prose** | long rich body text | supports inline **links** and **images** (see below) |
-| **list** | a set of short values (tags, aliases) | comma-separated or one per line |
-| **reference** | a link to another entry | pick a target type; toggle **multiple** for many |
-| **hero** | one banner image | full-width block |
-| **gallery** | several images | rendered as a carousel with a lightbox |
-| **map** | an interactive map | pins, roads, territories — see [Maps](#maps) |
+| **Text** | short single-line values (title, id, a label) | |
+| **Paragraph** | long rich body text | supports inline **links** and **images** (see below) |
+| **Number** | a numeric value (a count, a rating, a year) | |
+| **Date** | a calendar date | picked from a date control |
+| **Select** | one choice from a fixed list | define the options, one per line |
+| **Checkbox** | a yes / no toggle | |
+| **List** | a set of short values (tags, aliases) | comma-separated or one per line |
+| **Reference** | a link to another entry | pick a target type; toggle **multiple** for many |
+| **Banner image** | one hero image | full-width block |
+| **Gallery** | several images | rendered as a carousel with a lightbox |
+| **Map** | an interactive map | pins, roads, territories — see [Maps](#maps) |
 
 ### Prose: links and inline images
 

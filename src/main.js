@@ -77,6 +77,7 @@ import {
   moveSectionTo,
   newTypeSchema,
 } from './components/schemaEditor.js';
+import { openComponentPalette } from './components/componentPalette.js';
 import { cloneStarterSchemas } from './schema/starterTypes.js';
 import { renderAuthGateway } from './components/authGateway.js';
 import { renderAwaitingAccess, renderInviteRequired } from './components/awaitingAccess.js';
@@ -2403,11 +2404,8 @@ function handleSchemaIntent(intent) {
     case 'rename-section':
       state.workingSchema = renameSection(s, intent.si, intent.title);
       return refreshWorkingPreview();
-    case 'add-field': {
-      const key = deriveKey('New Field', allFieldKeys(s));
-      state.workingSchema = addField(s, intent.si, { key, label: 'New Field', kind: 'text' });
-      return renderTypesEditor();
-    }
+    case 'add-field':
+      return addFieldFromPalette(intent.si);
     case 'remove-field':
       // Auto-repoint titleField when the deleted field was the title, so Save stays reachable
       // without a raw-JSON detour (issue #28 F7).
@@ -2419,10 +2417,8 @@ function handleSchemaIntent(intent) {
     case 'move-field-to':
       state.workingSchema = moveFieldTo(s, intent.fromSi, intent.fromFi, intent.toSi, intent.toFi);
       return renderTypesEditor();
-    case 'change-kind':
-      // Kind toggles which conditional controls show — rebuild the editor.
-      state.workingSchema = updateField(s, intent.si, intent.fi, { kind: intent.kind });
-      return renderTypesEditor();
+    case 'pick-kind':
+      return changeFieldKind(intent.si, intent.fi);
     case 'edit-field':
       state.workingSchema = updateField(s, intent.si, intent.fi, intent.patch);
       return refreshWorkingPreview();
@@ -2437,6 +2433,32 @@ function handleSchemaIntent(intent) {
     default:
       return undefined;
   }
+}
+
+// Add a field by picking its component from the palette (issue #31) — the flip from
+// add-blank-then-retype-the-dropdown to choose-a-component-first. Cancelling adds nothing. A select
+// seeds an empty options list so its editor control (and the "define ≥1 option" gate) show at once.
+async function addFieldFromPalette(si) {
+  const kind = await openComponentPalette();
+  if (!kind) return;
+  const s = state.workingSchema;
+  const field = { key: deriveKey('New Field', allFieldKeys(s)), label: 'New Field', kind };
+  if (kind === 'select') field.options = [];
+  state.workingSchema = addField(s, si, field);
+  renderTypesEditor();
+}
+
+// Change an existing field's component via the palette. Re-picking the current kind resolves null
+// (no-op). Switching to select seeds an empty options list when the field has none yet.
+async function changeFieldKind(si, fi) {
+  const current = state.workingSchema.sections?.[si]?.fields?.[fi];
+  if (!current) return;
+  const kind = await openComponentPalette({ current: current.kind });
+  if (!kind || kind === current.kind) return;
+  const patch = { kind };
+  if (kind === 'select' && !Array.isArray(current.options)) patch.options = [];
+  state.workingSchema = updateField(state.workingSchema, si, fi, patch);
+  renderTypesEditor();
 }
 
 function saveWorkingSchema() {
@@ -2560,6 +2582,7 @@ function renderFormWithoutResubscribe() {
 // no-index text fallback); everything else → the raw string.
 function readFieldValue(el) {
   const kind = el.dataset.fieldKind;
+  if (kind === 'boolean') return el.checked;
   if (kind === 'list') return el.value.split('\n').map((s) => s.trim()).filter(Boolean);
   if (kind === 'reference' && el.dataset.multi) {
     return el.multiple
@@ -2569,9 +2592,10 @@ function readFieldValue(el) {
   return el.value;
 }
 
-// Attach input listeners to the scrape-able controls (text/prose/list/reference), which carry
-// data-field-kind. Break components (hero/gallery) carry data-field-key on their root but no
-// data-field-kind — they report through their mount's onChange, not this scrape (see wireComponentMounts).
+// Attach input listeners to the scrape-able controls (text/prose/number/date/select/boolean/list/
+// reference), which carry data-field-kind. Break components (hero/gallery) carry data-field-key on
+// their root but no data-field-kind — they report through their mount's onChange, not this scrape
+// (see wireComponentMounts).
 function attachFormInputListeners() {
   formContainer.querySelectorAll('[data-field-kind]').forEach((input) => {
     const sync = (e) => {

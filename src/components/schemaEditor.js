@@ -19,15 +19,12 @@ import { escapeHtml } from '../schema/inlineText.js';
 import { fieldKinds } from '../schema/fieldKinds.js';
 import { newId } from '../utils/id.js';
 
-/** Field kinds the editor's picker offers — the one registry, in declaration order. */
-export const FIELD_KIND_OPTIONS = Object.keys(fieldKinds);
-
-/** Kinds that take a free-text placeholder (media/reference don't). */
-const PLACEHOLDER_KINDS = new Set(['text', 'prose', 'list']);
+/** Kinds that take a free-text placeholder (media/reference/select/date/boolean don't). */
+const PLACEHOLDER_KINDS = new Set(['text', 'prose', 'list', 'number']);
 
 /** Summary-card badge fields become chips (multi-value kinds); row fields become labelled scalars. */
 const BADGE_KINDS = new Set(['list', 'reference']);
-const ROW_KINDS = new Set(['text', 'prose']);
+const ROW_KINDS = new Set(['text', 'prose', 'number', 'date', 'select', 'boolean']);
 
 /** Association modes a map marker can use; 'both' is the default. */
 const ASSOCIATION_MODES = ['both', 'reference', 'label'];
@@ -245,10 +242,16 @@ export function moveSectionTo(schema, fromSi, toSi) {
 
 // --- DOM: editor markup -----------------------------------------------------
 
-function kindOptions(selected) {
-  return FIELD_KIND_OPTIONS.map(
-    (k) => `<option value="${k}"${k === selected ? ' selected' : ''}>${k}</option>`
-  ).join('');
+/**
+ * A field's kind control: a chip showing the current component's icon + human name, opening the
+ * palette on click (see components/componentPalette.js) rather than exposing the raw kind key.
+ */
+function kindChip(field, at) {
+  const def = fieldKinds[field.kind] || {};
+  const title = def.title || field.kind;
+  return `<button type="button" class="se-input se-kind se-kind-chip" data-se="field-kind" ${at} title="Change component">
+      <span class="se-kind-icon" aria-hidden="true">${def.icon || ''}</span><span class="se-kind-name">${escapeHtml(title)}</span>
+    </button>`;
 }
 
 function typeOptions(types, selected) {
@@ -304,6 +307,17 @@ function fieldRow(field, si, fi, types) {
       )
     );
   }
+  if (field.kind === 'select') {
+    const optionsText = escapeHtml((Array.isArray(field.options) ? field.options : []).join('\n'));
+    extras.push(
+      subField(
+        id('options'),
+        'Options',
+        `<textarea id="${id('options')}" aria-describedby="${id('options')}-help" class="se-input se-sub se-options" data-se="field-options" ${at} rows="3" placeholder="One option per line">${optionsText}</textarea>`,
+        'The fixed choices an author picks from — one per line.'
+      )
+    );
+  }
   if (field.kind === 'reference') {
     extras.push(
       subField(
@@ -350,7 +364,7 @@ function fieldRow(field, si, fi, types) {
         <span class="se-drag" ${at} draggable="true" data-drag="field" title="Drag to reorder" aria-hidden="true">⠿</span>
         <input class="se-input se-label" data-se="field-label" ${at} value="${escapeHtml(field.label || '')}" placeholder="Field label">
         <code class="se-key" title="storage key (fixed)">${escapeHtml(field.key)}</code>
-        <select class="se-input se-kind" data-se="field-kind" ${at}>${kindOptions(field.kind)}</select>
+        ${kindChip(field, at)}
         <span class="se-row-controls">
           <button type="button" class="se-btn" data-se="field-up" ${at} title="Move up">Up</button>
           <button type="button" class="se-btn" data-se="field-down" ${at} title="Move down">Down</button>
@@ -532,6 +546,8 @@ const CLICK_INTENTS = {
   'section-up': (d) => ({ action: 'move-section', si: +d.si, delta: -1 }),
   'section-down': (d) => ({ action: 'move-section', si: +d.si, delta: 1 }),
   'field-add': (d) => ({ action: 'add-field', si: +d.si }),
+  // The kind chip opens the palette; the caller runs it and applies the chosen component.
+  'field-kind': (d) => ({ action: 'pick-kind', si: +d.si, fi: +d.fi }),
   'field-remove': (d) => ({ action: 'remove-field', si: +d.si, fi: +d.fi }),
   'field-up': (d) => ({ action: 'move-field', si: +d.si, fi: +d.fi, delta: -1 }),
   'field-down': (d) => ({ action: 'move-field', si: +d.si, fi: +d.fi, delta: 1 }),
@@ -566,6 +582,14 @@ export function attachSchemaEditor(root, onIntent) {
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { label: el.value } });
       case 'field-placeholder':
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { placeholder: el.value } });
+      case 'field-options':
+        // Select options: one per line, blanks dropped. Stored as an array on `field.options`.
+        return onIntent({
+          action: 'edit-field',
+          si: +d.si,
+          fi: +d.fi,
+          patch: { options: el.value.split('\n').map((s) => s.trim()).filter(Boolean) },
+        });
       default:
         return undefined;
     }
@@ -580,8 +604,6 @@ export function attachSchemaEditor(root, onIntent) {
         return onIntent({ action: 'pick-type', type: el.value });
       case 'title-field':
         return onIntent({ action: 'set-title-field', key: el.value });
-      case 'field-kind':
-        return onIntent({ action: 'change-kind', si: +d.si, fi: +d.fi, kind: el.value });
       case 'field-target':
         return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { targetType: el.value } });
       case 'field-assoc-mode':

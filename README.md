@@ -8,8 +8,9 @@ account, no backend — for a quick look or offline hacking.
 
 Think of it as a lightweight, self-serve alternative to a wiki: instead of free-form pages you
 compose structured **types** (Note, Person, Place, …) out of a fixed palette of field
-components — text, prose, lists, cross-entry references, hero/gallery images, and an
-interactive map — and the reader view is generated from the schema.
+components — text, paragraphs, numbers, dates, single-choice selects, checkboxes, lists,
+cross-entry references, hero/gallery images, and an interactive map — and the reader view is
+generated from the schema.
 
 **Live:** [bodegi.github.io/codex](https://bodegi.github.io/codex/) (private — access is invite-gated).
 

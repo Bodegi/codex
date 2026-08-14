@@ -8,7 +8,12 @@
  *     renderRead(field, value, ctx)  -> html   // read-view BODY  (caller wraps grid kinds in an <h3>)
  *     layout?  'grid' | 'full' | 'break'       // wrapper the walkers apply; default 'grid'
  *     mount?(el, { field, value, onChange, ctx }) // imperative wiring for components that need it
+ *     title, description, icon                 // palette metadata: human name, one-line hint, SVG glyph
  *   }
+ *
+ * `title` / `description` / `icon` drive the Structure editor's component palette (the author
+ * picks a named, described component, not a jargon key — see components/componentPalette.js).
+ * `paletteComponents()` projects them out in registry order.
  *
  * Layout drives both walkers (formRenderer / entryRenderer):
  *   - 'grid'  — a `.form-group` cell in the section `.form-grid` (default).
@@ -26,10 +31,10 @@
  * owns a live canvas with ephemeral pan/zoom a teardown would reset, so it redraws itself and
  * only the read preview refreshes (see main.js `wireComponentMounts`).
  *
- * The four pure kinds (text / prose / list / reference) stay free of build-tool coupling and
- * are unit-testable under plain Node. The media components need the image picker (mount only)
- * and the carousel (read only); both imports are side-effect-free at load, so this module
- * still imports cleanly under Node — `mount` is browser-only and never runs there.
+ * The pure kinds (text / prose / number / date / select / boolean / list / reference) stay free of
+ * build-tool coupling and are unit-testable under plain Node. The media components need the image
+ * picker (mount only) and the carousel (read only); both imports are side-effect-free at load, so
+ * this module still imports cleanly under Node — `mount` is browser-only and never runs there.
  *
  * `ctx` (optional) is the edge adapter for data this module must not import directly:
  *   ctx.resolveImage(id)      -> url | null       (pool images: prose inline, hero, gallery)
@@ -52,6 +57,23 @@ const MUTED_EMPTY = '<p class="muted">Not specified.</p>';
 // the Structure-editor layout preview rather than blank space.
 const SAMPLE_IMAGE_ID = '__preview_sample_image__';
 const SAMPLE_PROSE = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.';
+
+// Palette glyphs — inline `fill="currentColor"` SVG (like iconRegistry.js), sized by CSS. One per
+// kind so the component palette reads as icon + name + hint rather than a jargon dropdown.
+const glyph = (body) => `<svg viewBox="0 0 24 24" class="palette-icon" aria-hidden="true" fill="currentColor">${body}</svg>`;
+const ICONS = {
+  text: glyph('<rect x="3" y="10.5" width="18" height="3" rx="1.5"/>'),
+  prose: glyph('<path d="M14 17H4v2h10v-2zm6-8H4v2h16V9zM4 15h16v-2H4v2zM4 5v2h16V5H4z"/>'),
+  number: glyph('<rect x="3" y="8.6" width="18" height="2.4" rx="0.8"/><rect x="3" y="13" width="18" height="2.4" rx="0.8"/><rect x="7.8" y="4" width="2.4" height="16" rx="0.8"/><rect x="13.8" y="4" width="2.4" height="16" rx="0.8"/>'),
+  date: glyph('<path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/>'),
+  select: glyph('<rect x="3" y="5" width="18" height="3" rx="1.5"/><path d="M7 11l5 6 5-6z"/>'),
+  boolean: glyph('<path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V5c0-1.1-.89-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>'),
+  list: glyph('<path d="M4 14h4v-4H4v4zm0 5h4v-4H4v4zM4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4zM9 5v4h12V5H9z"/>'),
+  reference: glyph('<path d="M17 7h-4v2h4c1.65 0 3 1.35 3 3s-1.35 3-3 3h-4v2h4c2.76 0 5-2.24 5-5s-2.24-5-5-5zm-6 8H7c-1.65 0-3-1.35-3-3s1.35-3 3-3h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-2zM8 11h8v2H8z"/>'),
+  hero: glyph('<path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>'),
+  gallery: glyph('<path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/>'),
+  map: glyph('<path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/>'),
+};
 
 /** Normalize a list value: array as-is, comma-string split, blank -> []. */
 export function toList(value) {
@@ -87,6 +109,9 @@ function pickImage(ctx) {
 
 export const fieldKinds = {
   text: {
+    title: 'Text',
+    description: 'A short single-line value — a name, a title, a label.',
+    icon: ICONS.text,
     renderInput(field, value, _ctx) {
       // Always a plain text input — number/date/link/color are (becoming) first-class kinds, not a
       // polymorphic `type=` on text (issues #31 / #32). A stray `inputType` from legacy raw JSON is
@@ -101,6 +126,9 @@ export const fieldKinds = {
   },
 
   prose: {
+    title: 'Paragraph',
+    description: 'Multi-line rich text with inline formatting and images.',
+    icon: ICONS.prose,
     layout: 'full',
     renderInput(field, value, _ctx) {
       return `<textarea class="form-control" data-field-key="${field.key}" data-field-kind="prose" rows="3">${escapeHtml(value)}</textarea>`;
@@ -126,7 +154,80 @@ export const fieldKinds = {
     sampleValue: () => SAMPLE_PROSE,
   },
 
+  number: {
+    title: 'Number',
+    description: 'A numeric value — a count, a rating, a year.',
+    icon: ICONS.number,
+    renderInput(field, value, _ctx) {
+      return `<input type="number" class="form-control" data-field-key="${field.key}" data-field-kind="number" value="${escapeHtml(value)}" placeholder="${escapeHtml(field.placeholder || '')}">`;
+    },
+    renderRead(_field, value, _ctx) {
+      if (value == null || String(value).trim() === '') return MUTED_EMPTY;
+      return `<p>${escapeHtml(value)}</p>`;
+    },
+    sampleValue: () => '42',
+  },
+
+  date: {
+    title: 'Date',
+    description: 'A calendar date, picked from a date control.',
+    icon: ICONS.date,
+    renderInput(field, value, _ctx) {
+      return `<input type="date" class="form-control" data-field-key="${field.key}" data-field-kind="date" value="${escapeHtml(value)}">`;
+    },
+    renderRead(_field, value, _ctx) {
+      if (value == null || String(value).trim() === '') return MUTED_EMPTY;
+      return `<p>${escapeHtml(value)}</p>`;
+    },
+    sampleValue: () => '2025-01-01',
+  },
+
+  select: {
+    title: 'Select',
+    description: 'One choice from a fixed list of options you define.',
+    icon: ICONS.select,
+    // Options live on `field.options` (an array of strings; the editor authors them one-per-line).
+    // A stored value not in the current option list is carried as a selected "(unavailable)" option
+    // so a since-removed choice survives edit → save rather than being silently wiped — mirroring
+    // the reference control's handling of a dangling id.
+    renderInput(field, value, _ctx) {
+      const opts = toList(field.options);
+      const current = value == null ? '' : String(value);
+      const options = ['<option value="">— none —</option>'];
+      if (current !== '' && !opts.includes(current)) {
+        options.push(`<option value="${escapeHtml(current)}" selected>${escapeHtml(current)} (unavailable)</option>`);
+      }
+      options.push(
+        ...opts.map((o) => `<option value="${escapeHtml(o)}"${o === current ? ' selected' : ''}>${escapeHtml(o)}</option>`)
+      );
+      return `<select class="form-control" data-field-key="${field.key}" data-field-kind="select">${options.join('')}</select>`;
+    },
+    renderRead(_field, value, _ctx) {
+      if (value == null || String(value).trim() === '') return MUTED_EMPTY;
+      return `<p>${escapeHtml(value)}</p>`;
+    },
+    // The label reads as a plausible chosen value in the schematic layout preview.
+    sampleValue: (field) => toList(field.options)[0] || field.label,
+  },
+
+  boolean: {
+    title: 'Checkbox',
+    description: 'A yes / no toggle.',
+    icon: ICONS.boolean,
+    renderInput(field, value, _ctx) {
+      const checked = value === true || value === 'true' ? ' checked' : '';
+      return `<input type="checkbox" class="form-check" data-field-key="${field.key}" data-field-kind="boolean"${checked}>`;
+    },
+    renderRead(_field, value, _ctx) {
+      return `<p>${value === true || value === 'true' ? 'Yes' : 'No'}</p>`;
+    },
+    sampleValue: () => true,
+  },
+
   list: {
+    title: 'List',
+    description: 'Several short values, one per line.',
+    icon: ICONS.list,
     layout: 'full',
     // One item per line. Kept deliberately simple: the value reader splits on
     // newlines, so there is no per-row DOM to wire.
@@ -142,6 +243,9 @@ export const fieldKinds = {
   },
 
   reference: {
+    title: 'Reference',
+    description: 'A link to an entry of another type.',
+    icon: ICONS.reference,
     renderInput(field, value, ctx) {
       if (field.multi) return referenceMultiInput(field, value, ctx);
       const entries = ctx?.listEntries ? ctx.listEntries(field.targetType) : null;
@@ -179,6 +283,9 @@ export const fieldKinds = {
   },
 
   hero: {
+    title: 'Banner image',
+    description: 'A single large image shown at the top of the entry.',
+    icon: ICONS.hero,
     layout: 'break',
     renderInput(field, value, ctx) {
       const hero = value || '';
@@ -212,6 +319,9 @@ export const fieldKinds = {
   },
 
   gallery: {
+    title: 'Gallery',
+    description: 'A carousel of several images.',
+    icon: ICONS.gallery,
     layout: 'break',
     renderInput(field, value, ctx) {
       const gallery = toList(value);
@@ -267,6 +377,9 @@ export const fieldKinds = {
   // The map component lives in its own module (canvas engine); the registry just delegates.
   // `selfRender` keeps its live canvas from being torn down on every commit (see header).
   map: {
+    title: 'Map',
+    description: 'An interactive image map with markers and regions.',
+    icon: ICONS.map,
     layout: 'break',
     selfRender: true,
     renderInput: renderMapInput,
@@ -351,6 +464,21 @@ export function getKind(kind) {
   return fieldKinds[kind] || null;
 }
 
+/**
+ * The palette model: every renderable component as `{ kind, title, description, icon }`, in registry
+ * order. This is what the Structure editor's palette picker renders — a named, described choice
+ * instead of the internal kind key. Pure + Node-testable; the palette DOM lives in
+ * components/componentPalette.js.
+ */
+export function paletteComponents() {
+  return Object.entries(fieldKinds).map(([kind, def]) => ({
+    kind,
+    title: def.title || kind,
+    description: def.description || '',
+    icon: def.icon || '',
+  }));
+}
+
 /** A component's layout ('grid' | 'full' | 'break'), defaulting to 'grid' (incl. unknown kinds). */
 export function getLayout(kind) {
   return fieldKinds[kind]?.layout || 'grid';
@@ -358,6 +486,7 @@ export function getLayout(kind) {
 
 /** A plain string for a field's value — used by the summary card and the search index. */
 export function displayValue(field, value, ctx) {
+  if (field.kind === 'boolean') return value === true || value === 'true' ? 'Yes' : 'No';
   if (field.kind === 'list') return toList(value).join(', ');
   if (field.kind === 'reference') {
     const resolve = (id) => (ctx?.resolveRef ? ctx.resolveRef(field.targetType, id).label : id);

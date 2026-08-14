@@ -78,6 +78,29 @@ test('rejects a reference field with no target type', () => {
   assert.ok(result.errors.some((e) => /"link" must have a target type/.test(e)));
 });
 
+test('the new first-class kinds (number/date/select/boolean) are accepted', () => {
+  const schema = validSchema();
+  schema.sections[0].fields.push({ key: 'pop', label: 'Population', kind: 'number' });
+  schema.sections[0].fields.push({ key: 'founded', label: 'Founded', kind: 'date' });
+  schema.sections[0].fields.push({ key: 'tier', label: 'Tier', kind: 'select', options: ['A', 'B'] });
+  schema.sections[0].fields.push({ key: 'active', label: 'Active', kind: 'boolean' });
+  assert.equal(validateSchema(schema).ok, true);
+});
+
+test('rejects a select field with no options — symmetric with reference→target', () => {
+  const schema = validSchema();
+  schema.sections[0].fields.push({ key: 'tier', label: 'Tier', kind: 'select', options: [] });
+  const result = validateSchema(schema);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((e) => /"tier" must define at least one option/.test(e)));
+});
+
+test('a select field with at least one option passes', () => {
+  const schema = validSchema();
+  schema.sections[0].fields.push({ key: 'tier', label: 'Tier', kind: 'select', options: ['Gold'] });
+  assert.equal(validateSchema(schema).ok, true);
+});
+
 test('rejects an empty section title', () => {
   const schema = validSchema();
   schema.sections[0].title = '   ';
