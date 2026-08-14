@@ -1366,19 +1366,20 @@ function applyViewChrome() {
   mainWorkspace.classList.remove('view-content-read', 'view-content-edit', 'view-content-admin', 'view-global-admin');
   mainWorkspace.classList.add(cls);
 
-  // Edit sits in the reader header (content read); Save/Done live in the form header (edit). Structure
-  // is a toggle: "Structure" to enter from reading, "Done" to leave — so it's never a dead end.
+  // Edit sits in the reader header (content read); Save + the discard exit live in the form header
+  // (edit). Structure is a toggle: "Structure" to enter from reading, "Back" to leave — never a dead end.
   const inTypeRead = v.kind === 'type' && !!v.type && v.mode === 'read';
   const inStructure = v.kind === 'type' && !!v.type && v.mode === 'admin';
   const inIndex = v.kind === 'type' && !!v.type && v.mode === 'index';
   editToggleBtn.hidden = !(canEdit && inTypeRead);
   // Structure is reachable from the index landing too, so an admin needn't drill into an entry first.
   structureBtn.hidden = !(canAdmin && (inTypeRead || inIndex || inStructure));
-  structureBtn.textContent = inStructure ? 'Done' : 'Structure';
-  // Index is a toggle: "Index" to browse the grid from an entry, "Done" to return to an entry. The
-  // grid renders for every type now (a minimal title-only card when none is configured), so no gate.
-  indexToggleBtn.hidden = !(inTypeRead || inIndex);
-  indexToggleBtn.textContent = inIndex ? 'Done' : 'Index';
+  structureBtn.textContent = inStructure ? 'Back' : 'Structure';
+  // "Index" is a one-way trip from a single entry to the card grid. The grid IS a type's home, so it
+  // carries no reciprocal exit button — its summary cards are the way back into an entry (the old
+  // in-index "Done" was a confusing no-op there, jumping to an arbitrary first entry the cards reach).
+  indexToggleBtn.hidden = !inTypeRead;
+  indexToggleBtn.textContent = 'Index';
   // Export the whole codex (#2): any reader may take a copy, so it rides the reader surface, not the
   // edit/admin gate. Shown while reading (read or index), where the reader-actions bar is visible.
   exportCodexBtn.hidden = !(state.caps.canRead && (inTypeRead || inIndex));
@@ -1405,7 +1406,7 @@ editToggleBtn.addEventListener('click', () => {
 structureBtn.addEventListener('click', async () => {
   if (!state.caps.canAdmin || state.view.kind !== 'type' || !state.view.type) return;
   if (inSchemaAdmin()) {
-    // Leaving Structure ("Done") — guard an unsaved new-type draft before it's discarded.
+    // Leaving Structure ("Back") — guard an unsaved new-type draft before it's discarded.
     if (!(await confirmDiscardIfDirty())) return;
     goto(toRead(state.view));
   } else {
@@ -1414,8 +1415,9 @@ structureBtn.addEventListener('click', async () => {
 });
 
 indexToggleBtn.addEventListener('click', () => {
+  // Only shown while reading a single entry — a one-way trip out to the card grid (its home).
   if (state.view.kind !== 'type' || !state.view.type) return;
-  goto(state.view.mode === 'index' ? toRead(state.view) : toIndex(state.view));
+  goto(toIndex(state.view));
 });
 
 // The header breadcrumb's parent segment (see setEntryCrumb): navigate up to the type's index. Same
