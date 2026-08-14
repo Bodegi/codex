@@ -843,29 +843,27 @@ button.user-badge { cursor: pointer; }
 }
 
 /* Form Styles */
-.form-section {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-md);
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-.section-header {
+/* The builder form is a flat run of grids and break blocks (see formRenderer.js) — no section
+   box. A `heading` component renders this divider where the author placed it. */
+.form-heading {
   font-family: var(--font-heading);
   font-size: 15px;
   font-weight: 700;
   color: var(--accent-gold);
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  margin: 20px 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-dim);
+}
+
+.form-heading:first-child {
+  margin-top: 0;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
+  margin-bottom: 16px;
 }
 
 .form-grid-full {
@@ -1893,10 +1891,30 @@ mark.search-hit {
 }
 
 /* Map component canvas */
+/* The map is a break component that renders its own titled panel (formerly leaning on the
+   retired .form-section / .section-header schema classes). */
 .map-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.map-header {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent-gold);
+}
+
+.map-inspector {
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+  padding: 16px;
 }
 
 .map-wrapper {
@@ -2115,31 +2133,6 @@ mark.search-hit {
   gap: 4px;
 }
 
-.se-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.se-section {
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-md);
-  background: var(--bg-glass);
-  padding: 12px;
-}
-
-.se-section-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.se-section-title {
-  flex: 1;
-  font-weight: 600;
-}
-
 .se-fields {
   display: flex;
   flex-direction: column;
@@ -2151,6 +2144,19 @@ mark.search-hit {
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
   padding: 8px 10px;
+}
+
+/* A heading component is a structural divider, not a data field — mark its builder row so the
+   flat list still reads as grouped structure. */
+.se-field[data-kind='heading'] {
+  border-left: 3px solid var(--accent-gold);
+  background: var(--bg-glass);
+}
+
+.se-field[data-kind='heading'] .se-label {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--accent-gold);
 }
 
 .se-field-main {

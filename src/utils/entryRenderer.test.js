@@ -25,10 +25,11 @@ test('the title field becomes the <h1> and is not repeated as a section field', 
   assert.doesNotMatch(html, /<h3>Title<\/h3>/);
 });
 
-test('sections render as <h2> and their fields as <h3>', () => {
+test('the primary group flows title → fields with no orphan header (#30 F12)', () => {
   const html = renderEntryHTML('note', NOTE);
-  assert.match(html, /<h2>Note<\/h2>/);
   assert.match(html, /<h3>Body<\/h3>/);
+  // The first group carries no heading component, so no <h2> sits between the title and the fields.
+  assert.doesNotMatch(html, /<h2>Note<\/h2>/);
 });
 
 test('the idField never renders — identity, not content (no metadata box, no heading, no id echo)', () => {
@@ -68,16 +69,17 @@ test('an unset hero renders neither an image nor a placeholder', () => {
   assert.doesNotMatch(html, /entry-hero|image-missing/);
 });
 
-test('gallery renders inline as a carousel in its section, with no field heading', () => {
+test('a heading renders as <h2> over its components; the gallery beneath carries no field heading', () => {
   const ctx = { resolveImage: (id) => `/i/${id}` };
   const html = renderEntryHTML('note', { ...NOTE, gallery: ['a.png'] }, ctx);
-  assert.match(html, /<h2>Imagery<\/h2>/);   // the section it lives in
+  assert.match(html, /<h2>Imagery<\/h2>/);   // the heading the gallery lives under
   assert.match(html, /carousel/);
   assert.match(html, /src="\/i\/a.png"/);
   assert.doesNotMatch(html, /<h3>Gallery<\/h3>/); // break components carry no field heading
 });
 
-test('an Imagery section with an empty gallery (and no hero) collapses entirely', () => {
+test('a heading whose components all render empty collapses (empty Imagery gallery + no hero)', () => {
   const html = renderEntryHTML('note', { ...NOTE, gallery: [] });
   assert.doesNotMatch(html, /<h2>Imagery<\/h2>/);
+  assert.doesNotMatch(html, /<h2>Map<\/h2>/); // the Map heading over an unset map collapses too
 });

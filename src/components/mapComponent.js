@@ -270,8 +270,8 @@ export function renderMapInput(field, value, ctx) {
   const src = v.mapImageId && ctx?.resolveImage ? ctx.resolveImage(v.mapImageId) || '' : '';
   const lbl = 'style="font-size:11px; color:var(--text-muted);"';
   return `
-    <div class="form-section map-container" data-field-key="${escapeAttr(field.key)}">
-      <div class="section-header">${escapeAttr(label)}</div>
+    <div class="map-container" data-field-key="${escapeAttr(field.key)}">
+      <div class="map-header">${escapeAttr(label)}</div>
       <div class="map-toolbar">
         <div class="tool-group">
           <label ${lbl}>Tool</label>
@@ -300,7 +300,7 @@ export function renderMapInput(field, value, ctx) {
         <div class="map-pin-layer"></div>
       </div>
       <div class="map-hint" ${lbl}>Shift-drag to pan · scroll to zoom · Freehand: drag to draw · Vertex: click corners, double-click to finish</div>
-      <div class="form-section map-inspector hidden" style="margin-top:12px; background:rgba(0,0,0,0.4);">
+      <div class="map-inspector hidden" style="margin-top:12px; background:rgba(0,0,0,0.4);">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
           <strong class="map-inspector-title" style="color:var(--accent-gold); font-size:13px;">Selected</strong>
           <button type="button" class="btn btn-secondary btn-sm" data-map-action="delete" style="color:var(--accent-crimson);">Delete</button>

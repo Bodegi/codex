@@ -16,9 +16,9 @@ generated from the schema.
 
 ## Highlights
 
-- **Schema builder, in the app.** Admins design types visually in the Structure editor: add
-  fields, group them into sections, drag to reorder, pick a field _kind_. No migrations, no
-  redeploy — the schema is data.
+- **Schema builder, in the app.** Admins design types visually in the Structure editor: pick
+  components from a palette into one flat, ordered list, drag to reorder, drop in **Heading**
+  dividers where you want them. No migrations, no redeploy — the schema is data.
 - **Field components.** `text`, `prose` (inline-image + link markup), `list`, `reference`
   (single or multi-value links to other entries), `hero`, `gallery`, and `map` (drop pins,
   draw roads/territories freehand, link pins to entries).

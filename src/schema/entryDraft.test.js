@@ -7,20 +7,16 @@ const schema = {
   type: 'person',
   idField: 'id',
   titleField: 'name',
-  sections: [
-    {
-      title: 'Person',
-      fields: [
-        { key: 'id', kind: 'text' },
-        { key: 'name', kind: 'text' },
-        { key: 'bio', kind: 'prose' },
-        { key: 'tags', kind: 'list' },
-        { key: 'favoriteNote', kind: 'reference', targetType: 'note' },
-        { key: 'factions', kind: 'reference', targetType: 'note', multi: true },
-        { key: 'gallery', kind: 'gallery' },
-        { key: 'heroImage', kind: 'hero' },
-      ],
-    },
+  fields: [
+    { key: 'id', kind: 'text' },
+    { key: 'name', kind: 'text' },
+    { key: 'bio', kind: 'prose' },
+    { key: 'tags', kind: 'list' },
+    { key: 'favoriteNote', kind: 'reference', targetType: 'note' },
+    { key: 'factions', kind: 'reference', targetType: 'note', multi: true },
+    { key: 'sec_media', label: 'Media', kind: 'heading' },
+    { key: 'gallery', kind: 'gallery' },
+    { key: 'heroImage', kind: 'hero' },
   ],
 };
 
@@ -43,4 +39,8 @@ test('blankEntry initializes list and gallery fields to arrays, others to empty 
   assert.equal(e.bio, '');
   assert.equal(e.favoriteNote, ''); // single-value reference stays an empty string
   assert.equal(e.heroImage, '');
+});
+
+test('blankEntry seeds no value for a heading — it holds no entry data', () => {
+  assert.ok(!('sec_media' in blankEntry(schema)));
 });

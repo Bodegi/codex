@@ -140,7 +140,7 @@ test('simplifyPoints returns a copy and handles trivial inputs', () => {
 
 test('renderMapInput falls back to a generic label and has no world-specific copy', () => {
   const html = renderMapInput({ key: 'map', kind: 'map' }, undefined, null);
-  assert.match(html, /section-header">Map</); // label defaults to "Map"
+  assert.match(html, /map-header">Map</); // label defaults to "Map"
   assert.match(html, /data-map-action="choose-image"/);
   assert.match(html, /class="map-pin-layer"/); // Phase 2: DOM pin overlay
   assert.match(html, /data-map-action="toggle-draw-mode"/); // freehand ⇄ vertex toggle

@@ -289,6 +289,19 @@ test('displayValue reads a boolean as Yes/No', () => {
   assert.equal(displayValue({ kind: 'boolean' }, false), 'No');
 });
 
+// --- heading (structural break component) ---
+
+test('heading renders its label as an <h2> in both the form and the read view, from field.label', () => {
+  assert.equal(getLayout('heading'), 'break');
+  assert.equal(fieldKinds.heading.renderInput({ key: 'h1', kind: 'heading', label: 'Lore & History' }), '<h2 class="form-heading">Lore &amp; History</h2>');
+  assert.equal(fieldKinds.heading.renderRead({ key: 'h1', kind: 'heading', label: 'Lore & History' }), '<h2>Lore &amp; History</h2>');
+});
+
+test('heading has no per-entry value — displayValue is empty', () => {
+  assert.equal(displayValue({ kind: 'heading', label: 'Details' }, undefined), '');
+  assert.equal(displayValue({ kind: 'heading', label: 'Details' }, 'anything'), '');
+});
+
 // --- palette model ---
 
 test('paletteComponents projects every registry kind as { kind, title, description, icon }', () => {
@@ -457,9 +470,10 @@ test('sampleValue falls back to the label for a kind that declares none', () => 
 test('previewSample maps every field through its kind, keyed by field key, plus the type', () => {
   const schema = {
     type: 'person',
-    sections: [
-      { fields: [{ key: 'name', kind: 'text', label: 'Name' }, { key: 'bio', kind: 'prose', label: 'Bio' }] },
-      { fields: [{ key: 'favoriteNote', kind: 'reference', label: 'Favorite Note' }] },
+    fields: [
+      { key: 'name', kind: 'text', label: 'Name' },
+      { key: 'bio', kind: 'prose', label: 'Bio' },
+      { key: 'favoriteNote', kind: 'reference', label: 'Favorite Note' },
     ],
   };
   const sample = previewSample(schema);
@@ -469,7 +483,7 @@ test('previewSample maps every field through its kind, keyed by field key, plus 
   assert.equal(sample.favoriteNote, 'Favorite Note');
 });
 
-test('previewSample tolerates a schema with no sections', () => {
+test('previewSample tolerates a schema with no fields', () => {
   assert.deepEqual(previewSample({ type: 'empty' }), { type: 'empty' });
 });
 

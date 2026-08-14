@@ -17,11 +17,11 @@ function isArrayField(field) {
 /** An empty, active entry shaped by `schema` — ready to bind to the form. */
 export function blankEntry(schema) {
   const entry = { type: schema.type, id: '', status: 'active' };
-  for (const section of schema.sections || []) {
-    for (const field of section.fields || []) {
-      if (field.key === 'id' || field.key === 'type' || field.key === 'status') continue;
-      entry[field.key] = isArrayField(field) ? [] : '';
-    }
+  for (const field of schema.fields || []) {
+    // A heading is schema chrome, not entry data — it seeds no value.
+    if (field.kind === 'heading') continue;
+    if (field.key === 'id' || field.key === 'type' || field.key === 'status') continue;
+    entry[field.key] = isArrayField(field) ? [] : '';
   }
   return entry;
 }

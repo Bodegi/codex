@@ -11,21 +11,17 @@ const SCHEMAS = {
   person: {
     type: 'person',
     titleField: 'name',
-    sections: [
-      { fields: [
-        { key: 'name', kind: 'text' },
-        { key: 'home', kind: 'reference', targetType: 'place', label: 'Home' },
-      ] },
+    fields: [
+      { key: 'name', kind: 'text' },
+      { key: 'home', kind: 'reference', targetType: 'place', label: 'Home' },
     ],
   },
   place: {
     type: 'place',
     titleField: 'title',
-    sections: [
-      { fields: [
-        { key: 'title', kind: 'text' },
-        { key: 'neighbors', kind: 'reference', targetType: 'place', multi: true, label: 'Neighbors' },
-      ] },
+    fields: [
+      { key: 'title', kind: 'text' },
+      { key: 'neighbors', kind: 'reference', targetType: 'place', multi: true, label: 'Neighbors' },
     ],
   },
 };

@@ -25,19 +25,11 @@ export function validateSchema(schema) {
   if (!schema || typeof schema !== 'object') {
     return { ok: false, errors: ['Schema must be an object.'] };
   }
-  if (!Array.isArray(schema.sections)) {
-    return { ok: false, errors: ['Schema must have a sections array.'] };
+  if (!Array.isArray(schema.fields)) {
+    return { ok: false, errors: ['Schema must have a fields array.'] };
   }
 
-  // Section titles + collect every field across all sections.
-  const allFields = [];
-  schema.sections.forEach((section, i) => {
-    if (!section || typeof section.title !== 'string' || section.title.trim() === '') {
-      errors.push(`Section ${i + 1} must have a non-empty title.`);
-    }
-    const fields = Array.isArray(section && section.fields) ? section.fields : [];
-    fields.forEach((f) => allFields.push(f));
-  });
+  const allFields = schema.fields;
 
   // Field keys: present + unique across the type.
   const keys = new Set();
@@ -67,16 +59,23 @@ export function validateSchema(schema) {
     if (f.kind === 'select' && toList(f.options).length === 0) {
       errors.push(`Select field "${f.key}" must define at least one option.`);
     }
+    // A heading's label IS its rendered text; a blank one is an empty <h2>.
+    if (f.kind === 'heading' && (!f.label || String(f.label).trim() === '')) {
+      errors.push(`Heading "${f.key}" must have a label.`);
+    }
   });
 
   // titleField is required and names a real field key. idField is optional — an entry's identity
   // is its opaque `entry.id` doc key, not a schema field — but when present (e.g. the demo
   // fixture's readable id field) it must still name a real field.
+  const headingKeys = new Set(allFields.filter((f) => f && f.kind === 'heading').map((f) => f.key));
   const title = schema.titleField;
   if (!title || String(title).trim() === '') {
     errors.push('Schema must define titleField.');
   } else if (!keys.has(title)) {
     errors.push(`titleField "${title}" does not match any field key.`);
+  } else if (headingKeys.has(title)) {
+    errors.push(`titleField "${title}" is a heading, which holds no entry data.`);
   }
   const idField = schema.idField;
   if (idField != null && String(idField).trim() !== '' && !keys.has(idField)) {

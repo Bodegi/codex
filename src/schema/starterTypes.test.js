@@ -8,18 +8,16 @@ const kit = () => [
     type: 'note',
     label: 'Note',
     status: 'active',
-    sections: [
-      { title: 'Note', fields: [{ key: 'id', kind: 'text' }] },
-      { title: 'Map', fields: [{ key: 'map', kind: 'map', association: { mode: 'both', refType: 'person' } }] },
+    fields: [
+      { key: 'id', kind: 'text' },
+      { key: 'map', kind: 'map', association: { mode: 'both', refType: 'person' } },
     ],
   },
   {
     type: 'person',
     label: 'Person',
     status: 'active',
-    sections: [
-      { title: 'Person', fields: [{ key: 'favoriteNote', kind: 'reference', targetType: 'note' }] },
-    ],
+    fields: [{ key: 'favoriteNote', kind: 'reference', targetType: 'note' }],
   },
 ];
 
@@ -48,8 +46,8 @@ test('every clone is active', () => {
 test('remaps in-kit references to the clones new ids', () => {
   const out = cloneStarterSchemas(kit(), counter());
   // note (id-1) points at person (id-2); person (id-2) points back at note (id-1).
-  assert.equal(out[0].sections[1].fields[0].association.refType, 'id-2');
-  assert.equal(out[1].sections[0].fields[0].targetType, 'id-1');
+  assert.equal(out[0].fields[1].association.refType, 'id-2');
+  assert.equal(out[1].fields[0].targetType, 'id-1');
 });
 
 test('leaves references to out-of-kit types untouched', () => {
@@ -57,10 +55,10 @@ test('leaves references to out-of-kit types untouched', () => {
     {
       type: 'note',
       label: 'Note',
-      sections: [{ title: 'x', fields: [{ key: 'r', kind: 'reference', targetType: 'place' }] }],
+      fields: [{ key: 'r', kind: 'reference', targetType: 'place' }],
     },
   ];
   const out = cloneStarterSchemas(one, counter());
   assert.equal(out[0].type, 'id-1');
-  assert.equal(out[0].sections[0].fields[0].targetType, 'place');
+  assert.equal(out[0].fields[0].targetType, 'place');
 });

@@ -5,8 +5,8 @@ How to use Codex Studio to read, write, and design a codex. For running or build
 
 - **Codex** — a self-contained world/dataset. You work in one codex at a time (switch with the
   picker at the top of the sidebar).
-- **Type** — a content template you design (Note, Person, Place, …): a set of fields grouped
-  into sections.
+- **Type** — a content template you design (Note, Person, Place, …): an ordered list of
+  components (fields), with **Heading** components as dividers.
 - **Entry** — one filled-in record of a type.
 
 ## The workspace
@@ -154,9 +154,12 @@ The `map` field is a mini Google-Maps-style canvas on an image you supply:
 Click **Structure** in the reader header while a type is selected to open the **Structure
 editor**:
 
-- **Fields** — add a field, give it a label, pick its **kind**. Group fields into **sections**.
-- **Reorder** — drag the `⠿` handles to reorder fields and sections, including moving a field to
-  another section (Up/Down buttons are the precision fallback).
+- **Components** — click **+ add component** and pick one from the palette (Text, Paragraph,
+  Number, Date, Select, Checkbox, List, Reference, Heading, Banner image, Gallery, Map). A type is
+  one flat, ordered list; a **Heading** is a divider you place where you want a titled group — it
+  holds no entry data, so a simple type just flows title → fields with no header at all.
+- **Reorder** — drag the `⠿` handles to reorder the list (Up/Down buttons are the precision
+  fallback).
 - **Per-field options** — e.g. `reference` fields choose a target type and a single/multiple
   toggle; `map` fields configure pin **association** (reference / label / both) and target type.
 - **Summary card** — configure an optional card (title/subtitle field + badge/row fields) that

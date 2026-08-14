@@ -25,12 +25,10 @@ import { getSchema } from '../schema/schemaStore.js';
 import { toList, displayValue } from '../schema/fieldKinds.js';
 import { escapeHtml } from '../schema/inlineText.js';
 
-/** Flat key → field map across every section (fields are keyed uniquely per type). */
+/** Key → field map over the flat field list (fields are keyed uniquely per type). */
 function fieldMap(schema) {
   const map = new Map();
-  for (const section of schema.sections || []) {
-    for (const field of section.fields || []) map.set(field.key, field);
-  }
+  for (const field of schema.fields || []) map.set(field.key, field);
   return map;
 }
 

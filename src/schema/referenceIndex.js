@@ -17,13 +17,9 @@ import { toList } from './fieldKinds.js';
 
 /** Every reference field in a schema whose target is `targetType`. */
 function schemaRefFields(schema, targetType) {
-  const out = [];
-  for (const section of schema.sections || []) {
-    for (const field of section.fields || []) {
-      if (field.kind === 'reference' && (field.targetType || '') === targetType) out.push(field);
-    }
-  }
-  return out;
+  return (schema.fields || []).filter(
+    (field) => field.kind === 'reference' && (field.targetType || '') === targetType
+  );
 }
 
 /** Does a reference field's stored value point at `targetId`? (multi = any element). */

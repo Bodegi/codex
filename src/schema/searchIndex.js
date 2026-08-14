@@ -22,11 +22,7 @@ const SNIPPET_LEAD = 60;
 const SNIPPET_TRAIL = 120;
 
 function schemaFields(schema) {
-  const out = [];
-  for (const section of schema.sections || []) {
-    for (const field of section.fields || []) out.push(field);
-  }
-  return out;
+  return schema.fields || [];
 }
 
 /**

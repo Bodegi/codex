@@ -10,16 +10,11 @@ function validSchema() {
     label: 'Demo',
     idField: 'id',
     titleField: 'name',
-    sections: [
-      {
-        title: 'Core',
-        fields: [
-          { key: 'id', label: 'ID', kind: 'text' },
-          { key: 'name', label: 'Name', kind: 'text' },
-          { key: 'owner', label: 'Owner', kind: 'reference', targetType: 'civilization' },
-          { key: 'notes', label: 'Notes', kind: 'prose' },
-        ],
-      },
+    fields: [
+      { key: 'id', label: 'ID', kind: 'text' },
+      { key: 'name', label: 'Name', kind: 'text' },
+      { key: 'owner', label: 'Owner', kind: 'reference', targetType: 'civilization' },
+      { key: 'notes', label: 'Notes', kind: 'prose' },
     ],
   };
 }
@@ -38,8 +33,14 @@ test('an optional top-level icon key is tolerated', () => {
 
 test('media kinds are accepted as known kinds', () => {
   const schema = validSchema();
-  schema.sections[0].fields.push({ key: 'heroImage', label: 'Hero', kind: 'hero' });
-  schema.sections[0].fields.push({ key: 'gallery', label: 'Gallery', kind: 'gallery' });
+  schema.fields.push({ key: 'heroImage', label: 'Hero', kind: 'hero' });
+  schema.fields.push({ key: 'gallery', label: 'Gallery', kind: 'gallery' });
+  assert.equal(validateSchema(schema).ok, true);
+});
+
+test('a heading component is accepted as a known kind', () => {
+  const schema = validSchema();
+  schema.fields.push({ key: 'sec_more', label: 'More', kind: 'heading' });
   assert.equal(validateSchema(schema).ok, true);
 });
 
@@ -48,15 +49,15 @@ test('rejects a non-object schema', () => {
   assert.equal(validateSchema('nope').ok, false);
 });
 
-test('rejects a schema without a sections array', () => {
+test('rejects a schema without a fields array', () => {
   const result = validateSchema({ idField: 'id', titleField: 'name' });
   assert.equal(result.ok, false);
-  assert.match(result.errors[0], /sections array/);
+  assert.match(result.errors[0], /fields array/);
 });
 
 test('rejects duplicate field keys', () => {
   const schema = validSchema();
-  schema.sections[0].fields.push({ key: 'id', label: 'Dupe', kind: 'text' });
+  schema.fields.push({ key: 'id', label: 'Dupe', kind: 'text' });
   const result = validateSchema(schema);
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((e) => /Duplicate field key: "id"/.test(e)));
@@ -64,7 +65,7 @@ test('rejects duplicate field keys', () => {
 
 test('rejects an unknown field kind', () => {
   const schema = validSchema();
-  schema.sections[0].fields.push({ key: 'weird', label: 'Weird', kind: 'sparkle' });
+  schema.fields.push({ key: 'weird', label: 'Weird', kind: 'sparkle' });
   const result = validateSchema(schema);
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((e) => /unknown kind: "sparkle"/.test(e)));
@@ -72,7 +73,7 @@ test('rejects an unknown field kind', () => {
 
 test('rejects a reference field with no target type', () => {
   const schema = validSchema();
-  schema.sections[0].fields.push({ key: 'link', label: 'Link', kind: 'reference' });
+  schema.fields.push({ key: 'link', label: 'Link', kind: 'reference' });
   const result = validateSchema(schema);
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((e) => /"link" must have a target type/.test(e)));
@@ -80,16 +81,16 @@ test('rejects a reference field with no target type', () => {
 
 test('the new first-class kinds (number/date/select/boolean) are accepted', () => {
   const schema = validSchema();
-  schema.sections[0].fields.push({ key: 'pop', label: 'Population', kind: 'number' });
-  schema.sections[0].fields.push({ key: 'founded', label: 'Founded', kind: 'date' });
-  schema.sections[0].fields.push({ key: 'tier', label: 'Tier', kind: 'select', options: ['A', 'B'] });
-  schema.sections[0].fields.push({ key: 'active', label: 'Active', kind: 'boolean' });
+  schema.fields.push({ key: 'pop', label: 'Population', kind: 'number' });
+  schema.fields.push({ key: 'founded', label: 'Founded', kind: 'date' });
+  schema.fields.push({ key: 'tier', label: 'Tier', kind: 'select', options: ['A', 'B'] });
+  schema.fields.push({ key: 'active', label: 'Active', kind: 'boolean' });
   assert.equal(validateSchema(schema).ok, true);
 });
 
 test('rejects a select field with no options — symmetric with reference→target', () => {
   const schema = validSchema();
-  schema.sections[0].fields.push({ key: 'tier', label: 'Tier', kind: 'select', options: [] });
+  schema.fields.push({ key: 'tier', label: 'Tier', kind: 'select', options: [] });
   const result = validateSchema(schema);
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((e) => /"tier" must define at least one option/.test(e)));
@@ -97,22 +98,31 @@ test('rejects a select field with no options — symmetric with reference→targ
 
 test('a select field with at least one option passes', () => {
   const schema = validSchema();
-  schema.sections[0].fields.push({ key: 'tier', label: 'Tier', kind: 'select', options: ['Gold'] });
+  schema.fields.push({ key: 'tier', label: 'Tier', kind: 'select', options: ['Gold'] });
   assert.equal(validateSchema(schema).ok, true);
 });
 
-test('rejects an empty section title', () => {
+test('rejects a heading with a blank label — its label is the rendered text', () => {
   const schema = validSchema();
-  schema.sections[0].title = '   ';
+  schema.fields.push({ key: 'sec_blank', label: '   ', kind: 'heading' });
   const result = validateSchema(schema);
   assert.equal(result.ok, false);
-  assert.ok(result.errors.some((e) => /non-empty title/.test(e)));
+  assert.ok(result.errors.some((e) => /Heading "sec_blank" must have a label/.test(e)));
+});
+
+test('rejects a titleField that points at a heading — a heading holds no entry data', () => {
+  const schema = validSchema();
+  schema.fields.push({ key: 'sec_more', label: 'More', kind: 'heading' });
+  schema.titleField = 'sec_more';
+  const result = validateSchema(schema);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((e) => /titleField "sec_more" is a heading/.test(e)));
 });
 
 test('an absent idField is fine — the entry id is the opaque doc key, not a field', () => {
   const schema = validSchema();
   delete schema.idField;
-  schema.sections[0].fields = schema.sections[0].fields.filter((f) => f.key !== 'id');
+  schema.fields = schema.fields.filter((f) => f.key !== 'id');
   assert.equal(validateSchema(schema).ok, true);
 });
 
@@ -142,7 +152,7 @@ test('rejects a titleField that names no existing field', () => {
 
 test('flags a field missing its key', () => {
   const schema = validSchema();
-  schema.sections[0].fields.push({ label: 'No key', kind: 'text' });
+  schema.fields.push({ label: 'No key', kind: 'text' });
   const result = validateSchema(schema);
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((e) => /Every field must have a key/.test(e)));

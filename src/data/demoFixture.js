@@ -4,8 +4,12 @@
  * The single codex shown in local-only mode (no Firebase) and the shared content for
  * headless smoke tests + unit-test fixtures. Deliberately generic (no ATM10 lore): a
  * `note` type and a `person` type, chosen so the two schemas between them exercise every
- * field kind (text / prose / number / date / select / boolean / list / reference / hero / gallery /
- * map) and a real cross-entry reference (`person.favoriteNote` → a `note`).
+ * field kind (text / prose / number / date / select / boolean / list / reference / heading /
+ * hero / gallery / map) and a real cross-entry reference (`person.favoriteNote` → a `note`).
+ *
+ * A type is one flat, ordered list of components (`fields`); a `heading` component is the only
+ * divider (there is no `sections` wrapper). Headings carry their text on `label` and store no
+ * per-entry data, so the entries below key only content fields.
  *
  * This is NOT "the app's data" — it is demo/test content. Real codices live in Firestore.
  * Its shape mirrors a codex's Firestore payload (schemas + entries-by-type) so the
@@ -30,29 +34,16 @@ export const demoSchemas = [
     titleField: 'title',
     status: 'active',
     summaryCard: { subtitle: 'body', badges: ['tags'] },
-    sections: [
-      {
-        title: 'Note',
-        fields: [
-          { key: 'id', label: 'Note ID', kind: 'text', placeholder: 'e.g. welcome' },
-          { key: 'title', label: 'Title', kind: 'text', placeholder: 'e.g. Welcome' },
-          { key: 'body', label: 'Body', kind: 'prose' },
-          { key: 'tags', label: 'Tags', kind: 'list' },
-        ],
-      },
-      {
-        title: 'Imagery',
-        fields: [
-          { key: 'heroImage', label: 'Hero Image', kind: 'hero' },
-          { key: 'gallery', label: 'Gallery', kind: 'gallery' },
-        ],
-      },
-      {
-        title: 'Map',
-        fields: [
-          { key: 'map', label: 'Map', kind: 'map', association: { mode: 'both', refType: 'person' } },
-        ],
-      },
+    fields: [
+      { key: 'id', label: 'Note ID', kind: 'text', placeholder: 'e.g. welcome' },
+      { key: 'title', label: 'Title', kind: 'text', placeholder: 'e.g. Welcome' },
+      { key: 'body', label: 'Body', kind: 'prose' },
+      { key: 'tags', label: 'Tags', kind: 'list' },
+      { key: 'sec_imagery', label: 'Imagery', kind: 'heading' },
+      { key: 'heroImage', label: 'Hero Image', kind: 'hero' },
+      { key: 'gallery', label: 'Gallery', kind: 'gallery' },
+      { key: 'sec_map', label: 'Map', kind: 'heading' },
+      { key: 'map', label: 'Map', kind: 'map', association: { mode: 'both', refType: 'person' } },
     ],
   },
   {
@@ -63,29 +54,18 @@ export const demoSchemas = [
     titleField: 'name',
     status: 'active',
     summaryCard: { subtitle: 'bio', badges: ['favoriteNote'] },
-    sections: [
-      {
-        title: 'Person',
-        fields: [
-          { key: 'id', label: 'Person ID', kind: 'text', placeholder: 'e.g. ada' },
-          { key: 'name', label: 'Name', kind: 'text', placeholder: 'e.g. Ada' },
-          { key: 'bio', label: 'Bio', kind: 'prose' },
-          { key: 'favoriteNote', label: 'Favorite Note', kind: 'reference', targetType: 'note' },
-        ],
-      },
-      {
-        title: 'Details',
-        fields: [
-          { key: 'age', label: 'Age', kind: 'number', placeholder: 'e.g. 36' },
-          { key: 'birthday', label: 'Birthday', kind: 'date' },
-          { key: 'alignment', label: 'Alignment', kind: 'select', options: ['Lawful', 'Neutral', 'Chaotic'] },
-          { key: 'active', label: 'Active', kind: 'boolean' },
-        ],
-      },
-      {
-        title: 'Imagery',
-        fields: [{ key: 'heroImage', label: 'Hero Image', kind: 'hero' }],
-      },
+    fields: [
+      { key: 'id', label: 'Person ID', kind: 'text', placeholder: 'e.g. ada' },
+      { key: 'name', label: 'Name', kind: 'text', placeholder: 'e.g. Ada' },
+      { key: 'bio', label: 'Bio', kind: 'prose' },
+      { key: 'favoriteNote', label: 'Favorite Note', kind: 'reference', targetType: 'note' },
+      { key: 'sec_details', label: 'Details', kind: 'heading' },
+      { key: 'age', label: 'Age', kind: 'number', placeholder: 'e.g. 36' },
+      { key: 'birthday', label: 'Birthday', kind: 'date' },
+      { key: 'alignment', label: 'Alignment', kind: 'select', options: ['Lawful', 'Neutral', 'Chaotic'] },
+      { key: 'active', label: 'Active', kind: 'boolean' },
+      { key: 'sec_imagery', label: 'Imagery', kind: 'heading' },
+      { key: 'heroImage', label: 'Hero Image', kind: 'hero' },
     ],
   },
 ];

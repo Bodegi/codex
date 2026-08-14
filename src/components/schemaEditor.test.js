@@ -14,11 +14,6 @@ import {
   repointTitleField,
   moveField,
   moveFieldTo,
-  addSection,
-  removeSection,
-  renameSection,
-  moveSection,
-  moveSectionTo,
   newTypeSchema,
 } from './schemaEditor.js';
 import { validateSchema } from '../schema/schemaValidate.js';
@@ -29,9 +24,10 @@ function schema() {
     label: 'Demo',
     idField: 'id',
     titleField: 'name',
-    sections: [
-      { title: 'Core', fields: [{ key: 'id', label: 'ID', kind: 'text' }, { key: 'name', label: 'Name', kind: 'text' }] },
-      { title: 'Extra', fields: [{ key: 'notes', label: 'Notes', kind: 'prose' }] },
+    fields: [
+      { key: 'id', label: 'ID', kind: 'text' },
+      { key: 'name', label: 'Name', kind: 'text' },
+      { key: 'notes', label: 'Notes', kind: 'prose' },
     ],
   };
 }
@@ -45,7 +41,7 @@ test('slugToCamel camelCases a label', () => {
   assert.equal(slugToCamel('   '), 'field');
 });
 
-test('allFieldKeys gathers keys across every section', () => {
+test('allFieldKeys gathers every field key in the type', () => {
   assert.deepEqual(allFieldKeys(schema()), ['id', 'name', 'notes']);
 });
 
@@ -57,31 +53,31 @@ test('deriveKey returns the base when free, else a numbered variant', () => {
 
 test('addField appends without mutating the input', () => {
   const before = schema();
-  const after = addField(before, 0, { key: 'climate', label: 'Climate', kind: 'text' });
-  assert.equal(after.sections[0].fields.length, 3);
-  assert.equal(before.sections[0].fields.length, 2); // original untouched
+  const after = addField(before, { key: 'climate', label: 'Climate', kind: 'text' });
+  assert.deepEqual(after.fields.map((f) => f.key), ['id', 'name', 'notes', 'climate']);
+  assert.equal(before.fields.length, 3); // original untouched
 });
 
 test('removeField drops the field', () => {
-  const after = removeField(schema(), 0, 0);
-  assert.deepEqual(after.sections[0].fields.map((f) => f.key), ['name']);
+  const after = removeField(schema(), 0);
+  assert.deepEqual(after.fields.map((f) => f.key), ['name', 'notes']);
 });
 
 test('updateField merges a patch but never changes the key', () => {
-  const after = updateField(schema(), 0, 0, { label: 'Identifier', kind: 'prose', key: 'hacked' });
-  const field = after.sections[0].fields[0];
+  const after = updateField(schema(), 0, { label: 'Identifier', kind: 'prose', key: 'hacked' });
+  const field = after.fields[0];
   assert.equal(field.label, 'Identifier');
   assert.equal(field.kind, 'prose');
   assert.equal(field.key, 'id'); // key is immutable
 });
 
 test('updateFieldAssociation merges into association without clobbering siblings', () => {
-  const base = { sections: [{ title: 'Map', fields: [{ key: 'map', kind: 'map' }] }] };
-  const withMode = updateFieldAssociation(base, 0, 0, { mode: 'reference' });
-  assert.deepEqual(withMode.sections[0].fields[0].association, { mode: 'reference' });
-  const withTarget = updateFieldAssociation(withMode, 0, 0, { refType: 'person' });
-  assert.deepEqual(withTarget.sections[0].fields[0].association, { mode: 'reference', refType: 'person' });
-  assert.equal(base.sections[0].fields[0].association, undefined); // input untouched (pure)
+  const base = { fields: [{ key: 'map', kind: 'map' }] };
+  const withMode = updateFieldAssociation(base, 0, { mode: 'reference' });
+  assert.deepEqual(withMode.fields[0].association, { mode: 'reference' });
+  const withTarget = updateFieldAssociation(withMode, 0, { refType: 'person' });
+  assert.deepEqual(withTarget.fields[0].association, { mode: 'reference', refType: 'person' });
+  assert.equal(base.fields[0].association, undefined); // input untouched (pure)
   assert.notEqual(withTarget, withMode);
 });
 
@@ -109,80 +105,56 @@ test('repointTitleField is a no-op while titleField still names a real field', (
 
 test('repointTitleField repoints to the first remaining field when its target was deleted', () => {
   // Delete the "name" field (the titleField), then repoint. Deletion is the only way it dangles.
-  const orphaned = removeField(schema(), 0, 1); // drops "name"
+  const orphaned = removeField(schema(), 1); // drops "name"
   const fixed = repointTitleField(orphaned);
   assert.equal(fixed.titleField, 'id'); // first remaining field
   assert.equal(validateSchema(fixed).ok, true); // Save is reachable again — no JSON detour
 });
 
+test('repointTitleField skips a leading heading — a heading holds no entry data', () => {
+  const s = {
+    titleField: 'gone',
+    fields: [
+      { key: 'sec_top', label: 'Overview', kind: 'heading' },
+      { key: 'name', label: 'Name', kind: 'text' },
+    ],
+  };
+  assert.equal(repointTitleField(s).titleField, 'name');
+});
+
 test('repointTitleField clears titleField when the type has no fields left', () => {
-  const empty = { titleField: 'name', sections: [{ title: 'Core', fields: [] }] };
+  const empty = { titleField: 'name', fields: [] };
   assert.equal(repointTitleField(empty).titleField, '');
 });
 
-test('moveField reorders within a section and clamps at the ends', () => {
-  const down = moveField(schema(), 0, 0, 1);
-  assert.deepEqual(down.sections[0].fields.map((f) => f.key), ['name', 'id']);
-  const clamped = moveField(schema(), 0, 0, -1);
-  assert.deepEqual(clamped.sections[0].fields.map((f) => f.key), ['id', 'name']); // no-op
+test('moveField reorders in the flat list and clamps at the ends', () => {
+  const down = moveField(schema(), 0, 1);
+  assert.deepEqual(down.fields.map((f) => f.key), ['name', 'id', 'notes']);
+  const clamped = moveField(schema(), 0, -1);
+  assert.deepEqual(clamped.fields.map((f) => f.key), ['id', 'name', 'notes']); // no-op
 });
 
-test('moveFieldTo reorders within a section (drag downward past a peer)', () => {
+test('moveFieldTo reorders (drag downward past a peer)', () => {
   const before = schema();
-  const after = moveFieldTo(before, 0, 0, 0, 2); // id → end of Core
-  assert.deepEqual(after.sections[0].fields.map((f) => f.key), ['name', 'id']);
-  assert.deepEqual(before.sections[0].fields.map((f) => f.key), ['id', 'name']); // input untouched
+  const after = moveFieldTo(before, 0, 2); // id → after name
+  assert.deepEqual(after.fields.map((f) => f.key), ['name', 'id', 'notes']);
+  assert.deepEqual(before.fields.map((f) => f.key), ['id', 'name', 'notes']); // input untouched
 });
 
 test('moveFieldTo treats a same-slot / adjacent-below drop as a no-op', () => {
   const before = schema();
-  assert.equal(moveFieldTo(before, 0, 0, 0, 0), before); // onto itself
-  assert.equal(moveFieldTo(before, 0, 0, 0, 1), before); // just below itself
+  assert.equal(moveFieldTo(before, 0, 0), before); // onto itself
+  assert.equal(moveFieldTo(before, 0, 1), before); // just below itself
 });
 
-test('moveFieldTo moves a field across sections', () => {
-  const after = moveFieldTo(schema(), 0, 0, 1, 0); // Core.id → front of Extra
-  assert.deepEqual(after.sections[0].fields.map((f) => f.key), ['name']);
-  assert.deepEqual(after.sections[1].fields.map((f) => f.key), ['id', 'notes']);
+test('moveFieldTo can move a field to the end of the list', () => {
+  const after = moveFieldTo(schema(), 0, 3); // id → end
+  assert.deepEqual(after.fields.map((f) => f.key), ['name', 'notes', 'id']);
 });
 
-test('moveFieldTo ignores out-of-range source/target sections', () => {
+test('moveFieldTo ignores an out-of-range source', () => {
   const before = schema();
-  assert.equal(moveFieldTo(before, 5, 0, 0, 0), before);
-  assert.equal(moveFieldTo(before, 0, 9, 1, 0), before);
-});
-
-test('addSection appends an empty section', () => {
-  const after = addSection(schema(), 'Imagery');
-  assert.equal(after.sections.length, 3);
-  assert.deepEqual(after.sections[2], { title: 'Imagery', fields: [] });
-});
-
-test('removeSection drops the section', () => {
-  const after = removeSection(schema(), 1);
-  assert.deepEqual(after.sections.map((s) => s.title), ['Core']);
-});
-
-test('renameSection changes the title', () => {
-  const after = renameSection(schema(), 0, 'Identity');
-  assert.equal(after.sections[0].title, 'Identity');
-});
-
-test('moveSection reorders and clamps', () => {
-  const down = moveSection(schema(), 0, 1);
-  assert.deepEqual(down.sections.map((s) => s.title), ['Extra', 'Core']);
-  const clamped = moveSection(schema(), 1, 1);
-  assert.deepEqual(clamped.sections.map((s) => s.title), ['Core', 'Extra']); // no-op
-});
-
-test('moveSectionTo reorders to an arbitrary index and no-ops on same/adjacent', () => {
-  const toEnd = moveSectionTo(schema(), 0, 2); // Core → end
-  assert.deepEqual(toEnd.sections.map((s) => s.title), ['Extra', 'Core']);
-  const toFront = moveSectionTo(schema(), 1, 0); // Extra → front
-  assert.deepEqual(toFront.sections.map((s) => s.title), ['Extra', 'Core']);
-  const before = schema();
-  assert.equal(moveSectionTo(before, 0, 0), before); // onto itself
-  assert.equal(moveSectionTo(before, 0, 1), before); // just below itself
+  assert.equal(moveFieldTo(before, 5, 0), before);
 });
 
 // --- newTypeSchema ----------------------------------------------------------
@@ -205,8 +177,7 @@ test('newTypeSchema starts active with only a title field (id is the opaque doc 
   assert.equal(s.label, 'Trade Route');
   assert.equal(s.idField, undefined);
   assert.equal(s.titleField, 'title');
-  const keys = allFieldKeys(s);
-  assert.deepEqual(keys, ['title']);
+  assert.deepEqual(allFieldKeys(s), ['title']);
 });
 
 test('newTypeSchema keeps a punctuation-only label verbatim — the id no longer derives from it', () => {

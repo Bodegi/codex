@@ -25,8 +25,8 @@ function makeStorage(initial = {}) {
   };
 }
 
-const noteSchema = { type: 'note', label: 'Note', icon: 'decision', idField: 'id', titleField: 'id', sections: [], status: 'active' };
-const personSchema = { type: 'person', label: 'Person', icon: 'civilization', idField: 'id', titleField: 'id', sections: [], status: 'active' };
+const noteSchema = { type: 'note', label: 'Note', icon: 'decision', idField: 'id', titleField: 'id', fields: [], status: 'active' };
+const personSchema = { type: 'person', label: 'Person', icon: 'civilization', idField: 'id', titleField: 'id', fields: [], status: 'active' };
 
 test('loadCodex populates the type set in order; there is no bundled floor', () => {
   loadCodex('demo', [noteSchema, personSchema], makeStorage());

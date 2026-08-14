@@ -37,9 +37,7 @@ test('every demo schema carries type, label, and icon for the nav/registry', () 
 test('the fixture collectively exercises every field kind', () => {
   const kindsUsed = new Set();
   for (const schema of demoSchemas) {
-    for (const section of schema.sections) {
-      for (const field of section.fields) kindsUsed.add(field.kind);
-    }
+    for (const field of schema.fields) kindsUsed.add(field.kind);
   }
   for (const kind of ALL_KINDS) {
     assert.ok(kindsUsed.has(kind), `no demo field exercises kind "${kind}"`);
@@ -69,10 +67,7 @@ test('every reference field value points to an existing entry of its target type
   const schemaByType = new Map(demoSchemas.map((s) => [s.type, s]));
 
   for (const [type, entries] of Object.entries(demoEntriesByType)) {
-    const refFields = schemaByType
-      .get(type)
-      .sections.flatMap((sec) => sec.fields)
-      .filter((f) => f.kind === 'reference');
+    const refFields = schemaByType.get(type).fields.filter((f) => f.kind === 'reference');
     for (const entry of entries) {
       for (const field of refFields) {
         const targetId = entry[field.key];

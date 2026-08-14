@@ -70,11 +70,6 @@ import {
   repointTitleField,
   moveField,
   moveFieldTo,
-  addSection,
-  removeSection,
-  renameSection,
-  moveSection,
-  moveSectionTo,
   newTypeSchema,
 } from './components/schemaEditor.js';
 import { openComponentPalette } from './components/componentPalette.js';
@@ -2419,43 +2414,27 @@ function handleSchemaIntent(intent) {
       return confirmRevertType();
     case 'archive':
       return confirmArchiveType();
-    case 'add-section':
-      state.workingSchema = addSection(s, 'New Section');
-      return renderTypesEditor();
-    case 'remove-section':
-      // Deleting a section deletes its fields — auto-repoint titleField if it named one (issue #28 F7).
-      state.workingSchema = repointTitleField(removeSection(s, intent.si));
-      return renderTypesEditor();
-    case 'move-section':
-      state.workingSchema = moveSection(s, intent.si, intent.delta);
-      return renderTypesEditor();
-    case 'move-section-to':
-      state.workingSchema = moveSectionTo(s, intent.fromSi, intent.toSi);
-      return renderTypesEditor();
-    case 'rename-section':
-      state.workingSchema = renameSection(s, intent.si, intent.title);
-      return refreshWorkingPreview();
     case 'add-field':
-      return addFieldFromPalette(intent.si);
+      return addFieldFromPalette();
     case 'remove-field':
       // Auto-repoint titleField when the deleted field was the title, so Save stays reachable
       // without a raw-JSON detour (issue #28 F7).
-      state.workingSchema = repointTitleField(removeField(s, intent.si, intent.fi));
+      state.workingSchema = repointTitleField(removeField(s, intent.fi));
       return renderTypesEditor();
     case 'move-field':
-      state.workingSchema = moveField(s, intent.si, intent.fi, intent.delta);
+      state.workingSchema = moveField(s, intent.fi, intent.delta);
       return renderTypesEditor();
     case 'move-field-to':
-      state.workingSchema = moveFieldTo(s, intent.fromSi, intent.fromFi, intent.toSi, intent.toFi);
+      state.workingSchema = moveFieldTo(s, intent.fromFi, intent.toFi);
       return renderTypesEditor();
     case 'pick-kind':
-      return changeFieldKind(intent.si, intent.fi);
+      return changeFieldKind(intent.fi);
     case 'edit-field':
-      state.workingSchema = updateField(s, intent.si, intent.fi, intent.patch);
+      state.workingSchema = updateField(s, intent.fi, intent.patch);
       return refreshWorkingPreview();
     case 'edit-association':
       // A mode change toggles whether the target picker shows — rebuild the editor (structural).
-      state.workingSchema = updateFieldAssociation(s, intent.si, intent.fi, intent.patch);
+      state.workingSchema = updateFieldAssociation(s, intent.fi, intent.patch);
       return renderTypesEditor();
     case 'edit-summary':
       // Summary-card picks don't restructure the editor DOM — refresh the preview only (keeps focus).
@@ -2469,26 +2448,28 @@ function handleSchemaIntent(intent) {
 // Add a field by picking its component from the palette (issue #31) — the flip from
 // add-blank-then-retype-the-dropdown to choose-a-component-first. Cancelling adds nothing. A select
 // seeds an empty options list so its editor control (and the "define ≥1 option" gate) show at once.
-async function addFieldFromPalette(si) {
+async function addFieldFromPalette() {
   const kind = await openComponentPalette();
   if (!kind) return;
   const s = state.workingSchema;
-  const field = { key: deriveKey('New Field', allFieldKeys(s)), label: 'New Field', kind };
+  // A heading's label is its rendered text, so seed a friendlier default than "New Field".
+  const label = kind === 'heading' ? 'New Heading' : 'New Field';
+  const field = { key: deriveKey(label, allFieldKeys(s)), label, kind };
   if (kind === 'select') field.options = [];
-  state.workingSchema = addField(s, si, field);
+  state.workingSchema = addField(s, field);
   renderTypesEditor();
 }
 
 // Change an existing field's component via the palette. Re-picking the current kind resolves null
 // (no-op). Switching to select seeds an empty options list when the field has none yet.
-async function changeFieldKind(si, fi) {
-  const current = state.workingSchema.sections?.[si]?.fields?.[fi];
+async function changeFieldKind(fi) {
+  const current = state.workingSchema.fields?.[fi];
   if (!current) return;
   const kind = await openComponentPalette({ current: current.kind });
   if (!kind || kind === current.kind) return;
   const patch = { kind };
   if (kind === 'select' && !Array.isArray(current.options)) patch.options = [];
-  state.workingSchema = updateField(state.workingSchema, si, fi, patch);
+  state.workingSchema = updateField(state.workingSchema, fi, patch);
   renderTypesEditor();
 }
 
@@ -2562,8 +2543,8 @@ function applySchemaRawJsonEdit() {
     setJsonError(err.message);
     return;
   }
-  if (!parsed || !Array.isArray(parsed.sections)) {
-    setJsonError('A schema needs a "sections" array.');
+  if (!parsed || !Array.isArray(parsed.fields)) {
+    setJsonError('A schema needs a "fields" array.');
     return;
   }
   clearJsonError();
@@ -2666,9 +2647,7 @@ function wireComponentMounts() {
   const schema = getSchema(curType());
   if (!schema) return;
   const byKey = new Map();
-  for (const section of schema.sections || []) {
-    for (const field of section.fields || []) byKey.set(field.key, field);
-  }
+  for (const field of schema.fields || []) byKey.set(field.key, field);
   const ctx = mountCtx();
   formContainer.querySelectorAll('[data-field-key]').forEach((el) => {
     const field = byKey.get(el.dataset.fieldKey);

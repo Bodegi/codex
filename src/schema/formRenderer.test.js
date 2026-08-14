@@ -10,25 +10,18 @@ loadCodex('demo', demoSchemas);
 
 const SCHEMA = {
   type: 'demo',
-  sections: [
-    {
-      title: 'Basics',
-      fields: [
-        { key: 'name', label: 'Name', kind: 'text' },
-        { key: 'notes', label: 'Notes', kind: 'prose' },
-        { key: 'tags', label: 'Tags', kind: 'list' },
-      ],
-    },
-    {
-      title: 'Imagery',
-      fields: [{ key: 'heroImage', label: 'Hero', kind: 'hero' }],
-    },
+  fields: [
+    { key: 'name', label: 'Name', kind: 'text' },
+    { key: 'notes', label: 'Notes', kind: 'prose' },
+    { key: 'tags', label: 'Tags', kind: 'list' },
+    { key: 'sec_imagery', label: 'Imagery', kind: 'heading' },
+    { key: 'heroImage', label: 'Hero', kind: 'hero' },
   ],
 };
 
-test('renderForm renders a plain-text section header for a non-media section', () => {
+test('renderForm renders a heading component as an <h2> divider in the form', () => {
   const html = renderForm(SCHEMA, {});
-  assert.match(html, /class="section-header">Basics</);
+  assert.match(html, /<h2 class="form-heading">Imagery<\/h2>/);
 });
 
 test('renderForm renders each field label and a control carrying its field-key', () => {
@@ -41,16 +34,17 @@ test('renderForm renders each field label and a control carrying its field-key',
 
 test('renderForm renders media fields inline as break blocks carrying their field-key', () => {
   const html = renderForm(SCHEMA, {});
-  assert.match(html, /class="section-header">Imagery</);
   assert.match(html, /data-field-key="heroImage"/);
   assert.match(html, /data-media="hero-pick"/);
 });
 
-test('renderForm places a break component outside the .form-grid', () => {
-  // The Imagery section is hero-only: its block sits directly in the section, not wrapped in a grid.
+test('renderForm emits break components (heading, hero) outside the .form-grid', () => {
+  // The grid of text/prose/list fields closes before the heading; the heading and the hero that
+  // follow it stand on their own, not wrapped in a grid cell.
   const html = renderForm(SCHEMA, {});
-  const imagery = html.slice(html.indexOf('>Imagery<'));
-  assert.doesNotMatch(imagery.slice(0, imagery.indexOf('</div></div>')), /form-grid/);
+  assert.match(html, /<\/div><h2 class="form-heading">Imagery<\/h2>/);
+  const afterHeading = html.slice(html.indexOf('>Imagery<'));
+  assert.doesNotMatch(afterHeading, /form-grid/);
 });
 
 test('renderForm gives prose/list the full-width grid cell', () => {
@@ -61,15 +55,14 @@ test('renderForm gives prose/list the full-width grid cell', () => {
 });
 
 test('renderForm shows a placeholder for an unknown field kind', () => {
-  const schema = { type: 'x', sections: [{ title: 'S', fields: [{ key: 'k', label: 'K', kind: 'bogus' }] }] };
+  const schema = { type: 'x', fields: [{ key: 'k', label: 'K', kind: 'bogus' }] };
   assert.match(renderForm(schema, {}), /unknown field kind/);
 });
 
-test('renderForm drives a real loaded schema including its Imagery section', () => {
+test('renderForm drives a real loaded schema including its heading + media', () => {
   const html = renderForm(getSchema('note'), { id: 'welcome', tags: ['demo'] });
-  assert.match(html, /class="section-header">Note</);
   assert.match(html, /data-field-key="id"[^>]*value="welcome"/);
   assert.match(html, /data-field-key="tags"/);
-  assert.match(html, /class="section-header">Imagery</);
+  assert.match(html, /<h2 class="form-heading">Imagery<\/h2>/);
   assert.match(html, /data-field-key="heroImage"/);
 });

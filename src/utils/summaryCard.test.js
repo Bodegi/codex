@@ -22,19 +22,14 @@ const SCHEMA = {
       { label: 'Imports', key: 'imports' },
     ],
   },
-  sections: [
-    {
-      title: 'Core',
-      fields: [
-        { key: 'id', label: 'ID', kind: 'text' },
-        { key: 'name', label: 'Name', kind: 'text' },
-        { key: 'philosophy', label: 'Philosophy', kind: 'prose' },
-        { key: 'mods', label: 'Mods', kind: 'list' },
-        { key: 'ally', label: 'Ally', kind: 'reference', targetType: 'civ' },
-        { key: 'exports', label: 'Exports', kind: 'text' },
-        { key: 'imports', label: 'Imports', kind: 'text' },
-      ],
-    },
+  fields: [
+    { key: 'id', label: 'ID', kind: 'text' },
+    { key: 'name', label: 'Name', kind: 'text' },
+    { key: 'philosophy', label: 'Philosophy', kind: 'prose' },
+    { key: 'mods', label: 'Mods', kind: 'list' },
+    { key: 'ally', label: 'Ally', kind: 'reference', targetType: 'civ' },
+    { key: 'exports', label: 'Exports', kind: 'text' },
+    { key: 'imports', label: 'Imports', kind: 'text' },
   ],
 };
 

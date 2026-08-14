@@ -9,18 +9,13 @@ const CIV = {
   label: 'Civilization',
   idField: 'id',
   titleField: 'name',
-  sections: [
-    {
-      title: 'Core',
-      fields: [
-        { key: 'id', label: 'ID', kind: 'text' },
-        { key: 'name', label: 'Name', kind: 'text' },
-        { key: 'philosophy', label: 'Philosophy', kind: 'prose' },
-        { key: 'mods', label: 'Mods', kind: 'list' },
-        { key: 'ally', label: 'Ally', kind: 'reference', targetType: 'civ' },
-        { key: 'banner', label: 'Banner', kind: 'hero' },
-      ],
-    },
+  fields: [
+    { key: 'id', label: 'ID', kind: 'text' },
+    { key: 'name', label: 'Name', kind: 'text' },
+    { key: 'philosophy', label: 'Philosophy', kind: 'prose' },
+    { key: 'mods', label: 'Mods', kind: 'list' },
+    { key: 'ally', label: 'Ally', kind: 'reference', targetType: 'civ' },
+    { key: 'banner', label: 'Banner', kind: 'hero' },
   ],
 };
 

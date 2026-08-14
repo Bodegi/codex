@@ -3,16 +3,18 @@
  *
  * The Types-tab authoring surface. This module owns two things kept deliberately apart:
  *
- *  1. Pure working-schema transforms (below) — add/remove/reorder/rename of sections and
- *     fields, plus key derivation. They take a working schema and return a NEW one
- *     (structuredClone), never mutating the input, so the DOM layer can hold one working
- *     copy and swap it wholesale. Pure + dependency-free => unit-testable under plain Node.
+ *  1. Pure working-schema transforms (below) — add/remove/reorder of fields, plus key
+ *     derivation. They take a working schema and return a NEW one (structuredClone), never
+ *     mutating the input, so the DOM layer can hold one working copy and swap it wholesale.
+ *     Pure + dependency-free => unit-testable under plain Node.
  *
  *  2. The editor DOM builder (added alongside) — renders the working schema as editable
  *     rows and reads the field-kind vocabulary from the registry.
  *
- * Field `key`s are unique per TYPE (not per section) because they are the storage keys
- * entry data lives under — hence `deriveKey`/`allFieldKeys` work across the whole schema.
+ * A type is one flat, ordered list of components (`schema.fields`) — there is no section
+ * wrapper. A `heading` component is the only divider (added from the palette like any other
+ * component). Field `key`s are unique per type — they are the storage keys entry data lives
+ * under — so `deriveKey`/`allFieldKeys` work across the whole schema.
  */
 
 import { escapeHtml } from '../schema/inlineText.js';
@@ -60,18 +62,13 @@ export function newTypeSchema(label) {
     icon: 'dot',
     titleField: 'title',
     status: 'active',
-    sections: [
-      {
-        title: 'Details',
-        fields: [{ key: 'title', label: 'Title', kind: 'text', placeholder: 'e.g. My Entry' }],
-      },
-    ],
+    fields: [{ key: 'title', label: 'Title', kind: 'text', placeholder: 'e.g. My Entry' }],
   };
 }
 
-/** Every field key in the type, across all sections. */
+/** Every field key in the type. */
 export function allFieldKeys(schema) {
-  return schema.sections.flatMap((s) => s.fields.map((f) => f.key));
+  return (schema.fields || []).map((f) => f.key);
 }
 
 /** A unique storage key derived from a label, avoiding any key already taken in the type. */
@@ -101,7 +98,9 @@ export function repointTitleField(schema) {
   const keys = allFieldKeys(schema);
   if (keys.includes(schema.titleField)) return schema;
   const next = clone(schema);
-  next.titleField = keys[0] || '';
+  // Repoint to the first field that can actually hold a title — a heading carries no entry data.
+  const firstContent = (schema.fields || []).find((f) => f.kind !== 'heading');
+  next.titleField = firstContent ? firstContent.key : '';
   return next;
 }
 
@@ -112,24 +111,24 @@ function swap(arr, a, b) {
 
 // --- Field transforms -------------------------------------------------------
 
-/** Append a field to a section. `field` must already carry a unique `key`. */
-export function addField(schema, sectionIndex, field) {
+/** Append a field to the flat list. `field` must already carry a unique `key`. */
+export function addField(schema, field) {
   const next = clone(schema);
-  next.sections[sectionIndex].fields.push(field);
+  next.fields.push(field);
   return next;
 }
 
 /** Remove a field. Non-destructive to entry data — orphaned values just stop rendering. */
-export function removeField(schema, sectionIndex, fieldIndex) {
+export function removeField(schema, fieldIndex) {
   const next = clone(schema);
-  next.sections[sectionIndex].fields.splice(fieldIndex, 1);
+  next.fields.splice(fieldIndex, 1);
   return next;
 }
 
 /** Shallow-merge a patch into a field. The `key` is never changed here (it is immutable). */
-export function updateField(schema, sectionIndex, fieldIndex, patch) {
+export function updateField(schema, fieldIndex, patch) {
   const next = clone(schema);
-  const field = next.sections[sectionIndex].fields[fieldIndex];
+  const field = next.fields[fieldIndex];
   const { key: _ignoredKey, ...safe } = patch;
   Object.assign(field, safe);
   return next;
@@ -140,9 +139,9 @@ export function updateField(schema, sectionIndex, fieldIndex, patch) {
  * Nested + merge-based so partial edits (mode alone, refType alone) compose without clobbering the
  * sibling key, which a plain `updateField({ association })` would.
  */
-export function updateFieldAssociation(schema, sectionIndex, fieldIndex, patch) {
+export function updateFieldAssociation(schema, fieldIndex, patch) {
   const next = clone(schema);
-  const field = next.sections[sectionIndex].fields[fieldIndex];
+  const field = next.fields[fieldIndex];
   field.association = { ...(field.association || {}), ...patch };
   return next;
 }
@@ -158,85 +157,31 @@ export function updateSummaryCard(schema, patch) {
   return next;
 }
 
-/** Move a field up (delta -1) or down (delta +1) within its section. No cross-section moves. */
-export function moveField(schema, sectionIndex, fieldIndex, delta) {
+/** Move a field up (delta -1) or down (delta +1) in the flat list. */
+export function moveField(schema, fieldIndex, delta) {
   const target = fieldIndex + delta;
-  const fields = schema.sections[sectionIndex].fields;
+  const fields = schema.fields || [];
   if (target < 0 || target >= fields.length) return schema; // clamp at the ends
   const next = clone(schema);
-  swap(next.sections[sectionIndex].fields, fieldIndex, target);
+  swap(next.fields, fieldIndex, target);
   return next;
 }
 
 /**
- * Move a field to an arbitrary position — within its section OR into another section
- * (the drag-and-drop path; Up/Down handles the single-step within-section case).
- * `toFi` is the insertion index in the destination section's ORIGINAL ordering; the
- * splice math accounts for the source slot vanishing on a same-section downward move.
- * A no-op move (same slot) returns the input unchanged.
+ * Move a field to an arbitrary position in the flat list (the drag-and-drop path; Up/Down handles
+ * the single-step case). `toFi` is the insertion index in the ORIGINAL ordering; the splice math
+ * accounts for the source slot vanishing on a downward move. A no-op move returns the input.
  */
-export function moveFieldTo(schema, fromSi, fromFi, toSi, toFi) {
-  const from = schema.sections?.[fromSi];
-  const to = schema.sections?.[toSi];
-  if (!from || !to || fromFi < 0 || fromFi >= from.fields.length) return schema;
-  if (fromSi === toSi && (toFi === fromFi || toFi === fromFi + 1)) return schema; // no-op
+export function moveFieldTo(schema, fromFi, toFi) {
+  const fields = schema.fields || [];
+  if (fromFi < 0 || fromFi >= fields.length) return schema;
+  if (toFi === fromFi || toFi === fromFi + 1) return schema; // no-op
   const next = clone(schema);
-  const [field] = next.sections[fromSi].fields.splice(fromFi, 1);
+  const [field] = next.fields.splice(fromFi, 1);
   let idx = toFi;
-  if (fromSi === toSi && fromFi < toFi) idx -= 1; // the removed slot shifted everything after it
-  const dest = next.sections[toSi].fields;
-  idx = Math.max(0, Math.min(idx, dest.length));
-  dest.splice(idx, 0, field);
-  return next;
-}
-
-// --- Section transforms -----------------------------------------------------
-
-/** Append an empty section with the given title. */
-export function addSection(schema, title) {
-  const next = clone(schema);
-  next.sections.push({ title, fields: [] });
-  return next;
-}
-
-/** Remove a section (and its fields — non-destructive to stored entry data). */
-export function removeSection(schema, sectionIndex) {
-  const next = clone(schema);
-  next.sections.splice(sectionIndex, 1);
-  return next;
-}
-
-/** Rename a section's title. */
-export function renameSection(schema, sectionIndex, title) {
-  const next = clone(schema);
-  next.sections[sectionIndex].title = title;
-  return next;
-}
-
-/** Move a section up (delta -1) or down (delta +1). */
-export function moveSection(schema, sectionIndex, delta) {
-  const target = sectionIndex + delta;
-  if (target < 0 || target >= schema.sections.length) return schema; // clamp
-  const next = clone(schema);
-  swap(next.sections, sectionIndex, target);
-  return next;
-}
-
-/**
- * Move a section to an arbitrary position (the drag-and-drop path). `toSi` is the
- * insertion index in the ORIGINAL ordering; the splice math accounts for the source
- * slot vanishing on a downward move. A no-op move returns the input unchanged.
- */
-export function moveSectionTo(schema, fromSi, toSi) {
-  const sections = schema.sections;
-  if (!Array.isArray(sections) || fromSi < 0 || fromSi >= sections.length) return schema;
-  if (toSi === fromSi || toSi === fromSi + 1) return schema; // no-op
-  const next = clone(schema);
-  const [section] = next.sections.splice(fromSi, 1);
-  let idx = toSi;
-  if (fromSi < toSi) idx -= 1;
-  idx = Math.max(0, Math.min(idx, next.sections.length));
-  next.sections.splice(idx, 0, section);
+  if (fromFi < toFi) idx -= 1; // the removed slot shifted everything after it
+  idx = Math.max(0, Math.min(idx, next.fields.length));
+  next.fields.splice(idx, 0, field);
   return next;
 }
 
@@ -292,8 +237,8 @@ function subField(id, labelText, controlHtml, helpText) {
     </div>`;
 }
 
-function fieldRow(field, si, fi, types) {
-  const at = `data-si="${si}" data-fi="${fi}"`;
+function fieldRow(field, fi, types) {
+  const at = `data-fi="${fi}"`;
   const id = (control) => `se-${escapeHtml(field.key)}-${control}`;
   // Second line holds only the controls relevant to this field's kind — each labelled + described.
   const extras = [];
@@ -358,12 +303,15 @@ function fieldRow(field, si, fi, types) {
     }
   }
 
+  // A heading stores no entry data, so its storage key is meaningless to show; every other
+  // component surfaces its fixed key. The label input doubles as the heading's rendered text.
+  const keyChip = field.kind === 'heading' ? '' : `<code class="se-key" title="storage key (fixed)">${escapeHtml(field.key)}</code>`;
   return `
-    <div class="se-field" ${at} data-drop="field">
+    <div class="se-field" ${at} data-drop="field" data-kind="${escapeHtml(field.kind)}">
       <div class="se-field-main">
         <span class="se-drag" ${at} draggable="true" data-drag="field" title="Drag to reorder" aria-hidden="true">⠿</span>
-        <input class="se-input se-label" data-se="field-label" ${at} value="${escapeHtml(field.label || '')}" placeholder="Field label">
-        <code class="se-key" title="storage key (fixed)">${escapeHtml(field.key)}</code>
+        <input class="se-input se-label" data-se="field-label" ${at} value="${escapeHtml(field.label || '')}" placeholder="${field.kind === 'heading' ? 'Heading text' : 'Field label'}">
+        ${keyChip}
         ${kindChip(field, at)}
         <span class="se-row-controls">
           <button type="button" class="se-btn" data-se="field-up" ${at} title="Move up">Up</button>
@@ -375,9 +323,14 @@ function fieldRow(field, si, fi, types) {
     </div>`;
 }
 
-/** All fields across sections, flattened in order (field objects, not just keys). */
+/** The type's ordered field list. */
 function flatFields(schema) {
-  return (schema.sections || []).flatMap((s) => s.fields || []);
+  return schema.fields || [];
+}
+
+/** Content fields only — headings hold no entry data, so they can't be a title/summary source. */
+function contentFields(schema) {
+  return flatFields(schema).filter((f) => f.kind !== 'heading');
 }
 
 /**
@@ -448,7 +401,7 @@ function summaryComposeList(fields, selectedKeys, seType) {
  */
 function summaryCardBlock(schema) {
   const card = schema.summaryCard || {};
-  const fields = flatFields(schema);
+  const fields = contentFields(schema);
   const badgeFields = fields.filter((f) => BADGE_KINDS.has(f.kind));
   const rowFields = fields.filter((f) => ROW_KINDS.has(f.kind));
   const rowKeys = (card.rows || []).map((r) => r.key);
@@ -475,24 +428,6 @@ function summaryCardBlock(schema) {
     </div>`;
 }
 
-function sectionBlock(section, si, types) {
-  const rows = section.fields.map((f, fi) => fieldRow(f, si, fi, types)).join('');
-  return `
-    <div class="se-section" data-si="${si}" data-drop="section">
-      <div class="se-section-head">
-        <span class="se-drag" data-si="${si}" draggable="true" data-drag="section" title="Drag to reorder" aria-hidden="true">⠿</span>
-        <input class="se-input se-section-title" data-se="section-title" data-si="${si}" value="${escapeHtml(section.title || '')}" placeholder="Section title">
-        <span class="se-row-controls">
-          <button type="button" class="se-btn" data-se="section-up" data-si="${si}" title="Move section up">Up</button>
-          <button type="button" class="se-btn" data-se="section-down" data-si="${si}" title="Move section down">Down</button>
-          <button type="button" class="se-btn se-danger" data-se="section-remove" data-si="${si}" title="Remove section" aria-label="Remove section">×</button>
-        </span>
-      </div>
-      <div class="se-fields" data-drop-fields="${si}">${rows}</div>
-      <button type="button" class="se-btn se-add" data-se="field-add" data-si="${si}">+ add field</button>
-    </div>`;
-}
-
 /**
  * Build the schema-editor markup for a working schema. `types` is the list from
  * listTypes() (for the type picker + reference targets); `errors` are validation
@@ -502,7 +437,7 @@ export function renderSchemaEditor(schema, { types, editingType, errors = [], is
   const errorBlock = errors.length
     ? `<div class="se-errors">${errors.map((e) => `<div>${escapeHtml(e)}</div>`).join('')}</div>`
     : '';
-  const sections = schema.sections.map((s, si) => sectionBlock(s, si, types)).join('');
+  const fieldRows = flatFields(schema).map((f, fi) => fieldRow(f, fi, types)).join('');
 
   // Revert/Archive act on a saved schema (a persisted base to fall back to, a status to flip). A
   // brand-new draft has neither — it's discarded by leaving — so only Save shows for it.
@@ -521,7 +456,7 @@ export function renderSchemaEditor(schema, { types, editingType, errors = [], is
           <input class="se-input" data-se="type-label" value="${escapeHtml(schema.label || '')}" placeholder="Type name">
         </label>
         <label class="se-type-name se-title-field">Title field
-          <select class="se-input" data-se="title-field">${titleFieldOptions(flatFields(schema), schema.titleField)}</select>
+          <select class="se-input" data-se="title-field">${titleFieldOptions(contentFields(schema), schema.titleField)}</select>
         </label>
         <span class="se-head-actions">
           ${savedActions}
@@ -530,8 +465,8 @@ export function renderSchemaEditor(schema, { types, editingType, errors = [], is
       </div>
       ${errorBlock}
       ${summaryCardBlock(schema)}
-      <div class="se-sections">${sections}</div>
-      <button type="button" class="se-btn se-add" data-se="section-add">+ add section</button>
+      <div class="se-fields" data-drop-fields="0">${fieldRows}</div>
+      <button type="button" class="se-btn se-add" data-se="field-add">+ add component</button>
     </div>`;
 }
 
@@ -541,16 +476,12 @@ const CLICK_INTENTS = {
   save: () => ({ action: 'save' }),
   reset: () => ({ action: 'reset' }),
   archive: () => ({ action: 'archive' }),
-  'section-add': () => ({ action: 'add-section' }),
-  'section-remove': (d) => ({ action: 'remove-section', si: +d.si }),
-  'section-up': (d) => ({ action: 'move-section', si: +d.si, delta: -1 }),
-  'section-down': (d) => ({ action: 'move-section', si: +d.si, delta: 1 }),
-  'field-add': (d) => ({ action: 'add-field', si: +d.si }),
+  'field-add': () => ({ action: 'add-field' }),
   // The kind chip opens the palette; the caller runs it and applies the chosen component.
-  'field-kind': (d) => ({ action: 'pick-kind', si: +d.si, fi: +d.fi }),
-  'field-remove': (d) => ({ action: 'remove-field', si: +d.si, fi: +d.fi }),
-  'field-up': (d) => ({ action: 'move-field', si: +d.si, fi: +d.fi, delta: -1 }),
-  'field-down': (d) => ({ action: 'move-field', si: +d.si, fi: +d.fi, delta: 1 }),
+  'field-kind': (d) => ({ action: 'pick-kind', fi: +d.fi }),
+  'field-remove': (d) => ({ action: 'remove-field', fi: +d.fi }),
+  'field-up': (d) => ({ action: 'move-field', fi: +d.fi, delta: -1 }),
+  'field-down': (d) => ({ action: 'move-field', fi: +d.fi, delta: 1 }),
 };
 
 /**
@@ -574,19 +505,16 @@ export function attachSchemaEditor(root, onIntent) {
     const el = e.target;
     const d = el.dataset;
     switch (d.se) {
-      case 'section-title':
-        return onIntent({ action: 'rename-section', si: +d.si, title: el.value });
       case 'type-label':
         return onIntent({ action: 'edit-label', label: el.value });
       case 'field-label':
-        return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { label: el.value } });
+        return onIntent({ action: 'edit-field', fi: +d.fi, patch: { label: el.value } });
       case 'field-placeholder':
-        return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { placeholder: el.value } });
+        return onIntent({ action: 'edit-field', fi: +d.fi, patch: { placeholder: el.value } });
       case 'field-options':
         // Select options: one per line, blanks dropped. Stored as an array on `field.options`.
         return onIntent({
           action: 'edit-field',
-          si: +d.si,
           fi: +d.fi,
           patch: { options: el.value.split('\n').map((s) => s.trim()).filter(Boolean) },
         });
@@ -605,13 +533,13 @@ export function attachSchemaEditor(root, onIntent) {
       case 'title-field':
         return onIntent({ action: 'set-title-field', key: el.value });
       case 'field-target':
-        return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { targetType: el.value } });
+        return onIntent({ action: 'edit-field', fi: +d.fi, patch: { targetType: el.value } });
       case 'field-assoc-mode':
-        return onIntent({ action: 'edit-association', si: +d.si, fi: +d.fi, patch: { mode: el.value } });
+        return onIntent({ action: 'edit-association', fi: +d.fi, patch: { mode: el.value } });
       case 'field-assoc-target':
-        return onIntent({ action: 'edit-association', si: +d.si, fi: +d.fi, patch: { refType: el.value } });
+        return onIntent({ action: 'edit-association', fi: +d.fi, patch: { refType: el.value } });
       case 'field-multi':
-        return onIntent({ action: 'edit-field', si: +d.si, fi: +d.fi, patch: { multi: el.checked } });
+        return onIntent({ action: 'edit-field', fi: +d.fi, patch: { multi: el.checked } });
       case 'summary-title':
         return onIntent({ action: 'edit-summary', patch: { title: el.value } });
       case 'summary-subtitle':
@@ -668,50 +596,35 @@ function isAfter(e, el) {
 }
 
 /**
- * Resolve where the current drag would land: `{ el, marker, toSi[, toFi] }` or null
- * when the pointer is not over a valid target. Field precedence: a specific row →
- * its section's field container (append) → the section as a whole (append).
+ * Resolve where the current field drag would land: `{ el, marker, toFi }` or null when the pointer
+ * is not over a valid target. Precedence: a specific row (before/after by midpoint) → the field
+ * container as a whole (append at the end).
  */
-function dropSpot(e, drag) {
-  if (drag.kind === 'section') {
-    const sec = e.target.closest('[data-drop="section"]');
-    if (!sec) return null;
-    const after = isAfter(e, sec);
-    return { el: sec, marker: after ? 'se-drop-after' : 'se-drop-before', toSi: +sec.dataset.si + (after ? 1 : 0) };
-  }
+function dropSpot(e) {
   const fld = e.target.closest('[data-drop="field"]');
   if (fld) {
-    const sec = fld.closest('[data-drop="section"]');
     const after = isAfter(e, fld);
-    return {
-      el: fld,
-      marker: after ? 'se-drop-after' : 'se-drop-before',
-      toSi: +sec.dataset.si,
-      toFi: +fld.dataset.fi + (after ? 1 : 0),
-    };
+    return { el: fld, marker: after ? 'se-drop-after' : 'se-drop-before', toFi: +fld.dataset.fi + (after ? 1 : 0) };
   }
   const container = e.target.closest('[data-drop-fields]');
   if (container) {
-    return { el: container, marker: 'se-drop-into', toSi: +container.dataset.dropFields, toFi: container.children.length };
+    return { el: container, marker: 'se-drop-into', toFi: container.children.length };
   }
-  const sec = e.target.closest('[data-drop="section"]');
-  const c = sec && sec.querySelector('[data-drop-fields]');
-  if (c) return { el: c, marker: 'se-drop-into', toSi: +sec.dataset.si, toFi: c.children.length };
   return null;
 }
 
 function wireDragAndDrop(root, onIntent) {
-  let drag = null; // { kind: 'field'|'section', si, fi }
+  let drag = null; // { fi }
   const clearMarkers = () =>
     root.querySelectorAll('.' + DROP_MARKERS.join(', .')).forEach((el) => el.classList.remove(...DROP_MARKERS));
 
   root.addEventListener('dragstart', (e) => {
-    const handle = e.target.closest('[data-drag]');
+    const handle = e.target.closest('[data-drag="field"]');
     if (!handle) return;
-    drag = { kind: handle.dataset.drag, si: +handle.dataset.si, fi: handle.dataset.fi != null ? +handle.dataset.fi : -1 };
+    drag = { fi: +handle.dataset.fi };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', ''); // Firefox requires data for the drag to start
-    const ghost = handle.closest(drag.kind === 'field' ? '.se-field' : '.se-section');
+    const ghost = handle.closest('.se-field');
     if (ghost) e.dataTransfer.setDragImage(ghost, 12, 12);
   });
 
@@ -722,7 +635,7 @@ function wireDragAndDrop(root, onIntent) {
 
   root.addEventListener('dragover', (e) => {
     if (!drag) return;
-    const spot = dropSpot(e, drag);
+    const spot = dropSpot(e);
     clearMarkers();
     if (!spot) return;
     e.preventDefault(); // signal a valid drop target
@@ -732,17 +645,13 @@ function wireDragAndDrop(root, onIntent) {
 
   root.addEventListener('drop', (e) => {
     if (!drag) return;
-    const spot = dropSpot(e, drag);
+    const spot = dropSpot(e);
     clearMarkers();
     const d = drag;
     drag = null;
     if (!spot) return;
     e.preventDefault();
-    if (d.kind === 'section') {
-      onIntent({ action: 'move-section-to', fromSi: d.si, toSi: spot.toSi });
-    } else {
-      onIntent({ action: 'move-field-to', fromSi: d.si, fromFi: d.fi, toSi: spot.toSi, toFi: spot.toFi });
-    }
+    onIntent({ action: 'move-field-to', fromFi: d.fi, toFi: spot.toFi });
   });
 }
 

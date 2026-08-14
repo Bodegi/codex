@@ -12,13 +12,13 @@ const source = [
     titleField: 'title',
     status: 'active',
     updatedAt: '2026-08-01T00:00:00.000Z',
-    sections: [{ title: 'Note', fields: [{ key: 'id', label: 'ID', kind: 'text' }] }],
+    fields: [{ key: 'id', label: 'ID', kind: 'text' }],
   },
   {
     type: 'archivedType',
     label: 'Old',
     status: 'archived',
-    sections: [{ title: 'X', fields: [] }],
+    fields: [],
   },
 ];
 
@@ -30,7 +30,7 @@ test('copies the type structure of active source schemas', () => {
   assert.equal(note.icon, 'decision');
   assert.equal(note.idField, 'id');
   assert.equal(note.titleField, 'title');
-  assert.deepEqual(note.sections, [{ title: 'Note', fields: [{ key: 'id', label: 'ID', kind: 'text' }] }]);
+  assert.deepEqual(note.fields, [{ key: 'id', label: 'ID', kind: 'text' }]);
 });
 
 test('normalizes every copied schema to active status', () => {
@@ -43,10 +43,10 @@ test('drops the source updatedAt (the new codex writes its own on save)', () => 
   assert.equal('updatedAt' in note, false);
 });
 
-test('deep-clones sections so the copy never aliases the source', () => {
+test('deep-clones fields so the copy never aliases the source', () => {
   const [note] = buildTemplateSchemas(source);
-  note.sections[0].fields[0].key = 'mutated';
-  assert.equal(source[0].sections[0].fields[0].key, 'id');
+  note.fields[0].key = 'mutated';
+  assert.equal(source[0].fields[0].key, 'id');
 });
 
 test('a blank template (no source) yields no schemas', () => {

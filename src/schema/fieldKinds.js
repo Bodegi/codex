@@ -67,6 +67,7 @@ const ICONS = {
   number: glyph('<rect x="3" y="8.6" width="18" height="2.4" rx="0.8"/><rect x="3" y="13" width="18" height="2.4" rx="0.8"/><rect x="7.8" y="4" width="2.4" height="16" rx="0.8"/><rect x="13.8" y="4" width="2.4" height="16" rx="0.8"/>'),
   date: glyph('<path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/>'),
   select: glyph('<rect x="3" y="5" width="18" height="3" rx="1.5"/><path d="M7 11l5 6 5-6z"/>'),
+  heading: glyph('<path d="M5 4v3h5.5v12h3V7H19V4z"/>'),
   boolean: glyph('<path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V5c0-1.1-.89-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>'),
   list: glyph('<path d="M4 14h4v-4H4v4zm0 5h4v-4H4v4zM4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4zM9 5v4h12V5H9z"/>'),
   reference: glyph('<path d="M17 7h-4v2h4c1.65 0 3 1.35 3 3s-1.35 3-3 3h-4v2h4c2.76 0 5-2.24 5-5s-2.24-5-5-5zm-6 8H7c-1.65 0-3-1.35-3-3s1.35-3 3-3h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-2zM8 11h8v2H8z"/>'),
@@ -282,6 +283,24 @@ export const fieldKinds = {
     sampleValue: (field) => field.label,
   },
 
+  heading: {
+    title: 'Heading',
+    description: 'A labelled divider that groups the components below it.',
+    icon: ICONS.heading,
+    layout: 'break',
+    // A heading is schema chrome, not entry content: its text lives on `field.label`, and both the
+    // builder form and the read view render it as an <h2>. It stores nothing in `data[field.key]`,
+    // so the content consumers (searchIndex / summaryCard / entryDraft / displayValue, and the
+    // title/summary field pickers) skip `kind === 'heading'`.
+    renderInput(field, _value, _ctx) {
+      return `<h2 class="form-heading">${escapeHtml(field.label)}</h2>`;
+    },
+    renderRead(field, _value, _ctx) {
+      return `<h2>${escapeHtml(field.label)}</h2>`;
+    },
+    sampleValue: () => '',
+  },
+
   hero: {
     title: 'Banner image',
     description: 'A single large image shown at the top of the entry.',
@@ -406,9 +425,7 @@ export function sampleValue(field) {
 /** A whole-schema preview sample: `{ type, [field.key]: sampleValue(field) }` over every field. */
 export function previewSample(schema) {
   const sample = { type: schema.type };
-  for (const section of schema.sections || []) {
-    for (const field of section.fields || []) sample[field.key] = sampleValue(field);
-  }
+  for (const field of schema.fields || []) sample[field.key] = sampleValue(field);
   return sample;
 }
 
@@ -486,6 +503,7 @@ export function getLayout(kind) {
 
 /** A plain string for a field's value — used by the summary card and the search index. */
 export function displayValue(field, value, ctx) {
+  if (field.kind === 'heading') return ''; // schema chrome, no per-entry value
   if (field.kind === 'boolean') return value === true || value === 'true' ? 'Yes' : 'No';
   if (field.kind === 'list') return toList(value).join(', ');
   if (field.kind === 'reference') {

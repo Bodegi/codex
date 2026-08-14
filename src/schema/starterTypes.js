@@ -28,11 +28,9 @@ export function cloneStarterSchemas(sources, newId = realNewId) {
     const clone = JSON.parse(JSON.stringify(schema));
     clone.type = idMap.get(schema.type);
     clone.status = 'active';
-    for (const section of clone.sections ?? []) {
-      for (const field of section.fields ?? []) {
-        if (field.targetType) field.targetType = remap(field.targetType);
-        if (field.association?.refType) field.association.refType = remap(field.association.refType);
-      }
+    for (const field of clone.fields ?? []) {
+      if (field.targetType) field.targetType = remap(field.targetType);
+      if (field.association?.refType) field.association.refType = remap(field.association.refType);
     }
     return clone;
   });
