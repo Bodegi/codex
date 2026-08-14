@@ -306,9 +306,10 @@ function fieldRow(field, fi, types) {
   // A heading stores no entry data, so its storage key is meaningless to show; every other
   // component surfaces its fixed key. The label input doubles as the heading's rendered text.
   const keyChip = field.kind === 'heading' ? '' : `<code class="se-key" title="storage key (fixed)">${escapeHtml(field.key)}</code>`;
-  // Two rows on purpose: a control strip (grip + reorder + which-component + key/remove) sits above
-  // the content the author writes (the label, and per-kind settings), so chrome reads apart from data.
-  // The reorder nudges are icon-only but keep aria-labels — they are the keyboard/AT path drag can't be.
+  // Two zones on purpose: a control strip (grip + reorder + key/remove — pure positioning chrome)
+  // sits above the content the author writes, which opens with the component chip (which kind this
+  // is / change it), then the label, then per-kind settings. The reorder nudges are icon-only but
+  // keep aria-labels — they are the keyboard/AT path the aria-hidden drag handle can't be.
   return `
     <div class="se-field" ${at} data-drop="field" data-kind="${escapeHtml(field.kind)}">
       <div class="se-field-head">
@@ -317,13 +318,13 @@ function fieldRow(field, fi, types) {
           <button type="button" class="se-nudge" data-se="field-up" ${at} title="Move up" aria-label="Move up">▲</button>
           <button type="button" class="se-nudge" data-se="field-down" ${at} title="Move down" aria-label="Move down">▼</button>
         </span>
-        ${kindChip(field, at)}
         <span class="se-head-end">
           ${keyChip}
           <button type="button" class="se-nudge se-danger se-remove" data-se="field-remove" ${at} title="Remove field" aria-label="Remove field">×</button>
         </span>
       </div>
       <div class="se-field-body">
+        <div class="se-field-type">${kindChip(field, at)}</div>
         <input class="se-input se-label" data-se="field-label" ${at} value="${escapeHtml(field.label || '')}" placeholder="${field.kind === 'heading' ? 'Heading text' : 'Field label'}">
         <div class="se-field-extras">${extras.join('')}</div>
       </div>

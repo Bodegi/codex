@@ -2210,7 +2210,12 @@ mark.search-hit {
   background: transparent;
 }
 
+.se-field-type {
+  margin-bottom: 10px;
+}
+
 .se-field-body .se-label {
+  display: block;
   width: 100%;
 }
 
