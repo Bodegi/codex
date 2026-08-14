@@ -1292,10 +1292,18 @@ function highlightNav() {
   if (!type) return;
   const typeEl = typeNav.querySelector(`.nav-type[data-type="${CSS.escape(type)}"]`);
   if (!typeEl) return;
-  typeEl.querySelector('.nav-type-header')?.classList.add('is-active');
-  typeEl.querySelectorAll('.nav-entry').forEach((el) => {
-    if (el.dataset.id === String(state.formData.id)) el.classList.add('is-active');
-  });
+  // The full-bar highlight marks the one level you're actually on; ancestors keep only their
+  // gold icon-dot. An open entry (read/edit) is that level → bar the matching entry row and leave
+  // its parent type header as a dot. A bare type surface (index/structure) is itself the level →
+  // bar the header and highlight no entry (a stale formData.id must not light a sibling).
+  const atEntry = state.view.mode === 'read' || state.view.mode === 'edit';
+  if (atEntry) {
+    typeEl.querySelectorAll('.nav-entry').forEach((el) => {
+      if (el.dataset.id === String(state.formData.id)) el.classList.add('is-active');
+    });
+  } else {
+    typeEl.querySelector('.nav-type-header')?.classList.add('is-active');
+  }
 }
 
 // Advanced JSON disclosure (Structure only). Reordering is the visual editor's job

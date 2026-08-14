@@ -804,8 +804,9 @@ button.user-badge { cursor: pointer; }
   margin: 0 6px;
 }
 
+/* The current location reads gold, distinguishing "where I am" from the muted parent up-link. */
 .crumb-current {
-  color: var(--text-main);
+  color: var(--accent-gold);
 }
 
 .editor-actions,
