@@ -1191,11 +1191,15 @@ function renderArchivedEntries(type) {
 
 function wireTypeNav() {
   // A type header toggles its section: opening it also selects the type (loads its first entry);
-  // closing it just collapses, leaving the current selection untouched.
+  // closing it just collapses, leaving the current selection untouched. Exception: while an edit
+  // form is open, a header always navigates to that type's index — collapsing would leave the form
+  // up and read as inert (the "click does nothing" trap of #29).
   typeNav.querySelectorAll('[data-type-header]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const type = btn.dataset.typeHeader;
-      if (state.navExpanded.has(type)) {
+      if (state.view.mode === 'edit') {
+        selectTypeTab(type); // dirty-guarded; lands on the type's index
+      } else if (state.navExpanded.has(type)) {
         state.navExpanded.delete(type);
         highlightNav();
       } else {
@@ -1331,8 +1335,15 @@ function renderView() {
       const entries = activeEntries(state.entryIndex, v.type, entryLabel);
       state.formData = entries.length ? { ...entries[0] } : { type: v.type };
     }
-    showRenderedPane();
-    renderForm();
+    if (!state.formData.id) {
+      // Nothing concrete to read (an entry-less type, or a just-discarded new draft) — show the
+      // type's index (its home) instead of a phantom "(untitled)" entry header (#29).
+      state.view = toIndex(v);
+      enterTypeIndex(v.type);
+    } else {
+      showRenderedPane();
+      renderForm();
+    }
   }
   applyViewChrome();
   highlightNav();
@@ -1373,6 +1384,9 @@ function applyViewChrome() {
   exportCodexBtn.hidden = !(state.caps.canRead && (inTypeRead || inIndex));
   const editingEntry = v.kind === 'type' && v.mode === 'edit';
   saveEntryBtn.hidden = !(canEdit && editingEntry);
+  // The form's discard exit, distinct from Save (#29): a never-saved draft (no id) reads "Cancel";
+  // an existing entry reads "Back". The header breadcrumb's type up-link is the same exit.
+  doneEditBtn.textContent = state.formData.id ? 'Back' : 'Cancel';
   // Archive only makes sense for an already-saved entry (a brand-new draft has no id yet).
   archiveEntryBtn.hidden = !(canEdit && editingEntry && !!state.formData.id);
   // History is a cloud-only recovery surface (local-only entries reset on reload — nothing to ring),
@@ -1440,9 +1454,15 @@ exportCodexBtn.addEventListener('click', () => {
 
 doneEditBtn.addEventListener('click', async () => {
   if (!(await confirmDiscardIfDirty())) return;
-  state.view = toRead(state.view);
-  refreshBuilderPreview();
-  applyViewChrome();
+  // A never-saved draft ("Cancel") has no entry to return to — land on the type's index (its home)
+  // rather than a blank "(untitled)" read view (#29). An existing entry ("Back") returns to reading it.
+  if (state.formData.id) {
+    state.view = toRead(state.view);
+    refreshBuilderPreview();
+    applyViewChrome();
+  } else {
+    goto(selectType(state.view, curType()));
+  }
 });
 
 saveEntryBtn.addEventListener('click', () => saveEntry());
