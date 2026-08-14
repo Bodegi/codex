@@ -2159,15 +2159,59 @@ mark.search-hit {
   color: var(--accent-gold);
 }
 
-.se-field-main {
+/* Control strip: card chrome (grip + reorder + which-component + key/remove), set apart from the
+   content body by a divider so "controls" read distinctly from "content". */
+.se-field-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border-dim);
 }
 
-.se-label {
-  flex: 1 1 140px;
+.se-reorder {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.se-head-end {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* Icon-only reorder/remove buttons — compact chrome, but real focusable buttons (the keyboard/AT
+   path, since the drag handle is aria-hidden and pointer-only). */
+.se-nudge {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 5px;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.se-nudge:hover {
+  color: var(--text-main);
+  background: var(--bg-glass-hover);
+  border-color: var(--border-dim);
+}
+
+.se-remove:hover {
+  color: var(--accent-crimson);
+  border-color: var(--accent-crimson);
+  background: transparent;
+}
+
+.se-field-body .se-label {
+  width: 100%;
 }
 
 .se-key {
@@ -2274,12 +2318,6 @@ mark.search-hit {
   color: var(--text-muted);
   max-width: 240px;
   line-height: 1.35;
-}
-
-.se-row-controls {
-  display: flex;
-  gap: 4px;
-  margin-left: auto;
 }
 
 .se-btn {

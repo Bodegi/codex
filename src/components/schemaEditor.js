@@ -306,20 +306,27 @@ function fieldRow(field, fi, types) {
   // A heading stores no entry data, so its storage key is meaningless to show; every other
   // component surfaces its fixed key. The label input doubles as the heading's rendered text.
   const keyChip = field.kind === 'heading' ? '' : `<code class="se-key" title="storage key (fixed)">${escapeHtml(field.key)}</code>`;
+  // Two rows on purpose: a control strip (grip + reorder + which-component + key/remove) sits above
+  // the content the author writes (the label, and per-kind settings), so chrome reads apart from data.
+  // The reorder nudges are icon-only but keep aria-labels — they are the keyboard/AT path drag can't be.
   return `
     <div class="se-field" ${at} data-drop="field" data-kind="${escapeHtml(field.kind)}">
-      <div class="se-field-main">
-        <span class="se-drag" ${at} draggable="true" data-drag="field" title="Drag to reorder" aria-hidden="true">⠿</span>
-        <input class="se-input se-label" data-se="field-label" ${at} value="${escapeHtml(field.label || '')}" placeholder="${field.kind === 'heading' ? 'Heading text' : 'Field label'}">
-        ${keyChip}
+      <div class="se-field-head">
+        <span class="se-reorder">
+          <span class="se-drag" ${at} draggable="true" data-drag="field" title="Drag to reorder" aria-hidden="true">⠿</span>
+          <button type="button" class="se-nudge" data-se="field-up" ${at} title="Move up" aria-label="Move up">▲</button>
+          <button type="button" class="se-nudge" data-se="field-down" ${at} title="Move down" aria-label="Move down">▼</button>
+        </span>
         ${kindChip(field, at)}
-        <span class="se-row-controls">
-          <button type="button" class="se-btn" data-se="field-up" ${at} title="Move up">Up</button>
-          <button type="button" class="se-btn" data-se="field-down" ${at} title="Move down">Down</button>
-          <button type="button" class="se-btn se-danger" data-se="field-remove" ${at} title="Remove field" aria-label="Remove field">×</button>
+        <span class="se-head-end">
+          ${keyChip}
+          <button type="button" class="se-nudge se-danger se-remove" data-se="field-remove" ${at} title="Remove field" aria-label="Remove field">×</button>
         </span>
       </div>
-      <div class="se-field-extras">${extras.join('')}</div>
+      <div class="se-field-body">
+        <input class="se-input se-label" data-se="field-label" ${at} value="${escapeHtml(field.label || '')}" placeholder="${field.kind === 'heading' ? 'Heading text' : 'Field label'}">
+        <div class="se-field-extras">${extras.join('')}</div>
+      </div>
     </div>`;
 }
 
