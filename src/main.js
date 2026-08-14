@@ -446,7 +446,6 @@ const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebarBackdrop = document.getElementById('sidebar-backdrop');
 const editToggleBtn = document.getElementById('btn-edit-toggle');
 const structureBtn = document.getElementById('btn-structure');
-const indexToggleBtn = document.getElementById('btn-index-toggle');
 const exportCodexBtn = document.getElementById('btn-export-codex');
 const advancedJsonBtn = document.getElementById('btn-advanced-json');
 const saveEntryBtn = document.getElementById('btn-save-entry');
@@ -464,10 +463,15 @@ const editorTitle = document.getElementById('editor-title');
 function setEntryCrumb(type, title) {
   const schema = getSchema(type);
   const typeLabel = (schema && schema.label) || type;
+  // a11y: the muted parent is a real navigation control, so name its destination (a title tooltip
+  // for sighted users + it reads on the button for AT); the entry segment is the current location
+  // (aria-current="page", the breadcrumb convention); the ›  glyph is decorative (aria-hidden).
   const html =
-    `<button type="button" class="crumb-parent" data-crumb-type="${escapeHtml(type)}">${escapeHtml(typeLabel)}</button>` +
+    `<button type="button" class="crumb-parent" data-crumb-type="${escapeHtml(type)}" title="All ${escapeHtml(
+      typeLabel
+    )} entries">${escapeHtml(typeLabel)}</button>` +
     `<span class="crumb-sep" aria-hidden="true">›</span>` +
-    `<span class="crumb-current">${escapeHtml(title)}</span>`;
+    `<span class="crumb-current" aria-current="page">${escapeHtml(title)}</span>`;
   readerTitle.innerHTML = html;
   editorTitle.innerHTML = html;
 }
@@ -1375,11 +1379,6 @@ function applyViewChrome() {
   // Structure is reachable from the index landing too, so an admin needn't drill into an entry first.
   structureBtn.hidden = !(canAdmin && (inTypeRead || inIndex || inStructure));
   structureBtn.textContent = inStructure ? 'Back' : 'Structure';
-  // "Index" is a one-way trip from a single entry to the card grid. The grid IS a type's home, so it
-  // carries no reciprocal exit button — its summary cards are the way back into an entry (the old
-  // in-index "Done" was a confusing no-op there, jumping to an arbitrary first entry the cards reach).
-  indexToggleBtn.hidden = !inTypeRead;
-  indexToggleBtn.textContent = 'Index';
   // Export the whole codex (#2): any reader may take a copy, so it rides the reader surface, not the
   // edit/admin gate. Shown while reading (read or index), where the reader-actions bar is visible.
   exportCodexBtn.hidden = !(state.caps.canRead && (inTypeRead || inIndex));
@@ -1412,12 +1411,6 @@ structureBtn.addEventListener('click', async () => {
   } else {
     goto(toSchemaAdmin(state.view));
   }
-});
-
-indexToggleBtn.addEventListener('click', () => {
-  // Only shown while reading a single entry — a one-way trip out to the card grid (its home).
-  if (state.view.kind !== 'type' || !state.view.type) return;
-  goto(toIndex(state.view));
 });
 
 // The header breadcrumb's parent segment (see setEntryCrumb): navigate up to the type's index. Same
