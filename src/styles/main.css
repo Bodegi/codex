@@ -776,6 +776,38 @@ button.user-badge { cursor: pointer; }
   white-space: nowrap;
 }
 
+/* Header breadcrumb for an open entry: "Type › Entry" (setEntryCrumb). The parent is a muted link
+   up to the type index; the entry name reads as the title. Inherits the panel-title font. */
+.crumb-parent {
+  font: inherit;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s ease;
+}
+
+.crumb-parent:hover {
+  color: var(--accent-gold);
+  text-decoration: underline;
+}
+
+.crumb-parent:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+.crumb-sep {
+  color: var(--text-muted);
+  margin: 0 6px;
+}
+
+.crumb-current {
+  color: var(--text-main);
+}
+
 .editor-actions,
 .reader-actions {
   display: flex;
@@ -3107,11 +3139,12 @@ mark.search-hit {
      the badge label ("Connection lost — …") stays fully readable. */
   .reader-header,
   .editor-header { flex-wrap: wrap; }
-  /* The reader panel's chrome title duplicates the gold content heading right below
-     it — on a phone they stack and read as "Note / Note". Drop the chrome one; the
-     reader body renders its own heading. The editor title stays: in edit mode the
-     form has no content heading, so it's the only wayfinding. */
-  .reader-header .panel-title { display: none; }
+  /* The reader breadcrumb ends in the entry name, which the gold content heading repeats
+     right below it — on a phone drop that trailing segment, leaving just the tappable parent
+     (up to the type index). The editor header keeps the full crumb: in edit mode the form has
+     no content heading, so it's the only title/wayfinding. */
+  .reader-header .crumb-sep,
+  .reader-header .crumb-current { display: none; }
   .editor-header .panel-title {
     flex: 1 1 100%;
     white-space: normal;

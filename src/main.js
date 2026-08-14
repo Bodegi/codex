@@ -460,6 +460,22 @@ const archiveEntryBtn = document.getElementById('btn-archive-entry');
 const doneEditBtn = document.getElementById('btn-done-edit');
 const readerTitle = document.getElementById('reader-title');
 const editorTitle = document.getElementById('editor-title');
+
+// The reader/editor header for an OPEN ENTRY is a breadcrumb "Type › Entry" rather than the bare
+// entry title, which duplicated the rendered H1 (issue #30 F11). The Type segment links up to that
+// type's index (the list of sibling entries); the entry name is the current context. Set on both
+// #reader-title (read) and #editor-title (edit), so in edit mode the up-link doubles as the
+// discoverable "Back" of #29. Other header states (admin, search, a type index) stay a plain label.
+function setEntryCrumb(type, title) {
+  const schema = getSchema(type);
+  const typeLabel = (schema && schema.label) || type;
+  const html =
+    `<button type="button" class="crumb-parent" data-crumb-type="${escapeHtml(type)}">${escapeHtml(typeLabel)}</button>` +
+    `<span class="crumb-sep" aria-hidden="true">›</span>` +
+    `<span class="crumb-current">${escapeHtml(title)}</span>`;
+  readerTitle.innerHTML = html;
+  editorTitle.innerHTML = html;
+}
 const typeNav = document.getElementById('type-nav');
 const navSearch = document.getElementById('nav-search');
 const codexSwitcher = document.getElementById('codex-switcher');
@@ -1392,6 +1408,20 @@ indexToggleBtn.addEventListener('click', () => {
   if (state.view.kind !== 'type' || !state.view.type) return;
   goto(state.view.mode === 'index' ? toRead(state.view) : toIndex(state.view));
 });
+
+// The header breadcrumb's parent segment (see setEntryCrumb): navigate up to the type's index. Same
+// target as clicking the type in the nav (selectType lands in index mode), guarding a dirty edit
+// form on the way out. Delegated on both title elements since either can host the crumb.
+async function onCrumbClick(e) {
+  const btn = e.target.closest('[data-crumb-type]');
+  if (!btn) return;
+  if (!(await confirmDiscardIfDirty())) return;
+  const type = btn.dataset.crumbType;
+  state.navExpanded.add(type);
+  goto(selectType(state.view, type));
+}
+readerTitle.addEventListener('click', onCrumbClick);
+editorTitle.addEventListener('click', onCrumbClick);
 
 // Export the current codex to a JSON file (#2): gather meta + effective schemas + all entries
 // (active and archived) from live state and hand the browser a download. Image bytes aren't
@@ -2567,9 +2597,7 @@ function renderForm() {
 // re-render (e.g. a media mutation): renderForm resets state.baseVersion and clears state.dirty, which
 // mid-edit would silently disarm the unsaved-changes guard AND re-baseline the conflict check.
 function renderFormWithoutResubscribe() {
-  const title = entryTitle(state.formData, curType());
-  readerTitle.textContent = title;
-  editorTitle.textContent = title;
+  setEntryCrumb(curType(), entryTitle(state.formData, curType()));
 
   formContainer.innerHTML = renderSchemaForm(getSchema(curType()), state.formData, renderCtx);
 
@@ -2603,9 +2631,8 @@ function attachFormInputListeners() {
       const el = e.target;
       const key = el.dataset.fieldKey;
       state.formData[key] = readFieldValue(el);
-      // Keep the header title live as the title field is edited.
-      readerTitle.textContent = entryTitle(state.formData, curType());
-      editorTitle.textContent = readerTitle.textContent;
+      // Keep the header breadcrumb's entry name live as the title field is edited.
+      setEntryCrumb(curType(), entryTitle(state.formData, curType()));
       state.dirty = true;
       refreshBuilderPreview();
     };
