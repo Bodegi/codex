@@ -108,6 +108,7 @@ or "Banner image" rather than an internal key. The components:
 | **Checkbox** | a yes / no toggle | |
 | **List** | a set of short values (tags, aliases) | comma-separated or one per line |
 | **Reference** | a link to another entry | pick a target type; toggle **multiple** for many |
+| **Heading** | a labelled divider grouping the components below it | holds no entry data — its label is the rendered text |
 | **Banner image** | one hero image | full-width block |
 | **Gallery** | several images | rendered as a carousel with a lightbox |
 | **Map** | an interactive map | pins, roads, territories — see [Maps](#maps) |

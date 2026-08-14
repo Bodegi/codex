@@ -19,9 +19,10 @@ generated from the schema.
 - **Schema builder, in the app.** Admins design types visually in the Structure editor: pick
   components from a palette into one flat, ordered list, drag to reorder, drop in **Heading**
   dividers where you want them. No migrations, no redeploy — the schema is data.
-- **Field components.** `text`, `prose` (inline-image + link markup), `list`, `reference`
-  (single or multi-value links to other entries), `hero`, `gallery`, and `map` (drop pins,
-  draw roads/territories freehand, link pins to entries).
+- **Field components.** `text`, `prose` (inline-image + link markup), `number`, `date`,
+  `select` (fixed choices), `boolean`, `list`, `reference` (single or multi-value links to other
+  entries), `heading` (a divider), `hero`, `gallery`, and `map` (drop pins, draw
+  roads/territories freehand, link pins to entries).
 - **Summary cards + index view.** Clicking a type lands on its index — a browsable grid of its
   entries as cards. A type can declare a `summaryCard` to enrich the card; otherwise it's a
   minimal title-only card.
