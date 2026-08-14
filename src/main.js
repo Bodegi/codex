@@ -396,7 +396,8 @@ const entryLabel = (e) => {
   const schema = getSchema(e.type);
   return (schema && e[schema.titleField]) || e.name || e.title || e.id;
 };
-const entriesOfType = (type) => activeEntries(state.entryIndex, type).map((e) => ({ id: e.id, label: entryLabel(e) }));
+const entriesOfType = (type) =>
+  activeEntries(state.entryIndex, type, entryLabel).map((e) => ({ id: e.id, label: entryLabel(e) }));
 const findEntryByTypeId = (type, id) => findEntry(state.entryIndex, type, id);
 
 // Title shown in the reader/editor headers for the current entry.
@@ -1024,7 +1025,7 @@ function ensureValidView() {
 
 // Open a type's first active entry (or a blank draft) in the reader — form + preview + chrome.
 function loadFirstEntry(type) {
-  const entries = activeEntries(state.entryIndex, type);
+  const entries = activeEntries(state.entryIndex, type, entryLabel);
   state.formData = entries.length ? { ...entries[0] } : { type };
   showRenderedPane();
   renderForm();
@@ -1316,7 +1317,7 @@ function renderView() {
   else {
     // Ensure the open entry belongs to the current type (a type switch reselects its first entry).
     if (!state.formData || state.formData.type !== v.type) {
-      const entries = activeEntries(state.entryIndex, v.type);
+      const entries = activeEntries(state.entryIndex, v.type, entryLabel);
       state.formData = entries.length ? { ...entries[0] } : { type: v.type };
     }
     showRenderedPane();
@@ -1523,7 +1524,7 @@ function enterTypeIndex(type) {
   const schema = getSchema(type);
   readerTitle.textContent = (schema && schema.label) || type;
   showRenderedPane();
-  updateRenderedPreview(renderTypeIndex(type, activeEntries(state.entryIndex, type), renderCtx));
+  updateRenderedPreview(renderTypeIndex(type, activeEntries(state.entryIndex, type, entryLabel), renderCtx));
 }
 
 // ── Reader search ────────────────────────────────────────────────────────────
@@ -2783,7 +2784,7 @@ function setEntryStatus(type, id, status) {
     upsertLocalEntry({ ...entry, status });
   }
   if (status === 'archived' && state.formData.id === id && curType() === type) {
-    const remaining = activeEntries(state.entryIndex, type).filter((e) => e.id !== id);
+    const remaining = activeEntries(state.entryIndex, type, entryLabel).filter((e) => e.id !== id);
     state.formData = remaining[0] ? { ...remaining[0] } : { type };
     state.view = normalize(toRead(state.view), viewCtx());
     renderForm();

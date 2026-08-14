@@ -35,6 +35,24 @@ test('activeEntries returns an empty array for an unknown type', () => {
   assert.deepEqual(activeEntries({}, 'nope'), []);
 });
 
+test('activeEntries sorts by the injected label (case-insensitive) when labelOf is given', () => {
+  const byType = indexEntries([
+    { type: 'civ', id: 'orcs', status: 'active', name: 'Orcs' },
+    { type: 'civ', id: 'elves', status: 'active', name: 'elves' }, // lowercase → still sorts before Humans
+    { type: 'civ', id: 'humans', status: 'active', name: 'Humans' },
+  ]);
+  const labelOf = (e) => e.name;
+  assert.deepEqual(activeEntries(byType, 'civ', labelOf).map((e) => e.id), ['elves', 'humans', 'orcs']);
+});
+
+test('activeEntries without labelOf preserves storage order', () => {
+  const byType = indexEntries([
+    { type: 'civ', id: 'orcs', status: 'active', name: 'Orcs' },
+    { type: 'civ', id: 'elves', status: 'active', name: 'Elves' },
+  ]);
+  assert.deepEqual(activeEntries(byType, 'civ').map((e) => e.id), ['orcs', 'elves']);
+});
+
 test('archivedEntries returns only archived entries of a type', () => {
   const byType = indexEntries(ENTRIES);
   assert.deepEqual(archivedEntries(byType, 'note').map((e) => e.id), ['old']);

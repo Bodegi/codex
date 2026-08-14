@@ -18,9 +18,19 @@ export function indexEntries(entries = []) {
   return byType;
 }
 
-/** Non-archived entries of a type (what the nav shows). Empty array for an unknown type. */
-export function activeEntries(byType, type) {
-  return (byType[type] || []).filter((e) => e.status !== 'archived');
+/**
+ * Non-archived entries of a type (what the nav shows). Empty array for an unknown type.
+ * With `labelOf` supplied, the result is sorted alphabetically by each entry's display label
+ * (case/accent-insensitive) — the default order the nav, type index, and reference pickers share.
+ * The label lives on the schema (titleField), so the edge injects `labelOf` rather than this pure
+ * module importing the store. Omit it to keep storage order.
+ */
+export function activeEntries(byType, type, labelOf) {
+  const list = (byType[type] || []).filter((e) => e.status !== 'archived');
+  if (!labelOf) return list;
+  return list.sort((a, b) =>
+    String(labelOf(a)).localeCompare(String(labelOf(b)), undefined, { sensitivity: 'base' })
+  );
 }
 
 /** Archived entries of a type (the restore affordance). Empty array for an unknown type. */
