@@ -2466,7 +2466,6 @@ function renderTypesEditor() {
     previewMode: state.structurePreview,
   });
   attachSchemaEditor(mount.querySelector('.schema-editor'), handleSchemaIntent);
-  renderSyncStatus(); // populate the toolbar's freshly-rendered sync badge
   refreshWorkingPreview();
 }
 
@@ -3122,9 +3121,8 @@ previewRawTextarea.addEventListener('change', () => {
 function renderSyncStatus() {
   const configured = !!(state.fbManager && state.fbManager.isConfigured());
   const { label, dotClass, toneClass } = syncBadge({ configured, connection: state.connection });
-  // Two badges carry this: the reader-header's `#active-file-indicator` and the Structure toolbar's,
-  // both tagged `[data-sync-badge]`. Update every holder so they never drift (the toolbar one is
-  // re-rendered on each editor rebuild, so this also repopulates it after a rebuild).
+  // One holder carries this now: the app header's `#active-file-indicator` (tagged `[data-sync-badge]`).
+  // The query stays plural so any future holder is picked up without touching this.
   for (const el of document.querySelectorAll('[data-sync-badge]')) {
     el.className = `compliance-badge${toneClass}`;
     el.title = label; // full text stays available when the label is hidden on a narrow toolbar

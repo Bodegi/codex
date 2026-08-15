@@ -521,14 +521,14 @@ export function renderSchemaEditor(
   const previewPressed = previewMode === 'rendered' ? 'true' : 'false';
 
   // The action toolbar is sticky (see main.css) so every action stays reachable on a deep type. It
-  // carries the primary Save + the on-demand Preview toggle + a live sync badge; the de-emphasised
-  // escape hatches (Edit JSON) and destructive actions (Revert/Archive) tuck into an overflow menu.
+  // carries the primary Save + the on-demand Preview toggle; the de-emphasised escape hatches
+  // (Edit JSON) and destructive actions (Revert/Archive) tuck into an overflow menu. (Sync status
+  // lives once in the app header, not per-view.)
   return `
     <div class="schema-editor">
       <div class="se-toolbar">
         <div class="se-toolbar-start">
           <button type="button" class="btn btn-secondary btn-sm" data-se="back">← Back</button>
-          <span class="compliance-badge is-local" data-sync-badge></span>
         </div>
         <div class="se-toolbar-end">
           <button type="button" class="btn btn-secondary btn-sm" data-se="preview" aria-pressed="${previewPressed}">Preview</button>
