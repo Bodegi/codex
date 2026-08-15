@@ -98,8 +98,11 @@ export function repointTitleField(schema) {
   const keys = allFieldKeys(schema);
   if (keys.includes(schema.titleField)) return schema;
   const next = clone(schema);
-  // Repoint to the first field that can actually hold a title — a heading carries no entry data.
-  const firstContent = (schema.fields || []).find((f) => f.kind !== 'heading');
+  // Repoint to the first field that can actually hold a title — skip headings (no entry data) and
+  // the non-text kinds (banner/map/media resolve to empty/an id), falling back to any content field.
+  const fields = schema.fields || [];
+  const firstTextual = fields.find((f) => f.kind !== 'heading' && !NON_TEXT_KINDS.has(f.kind));
+  const firstContent = firstTextual || fields.find((f) => f.kind !== 'heading');
   next.titleField = firstContent ? firstContent.key : '';
   return next;
 }
@@ -341,6 +344,14 @@ function contentFields(schema) {
   return flatFields(schema).filter((f) => f.kind !== 'heading');
 }
 
+// Kinds with no single textual value — invalid as a title/subtitle source (they'd resolve to an
+// empty string or an opaque id via displayValue). The badge/row summary slots filter by their own
+// kind sets, so this only gates the single-value title/subtitle picks.
+const NON_TEXT_KINDS = new Set(['banner', 'map', 'hero', 'gallery']);
+function textSourceFields(schema) {
+  return contentFields(schema).filter((f) => !NON_TEXT_KINDS.has(f.kind));
+}
+
 /**
  * Options for the type-level "Title field" select. Unlike the summary picks there is no "none"
  * choice — `titleField` is required. When it currently dangles (no fields, or a just-deleted
@@ -410,6 +421,7 @@ function summaryComposeList(fields, selectedKeys, seType) {
 function summaryCardBlock(schema) {
   const card = schema.summaryCard || {};
   const fields = contentFields(schema);
+  const textFields = textSourceFields(schema); // single-value title/subtitle picks only
   const badgeFields = fields.filter((f) => BADGE_KINDS.has(f.kind));
   const rowFields = fields.filter((f) => ROW_KINDS.has(f.kind));
   const rowKeys = (card.rows || []).map((r) => r.key);
@@ -419,10 +431,10 @@ function summaryCardBlock(schema) {
       <p class="se-summary-hint">The fields shown when this type is browsed as an index — a grid of cards, one per entry.</p>
       <div class="se-summary-picks">
         <label class="se-summary-pick">Title
-          <select class="se-input" data-se="summary-title">${fieldPickOptions(fields, card.title || '', '— use title field —')}</select>
+          <select class="se-input" data-se="summary-title">${fieldPickOptions(textFields, card.title || '', '— use title field —')}</select>
         </label>
         <label class="se-summary-pick">Subtitle
-          <select class="se-input" data-se="summary-subtitle">${fieldPickOptions(fields, card.subtitle || '', '— none —')}</select>
+          <select class="se-input" data-se="summary-subtitle">${fieldPickOptions(textFields, card.subtitle || '', '— none —')}</select>
         </label>
       </div>
       <div class="se-summary-group">
@@ -464,7 +476,7 @@ export function renderSchemaEditor(schema, { types, editingType, errors = [], is
           <input class="se-input" data-se="type-label" value="${escapeHtml(schema.label || '')}" placeholder="Type name">
         </label>
         <label class="se-type-name se-title-field">Title field
-          <select class="se-input" data-se="title-field">${titleFieldOptions(contentFields(schema), schema.titleField)}</select>
+          <select class="se-input" data-se="title-field">${titleFieldOptions(textSourceFields(schema), schema.titleField)}</select>
         </label>
         <span class="se-head-actions">
           ${savedActions}

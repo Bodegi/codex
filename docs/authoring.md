@@ -112,6 +112,7 @@ or "Banner image" rather than an internal key. The components:
 | **Banner image** | one hero image | full-width block |
 | **Gallery** | several images | rendered as a carousel with a lightbox |
 | **Map** | an interactive map | pins, roads, territories — see [Maps](#maps) |
+| **Banner** | a Minecraft-style heraldic banner | base color + up to 6 pattern layers — see [Banners](#banners) |
 
 ### Prose: links and inline images
 
@@ -150,13 +151,30 @@ The `map` field is a mini Google-Maps-style canvas on an image you supply:
   a chosen type; the pin then shows that entry's title (and its emblem, if it has one) and the
   read view bakes the resolved label/glyph in.
 
+## Banners
+
+The `banner` field is a designer for **Minecraft-style heraldry** — a base color plus a stack of
+pattern layers, rendered pixel-faithfully (the patterns are the game's own textures):
+
+- **Base color** — pick one of the 16 dyes; it fills the whole banner.
+- **Layers** — add up to **6** pattern layers over the base. Each layer is a **pattern** (from the
+  full ~42-pattern vocabulary, charges included) in a **dye color**. Layers stack bottom-to-top —
+  reorder with ▲ / ▼, remove with ×.
+- **Live preview** updates as you go.
+- **Read view** — the finished banner shows on the entry, with a collapsible **Build recipe** that
+  lists the base and every layer in order. That order is the exact loom sequence, so you can
+  reproduce the banner in-game.
+
+Banners work in every mode (no cloud needed) — the value is a compact `{ base, layers }` stored on
+the entry, and the image is recomputed from it, never uploaded.
+
 ## Designing types (admins)
 
 Click **Structure** in the reader header while a type is selected to open the **Structure
 editor**:
 
 - **Components** — click **+ add component** and pick one from the palette (Text, Paragraph,
-  Number, Date, Select, Checkbox, List, Reference, Heading, Banner image, Gallery, Map). A type is
+  Number, Date, Select, Checkbox, List, Reference, Heading, Banner image, Gallery, Map, Banner). A type is
   one flat, ordered list; a **Heading** is a divider you place where you want a titled group — it
   holds no entry data, so a simple type just flows title → fields with no header at all.
 - **Reorder** — drag the `⠿` handles to reorder the list (Up/Down buttons are the precision

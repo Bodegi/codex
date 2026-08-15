@@ -49,6 +49,7 @@ import { notFoundImage } from './notFoundImage.js';
 import { openImagePicker } from '../components/imagePicker.js';
 import { renderCarousel } from '../components/carousel.js';
 import { renderMapInput, renderMapRead, mountMap } from '../components/mapComponent.js';
+import { renderBannerInput, renderBannerRead, mountBanner } from '../components/bannerComponent.js';
 
 const MUTED_EMPTY = '<p class="muted">Not specified.</p>';
 
@@ -74,6 +75,7 @@ const ICONS = {
   hero: glyph('<path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>'),
   gallery: glyph('<path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/>'),
   map: glyph('<path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/>'),
+  banner: glyph('<path d="M6 2h12v16l-6-3-6 3z"/>'),
 };
 
 /** Normalize a list value: array as-is, comma-string split, blank -> []. */
@@ -408,6 +410,21 @@ export const fieldKinds = {
     // an empty scene. Enough to show the map block in the layout preview.
     sampleValue: () => ({ mapImageId: SAMPLE_IMAGE_ID, waypoints: [], roads: [], territories: [] }),
   },
+
+  // Banner delegates to its component (schema/bannerModel.js holds the pure model). `selfRender`
+  // keeps the interactive designer from being torn down and rebuilt on every swatch click.
+  banner: {
+    title: 'Banner',
+    description: 'A Minecraft-style heraldic banner: a base color plus stacked pattern layers.',
+    icon: ICONS.banner,
+    layout: 'break',
+    selfRender: true,
+    renderInput: renderBannerInput,
+    renderRead: renderBannerRead,
+    mount: mountBanner,
+    // A filled sample banner so the Structure-editor layout preview shows real heraldry, not a blank.
+    sampleValue: () => ({ base: 'red', layers: [{ pattern: 'border', color: 'white' }, { pattern: 'creeper', color: 'lime' }] }),
+  },
 };
 
 /**
@@ -504,6 +521,7 @@ export function getLayout(kind) {
 /** A plain string for a field's value — used by the summary card and the search index. */
 export function displayValue(field, value, ctx) {
   if (field.kind === 'heading') return ''; // schema chrome, no per-entry value
+  if (field.kind === 'banner') return ''; // structured heraldry, not text (like map — never String(value))
   if (field.kind === 'boolean') return value === true || value === 'true' ? 'Yes' : 'No';
   if (field.kind === 'list') return toList(value).join(', ');
   if (field.kind === 'reference') {

@@ -21,8 +21,9 @@ generated from the schema.
   dividers where you want them. No migrations, no redeploy — the schema is data.
 - **Field components.** `text`, `prose` (inline-image + link markup), `number`, `date`,
   `select` (fixed choices), `boolean`, `list`, `reference` (single or multi-value links to other
-  entries), `heading` (a divider), `hero`, `gallery`, and `map` (drop pins, draw
-  roads/territories freehand, link pins to entries).
+  entries), `heading` (a divider), `hero`, `gallery`, `map` (drop pins, draw
+  roads/territories freehand, link pins to entries), and `banner` (a Minecraft-style heraldry
+  designer — a base dye plus stacked pattern layers, pixel-faithful to the game).
 - **Summary cards + index view.** Clicking a type lands on its index — a browsable grid of its
   entries as cards. A type can declare a `summaryCard` to enrich the card; otherwise it's a
   minimal title-only card.

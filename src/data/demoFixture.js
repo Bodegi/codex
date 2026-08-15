@@ -66,6 +66,8 @@ export const demoSchemas = [
       { key: 'active', label: 'Active', kind: 'boolean' },
       { key: 'sec_imagery', label: 'Imagery', kind: 'heading' },
       { key: 'heroImage', label: 'Hero Image', kind: 'hero' },
+      { key: 'sec_heraldry', label: 'Heraldry', kind: 'heading' },
+      { key: 'sigil', label: 'Sigil', kind: 'banner' },
     ],
   },
 ];
@@ -108,6 +110,7 @@ export const demoEntriesByType = {
       alignment: 'Lawful',
       active: true,
       heroImage: '',
+      sigil: { base: 'white', layers: [{ pattern: 'creeper', color: 'green' }, { pattern: 'border', color: 'green' }] },
     },
   ],
 };

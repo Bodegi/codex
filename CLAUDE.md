@@ -43,20 +43,23 @@ compose. This is central; read its header before touching anything field-related
 - `renderInput(field, value, ctx) -> html` — the builder control.
 - `renderRead(field, value, ctx) -> html` — the read-view body.
 - `layout` — `'grid'` (default cell) | `'full'` (spans the grid: prose, list) | `'break'`
-  (escapes the grid as its own block: heading, hero, gallery, map). Both walkers (`formRenderer.js`,
+  (escapes the grid as its own block: heading, hero, gallery, map, banner). Both walkers (`formRenderer.js`,
   `entryRenderer.js`) read `layout` — there is no hard-coded `FULL_WIDTH`/`MEDIA_KINDS` set.
 - `mount(el, { field, value, onChange, ctx })` — optional imperative seam for components that
   wire events / a live canvas; `onChange(newValue)` is the single write path to
   `data[field.key]`.
 - `selfRender` — optional; tells the builder not to rebuild the whole form after a commit (the
-  map owns a live canvas that a teardown would reset).
+  map owns a live canvas, and the banner designer re-paints its own subtree — a teardown would
+  reset either).
 - `title` / `description` / `icon` — palette metadata (human name, one-line hint, SVG glyph). The
   Structure editor's picker is a named, described component palette (`components/componentPalette.js`),
   not a raw kind key; `paletteComponents()` projects these out in registry order.
 
-The twelve kinds: `text`, `prose`, `number`, `date`, `select`, `boolean`, `list`, `reference`,
-`heading`, `hero`, `gallery`, `map`. All but the media/map kinds are pure and Node-tested; the
-media/map kinds need the DOM (`mount` is browser-only). A type is one **flat, ordered list**
+The thirteen kinds: `text`, `prose`, `number`, `date`, `select`, `boolean`, `list`, `reference`,
+`heading`, `hero`, `gallery`, `map`, `banner`. All but the media/map/banner kinds are pure and
+Node-tested; those need the DOM (`mount` is browser-only) — though the banner's model
+(`bannerModel.js`, with its extracted pattern masks) is itself pure and tested, the component is
+just DOM around it. A type is one **flat, ordered list**
 (`schema.fields`) — there is no `sections` wrapper; a `heading` component is the only divider and
 holds no entry data (its text lives on `field.label`).
 
