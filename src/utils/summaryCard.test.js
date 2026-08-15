@@ -30,6 +30,8 @@ const SCHEMA = {
     { key: 'ally', label: 'Ally', kind: 'reference', targetType: 'civ' },
     { key: 'exports', label: 'Exports', kind: 'text' },
     { key: 'imports', label: 'Imports', kind: 'text' },
+    { key: 'crest', label: 'Crest', kind: 'banner' },
+    { key: 'portrait', label: 'Portrait', kind: 'hero' },
   ],
 };
 
@@ -41,9 +43,14 @@ const ENTRY = {
   ally: 'boreal',
   exports: 'Glass',
   imports: 'Ore',
+  crest: { base: 'red', layers: [{ pattern: 'border', color: 'white' }] },
+  portrait: 'img-aurora',
 };
 
-const ctx = { resolveRef: (_type, id) => ({ label: id === 'boreal' ? 'Boreal' : id, exists: true }) };
+const ctx = {
+  resolveRef: (_type, id) => ({ label: id === 'boreal' ? 'Boreal' : id, exists: true }),
+  resolveImage: (id) => (id === 'img-aurora' ? 'https://cdn/aurora.png' : null),
+};
 
 test('the title comes from the summaryCard.title, else titleField', () => {
   const html = renderSummaryCard(SCHEMA, ENTRY, ctx);
@@ -82,6 +89,42 @@ test('rows render as labelled value pairs, and empty ones collapse', () => {
   const partial = renderSummaryCard(SCHEMA, { ...ENTRY, imports: '' }, ctx);
   assert.doesNotMatch(partial, /Imports/);
   assert.match(partial, /Exports/);
+});
+
+test('a banner emblem renders the heraldry svg in the card face', () => {
+  const html = renderSummaryCard({ ...SCHEMA, summaryCard: { emblem: 'crest' } }, ENTRY, ctx);
+  assert.match(html, /class="summary-card summary-card--emblem"/);
+  assert.match(html, /<span class="summary-card-emblem"><svg[^>]*class="banner-svg summary-emblem-svg"/);
+  // The text column is wrapped so the thumbnail and text sit side by side.
+  assert.match(html, /<span class="summary-card-main"><span class="summary-card-title">Aurora</);
+});
+
+test('a hero emblem resolves to a thumbnail image via ctx.resolveImage', () => {
+  const html = renderSummaryCard({ ...SCHEMA, summaryCard: { emblem: 'portrait' } }, ENTRY, ctx);
+  assert.match(html, /<span class="summary-card-emblem"><img class="summary-emblem-img" src="https:\/\/cdn\/aurora\.png"/);
+});
+
+test('an empty emblem value collapses the slot — the card stays a flat text card', () => {
+  // A layerless banner is empty heraldry; an unset hero has no image. Either way, no emblem slot
+  // and no --emblem modifier — byte-identical to a card with no emblem configured.
+  const emptyCrest = renderSummaryCard(
+    { ...SCHEMA, summaryCard: { emblem: 'crest' } },
+    { ...ENTRY, crest: { base: 'red', layers: [] } },
+    ctx
+  );
+  assert.doesNotMatch(emptyCrest, /summary-card-emblem|summary-card--emblem/);
+  const noHero = renderSummaryCard(
+    { ...SCHEMA, summaryCard: { emblem: 'portrait' } },
+    { ...ENTRY, portrait: '' },
+    ctx
+  );
+  assert.doesNotMatch(noHero, /summary-card-emblem|summary-card--emblem/);
+});
+
+test('an emblem naming a since-removed field is ignored, not fatal', () => {
+  const html = renderSummaryCard({ ...SCHEMA, summaryCard: { emblem: 'gone' } }, ENTRY, ctx);
+  assert.match(html, /summary-card-title">Aurora</);
+  assert.doesNotMatch(html, /summary-card-emblem|summary-card--emblem/);
 });
 
 test('the card is a button carrying the entry id for click-through', () => {

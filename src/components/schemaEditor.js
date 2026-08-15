@@ -18,7 +18,7 @@
  */
 
 import { escapeHtml } from '../schema/inlineText.js';
-import { fieldKinds } from '../schema/fieldKinds.js';
+import { fieldKinds, emblemKinds } from '../schema/fieldKinds.js';
 import { newId } from '../utils/id.js';
 
 /** Kinds that take a free-text placeholder (media/reference/select/date/boolean don't). */
@@ -27,6 +27,8 @@ const PLACEHOLDER_KINDS = new Set(['text', 'prose', 'list', 'number']);
 /** Summary-card badge fields become chips (multi-value kinds); row fields become labelled scalars. */
 const BADGE_KINDS = new Set(['list', 'reference']);
 const ROW_KINDS = new Set(['text', 'prose', 'number', 'date', 'select', 'boolean']);
+/** The card's visual slot: kinds the registry can render as an emblem (hero image, banner). */
+const EMBLEM_KINDS = new Set(emblemKinds());
 
 /** Association modes a map marker can use; 'both' is the default. */
 const ASSOCIATION_MODES = ['both', 'reference', 'label'];
@@ -422,9 +424,17 @@ function summaryCardBlock(schema) {
   const card = schema.summaryCard || {};
   const fields = contentFields(schema);
   const textFields = textSourceFields(schema); // single-value title/subtitle picks only
+  const emblemFields = fields.filter((f) => EMBLEM_KINDS.has(f.kind));
   const badgeFields = fields.filter((f) => BADGE_KINDS.has(f.kind));
   const rowFields = fields.filter((f) => ROW_KINDS.has(f.kind));
   const rowKeys = (card.rows || []).map((r) => r.key);
+  // The emblem pick only appears once the type has an emblem-capable field (a banner or hero) to
+  // point at — no slot for a type that can't fill it.
+  const emblemPick = emblemFields.length
+    ? `<label class="se-summary-pick">Emblem
+          <select class="se-input" data-se="summary-emblem">${fieldPickOptions(emblemFields, card.emblem || '', '— none —')}</select>
+        </label>`
+    : '';
   return `
     <div class="se-summary">
       <div class="se-summary-head">Summary card</div>
@@ -436,6 +446,7 @@ function summaryCardBlock(schema) {
         <label class="se-summary-pick">Subtitle
           <select class="se-input" data-se="summary-subtitle">${fieldPickOptions(textFields, card.subtitle || '', '— none —')}</select>
         </label>
+        ${emblemPick}
       </div>
       <div class="se-summary-group">
         <span class="se-summary-label">Badges <em>(list / reference fields → chips)</em></span>
@@ -564,6 +575,8 @@ export function attachSchemaEditor(root, onIntent) {
         return onIntent({ action: 'edit-summary', patch: { title: el.value } });
       case 'summary-subtitle':
         return onIntent({ action: 'edit-summary', patch: { subtitle: el.value } });
+      case 'summary-emblem':
+        return onIntent({ action: 'edit-summary', patch: { emblem: el.value } });
       case 'summary-badge':
       case 'summary-row':
         // Membership toggle: recompute the whole ordered array from the checked rows in DOM order —

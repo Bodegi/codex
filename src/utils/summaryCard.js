@@ -8,11 +8,16 @@
  * A type's schema may carry:
  *
  *   summaryCard?: {
+ *     emblem?:   fieldKey,          // a hero image or banner field → a thumbnail beside the title
  *     title?:    fieldKey,          // card heading; defaults to schema.titleField
  *     subtitle?: fieldKey,          // a short line under the title (e.g. a prose "bio")
  *     badges?:   [fieldKey, …],     // list/reference fields → chips (matrix's "mods")
  *     rows?:     [{ label, key }],  // labelled value rows (matrix's exports/imports)
  *   }
+ *
+ * `emblem` is the card's one *visual* slot — the only part not funnelled through `displayValue`
+ * (heraldry and images have no string form). It resolves through `renderEmblem` (fieldKinds.js),
+ * which each emblem-capable kind implements; an empty/unresolved value collapses the slot.
  *
  * `renderSummaryCard` composes one card from that descriptor; `renderTypeIndex` maps a
  * type's entries through it into a grid. Both are pure and reuse `fieldKinds`
@@ -22,7 +27,7 @@
  */
 
 import { getSchema } from '../schema/schemaStore.js';
-import { toList, displayValue } from '../schema/fieldKinds.js';
+import { toList, displayValue, renderEmblem } from '../schema/fieldKinds.js';
 import { escapeHtml } from '../schema/inlineText.js';
 
 /** Key → field map over the flat field list (fields are keyed uniquely per type). */
@@ -63,6 +68,13 @@ export function renderSummaryCard(schema, entry, ctx) {
   const card = schema.summaryCard || {};
   const fields = fieldMap(schema);
 
+  let emblem = '';
+  if (card.emblem) {
+    const field = fields.get(card.emblem);
+    const html = field ? renderEmblem(field, d[field.key], ctx) : '';
+    if (html) emblem = `<span class="summary-card-emblem">${html}</span>`;
+  }
+
   const titleKey = card.title || schema.titleField;
   const title = d[titleKey] || '(untitled)';
 
@@ -92,9 +104,13 @@ export function renderSummaryCard(schema, entry, ctx) {
   if (rowHtml) rows = `<div class="summary-card-rows">${rowHtml}</div>`;
 
   // The card's open key is the entry's opaque doc id (findEntryByTypeId matches on `entry.id`).
-  return `<button type="button" class="summary-card" data-index-entry="${escapeHtml(
+  // With an emblem the face splits into thumbnail + text column; without one it stays the flat
+  // text-only card it has always been (byte-identical), so the emblem is purely additive.
+  const body = `<span class="summary-card-title">${escapeHtml(title)}</span>${subtitle}${badges}${rows}`;
+  const face = emblem ? `${emblem}<span class="summary-card-main">${body}</span>` : body;
+  return `<button type="button" class="summary-card${emblem ? ' summary-card--emblem' : ''}" data-index-entry="${escapeHtml(
     d.id ?? ''
-  )}"><span class="summary-card-title">${escapeHtml(title)}</span>${subtitle}${badges}${rows}</button>`;
+  )}">${face}</button>`;
 }
 
 /**

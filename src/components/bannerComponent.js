@@ -26,6 +26,7 @@ import {
   MAX_LAYERS,
   patternList,
   normalizeBanner,
+  isEmptyBanner,
   bannerToSvg,
   bannerToRecipe,
 } from '../schema/bannerModel.js';
@@ -141,6 +142,16 @@ export function renderBannerRead(field, value, _ctx) {
       ${layerItems ? `<ol class="banner-recipe-layers">${layerItems}</ol>` : ''}
     </details>`;
   return `<div class="banner-read"><div class="banner-figure">${bannerToSvg(banner)}</div>${recipeBlock}</div>`;
+}
+
+/**
+ * Emblem view: just the composed SVG, no recipe — the compact heraldic mark for a summary card
+ * (see summaryCard.js). A layerless banner is "empty" here, same as the read view, so an untouched
+ * field contributes no lone base rect and the card's emblem slot collapses.
+ */
+export function renderBannerEmblem(_field, value, _ctx) {
+  if (isEmptyBanner(value)) return '';
+  return bannerToSvg(value, { className: 'banner-svg summary-emblem-svg' });
 }
 
 /** Wire the designer: local banner state, event-delegated edits, re-paint + persist on each change. */

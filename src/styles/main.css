@@ -1694,6 +1694,39 @@ select[multiple].form-control option {
   color: var(--text-main);
 }
 
+/* With an emblem the card is a two-column face: thumbnail left, text column right. */
+.summary-card--emblem {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.summary-card--emblem .summary-card-main {
+  min-width: 0; /* let the text column shrink/wrap instead of forcing the card wider */
+  flex: 1;
+}
+
+.summary-card-emblem {
+  flex: 0 0 auto;
+  display: block;
+}
+
+/* Banner emblem: a small heraldic mark; the hero emblem: a square-ish thumbnail. */
+.summary-card-emblem .summary-emblem-svg {
+  width: 44px;
+  height: 88px;
+  display: block;
+  border-radius: var(--radius-sm);
+}
+
+.summary-emblem-img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  display: block;
+}
+
 /* ── Reader search ─────────────────────────────────────────────────────────── */
 /* The sidebar box (sits between the codex switcher and the type nav). */
 .nav-search-wrap {

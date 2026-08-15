@@ -181,8 +181,10 @@ editor**:
   fallback).
 - **Per-field options** — e.g. `reference` fields choose a target type and a single/multiple
   toggle; `map` fields configure pin **association** (reference / label / both) and target type.
-- **Summary card** — configure an optional card (title/subtitle field + badge/row fields) that
-  drives the **Index** grid; a live preview updates as you toggle.
+- **Summary card** — configure an optional card (an emblem, title/subtitle field, and badge/row
+  fields) that drives the **Index** grid; a live preview updates as you toggle. The **emblem** is a
+  thumbnail beside the title, drawn from a banner or hero-image field (the pick appears only once the
+  type has one to point at).
 - **`</> Edit JSON`** — an "Advanced" disclosure to hand-edit the type's schema as raw JSON. A
   power-tool escape hatch; the visual editor is the normal path.
 

@@ -49,7 +49,7 @@ import { notFoundImage } from './notFoundImage.js';
 import { openImagePicker } from '../components/imagePicker.js';
 import { renderCarousel } from '../components/carousel.js';
 import { renderMapInput, renderMapRead, mountMap } from '../components/mapComponent.js';
-import { renderBannerInput, renderBannerRead, mountBanner } from '../components/bannerComponent.js';
+import { renderBannerInput, renderBannerRead, renderBannerEmblem, mountBanner } from '../components/bannerComponent.js';
 
 const MUTED_EMPTY = '<p class="muted">Not specified.</p>';
 
@@ -327,6 +327,14 @@ export const fieldKinds = {
       if (!url) return notFoundImage('image-missing-hero');   // set but unresolved → placeholder, never a broken page
       return `<img class="entry-hero" src="${url}" alt="">`;
     },
+    // Emblem view: the same image scaled to a card thumbnail (see summaryCard.js). Empty collapses;
+    // a set-but-unresolved id shows the shared not-found frame rather than a broken thumb.
+    renderEmblem(_field, value, ctx) {
+      if (!value) return '';
+      const url = ctx?.resolveImage ? ctx.resolveImage(value) : null;
+      if (!url) return notFoundImage('image-missing-emblem');
+      return `<img class="summary-emblem-img" src="${url}" alt="">`;
+    },
     mount(el, { onChange, ctx }) {
       el.querySelector('[data-media="hero-pick"]')?.addEventListener('click', async () => {
         const id = await pickImage(ctx);
@@ -421,6 +429,7 @@ export const fieldKinds = {
     selfRender: true,
     renderInput: renderBannerInput,
     renderRead: renderBannerRead,
+    renderEmblem: renderBannerEmblem,
     mount: mountBanner,
     // A filled sample banner so the Structure-editor layout preview shows real heraldry, not a blank.
     sampleValue: () => ({ base: 'red', layers: [{ pattern: 'border', color: 'white' }, { pattern: 'creeper', color: 'lime' }] }),
@@ -531,6 +540,22 @@ export function displayValue(field, value, ctx) {
     return resolve(value);
   }
   return String(value ?? '');
+}
+
+/**
+ * A field's compact visual emblem for a summary card, or '' when the kind has no emblem view or the
+ * value is empty. Only the media/heraldry kinds (hero, banner) define `renderEmblem` — every other
+ * kind is text and contributes through `displayValue` instead. This is the summary card's one image
+ * seam: a new emblem-capable component just adds `renderEmblem` to its registry entry.
+ */
+export function renderEmblem(field, value, ctx) {
+  const kind = fieldKinds[field?.kind];
+  return kind?.renderEmblem ? kind.renderEmblem(field, value, ctx) : '';
+}
+
+/** Kinds that can serve as a summary-card emblem — those whose registry entry defines `renderEmblem`. */
+export function emblemKinds() {
+  return Object.keys(fieldKinds).filter((k) => typeof fieldKinds[k].renderEmblem === 'function');
 }
 
 /** Visible placeholder for a schema field whose kind we don't recognize. */
