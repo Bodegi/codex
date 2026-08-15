@@ -17,7 +17,7 @@
  */
 
 import { escapeHtml } from './inlineText.js';
-import { getKind, unknownKindPlaceholder, displayValue, toList } from './fieldKinds.js';
+import { getKind, getLayout, unknownKindPlaceholder, displayValue, toList } from './fieldKinds.js';
 
 const SUMMARY_MAX = 80;
 
@@ -54,7 +54,7 @@ function fieldCard(field, value, ctx, open) {
   const kind = getKind(field.kind);
   const control = kind ? kind.renderInput(field, value, ctx) : unknownKindPlaceholder(field.kind);
   const bodyId = `fc-${escapeHtml(field.key)}`;
-  return `<div class="field-card${open ? ' is-open' : ''}" data-field-card data-kind="${escapeHtml(field.kind)}">
+  return `<div class="field-card${open ? ' is-open' : ''}" data-field-card data-kind="${escapeHtml(field.kind)}" data-layout="${escapeHtml(getLayout(field.kind))}">
       <button type="button" class="field-card-head" data-field-toggle aria-expanded="${open ? 'true' : 'false'}" aria-controls="${bodyId}">
         <span class="field-card-caret" aria-hidden="true">${open ? '▾' : '▸'}</span>
         <span class="field-card-label">${escapeHtml(field.label || '(unnamed)')}</span>

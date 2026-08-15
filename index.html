@@ -91,9 +91,11 @@
           <div class="reader-header">
             <h2 id="reader-title" class="panel-title"></h2>
             <div class="reader-actions">
-              <button id="btn-advanced-json" class="btn btn-secondary btn-sm advanced-json-toggle" type="button" aria-pressed="false" title="Edit this type's schema as JSON (advanced)">&lt;/&gt; Edit JSON</button>
               <button id="btn-structure" class="btn btn-secondary btn-sm" hidden>Structure</button>
               <button id="btn-edit-toggle" class="btn btn-primary btn-sm" hidden>Edit</button>
+              <!-- Structure preview only: dismiss the live-preview column. Entering Structure and
+                   switching to raw JSON both live on the editor toolbar (Preview / More ▸ Edit JSON). -->
+              <button id="btn-close-preview" class="btn btn-secondary btn-sm" type="button" hidden title="Hide the preview">✕ Close</button>
             </div>
           </div>
 

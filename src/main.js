@@ -132,7 +132,6 @@ const state = {
   // ({kind:'global-admin', panel:'access'|'codices'}). `type` is null only in the empty-content case
   // (a codex with no types). normalize() clamps it to a valid, permitted view once schemas + caps load.
   view: { kind: 'type', type: null, mode: 'read' },
-  currentViewMode: 'rendered',
   formData: {},
   // Which sidebar type-sections are expanded — independent of the current selection, so an opened
   // section can be collapsed and stay collapsed across re-renders.
@@ -458,7 +457,7 @@ const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebarBackdrop = document.getElementById('sidebar-backdrop');
 const editToggleBtn = document.getElementById('btn-edit-toggle');
 const structureBtn = document.getElementById('btn-structure');
-const advancedJsonBtn = document.getElementById('btn-advanced-json');
+const closePreviewBtn = document.getElementById('btn-close-preview');
 const saveEntryBtn = document.getElementById('btn-save-entry');
 const historyEntryBtn = document.getElementById('btn-history-entry');
 const archiveEntryBtn = document.getElementById('btn-archive-entry');
@@ -1348,20 +1347,18 @@ function highlightNav() {
   }
 }
 
-// Advanced JSON disclosure (Structure only). Reordering is the visual editor's job
-// (Up/Down + drag-and-drop), so the schema-as-JSON editor is a de-emphasized escape hatch.
+// Swap the reader pane between the rendered view and the raw-JSON textarea. Raw is a de-emphasized
+// escape hatch reachable only from the Structure editor's More ▸ Edit JSON (reordering is the visual
+// editor's job — Up/Down + drag-and-drop); every other surface forces rendered via showRenderedPane.
 function setPreviewMode(mode) {
-  state.currentViewMode = mode;
   const raw = mode === 'raw';
   previewRendered.classList.toggle('hidden', raw);
   previewRawContainer.classList.toggle('hidden', !raw);
-  advancedJsonBtn.classList.toggle('active', raw);
-  advancedJsonBtn.setAttribute('aria-pressed', String(raw));
 }
 
-advancedJsonBtn.addEventListener('click', () => {
-  setPreviewMode(state.currentViewMode === 'raw' ? 'rendered' : 'raw');
-});
+// The preview column's own dismiss (Structure only). Entering rendered vs raw stays on the editor
+// toolbar (Preview / More ▸ Edit JSON); this just collapses whichever is open.
+closePreviewBtn.addEventListener('click', hideStructurePreview);
 
 // Content-form field cards collapse to their head (see formRenderer.js). One delegated toggle on the
 // persistent form container flips the body's `hidden` (AT skips a shut card) and records the open set
@@ -1396,7 +1393,10 @@ function showRenderedPane() {
 // editor rebuild would be needless churn for a pane toggle.
 function reflectPreviewToggle() {
   const btn = typesMountEl().querySelector('[data-se="preview"]');
-  if (btn) btn.setAttribute('aria-pressed', String(state.structurePreview === 'rendered'));
+  if (!btn) return;
+  btn.setAttribute('aria-pressed', String(state.structurePreview === 'rendered'));
+  // Preview opens the pane; the pane's own Close dismisses it — so hide the opener while it's open.
+  btn.hidden = state.structurePreview !== null;
 }
 function showStructurePreview(mode) {
   state.structurePreview = mode;
@@ -1470,9 +1470,11 @@ function applyViewChrome() {
   const inStructure = v.kind === 'type' && !!v.type && v.mode === 'admin';
   const inIndex = v.kind === 'type' && !!v.type && v.mode === 'index';
   editToggleBtn.hidden = !(canEdit && inTypeRead);
-  // Structure is reachable from the index landing too, so an admin needn't drill into an entry first.
-  structureBtn.hidden = !(canAdmin && (inTypeRead || inIndex || inStructure));
-  structureBtn.textContent = inStructure ? 'Back' : 'Structure';
+  // Structure enters the editor from the reader/index (reachable from the index landing too, so an
+  // admin needn't drill into an entry first). Leaving is the editor toolbar's own "← Back" — so this
+  // no longer shows inside Structure, where the preview column carries only its Close.
+  structureBtn.hidden = !(canAdmin && (inTypeRead || inIndex));
+  closePreviewBtn.hidden = !inStructure;
   // Export (#2) is a whole-codex owner operation — it lives on the admin Codices panel now, not the
   // reader header (see exportCurrentCodex / the Codices panel), so nothing to toggle here.
   const editingEntry = v.kind === 'type' && v.mode === 'edit';

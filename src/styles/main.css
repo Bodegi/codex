@@ -32,6 +32,12 @@
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
+  /* Content measure — the readable column width shared by the entry form and the reader, so a
+     single-line input (or a line of prose) never stretches the whole panel on a wide monitor.
+     `-wide` is the escape hatch for break-layout media (banner/map/gallery) that wants more room. */
+  --content-measure: 820px;
+  --content-measure-wide: 1120px;
+
   /* Radius & Shadows */
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -588,11 +594,6 @@ button.user-badge { cursor: pointer; }
 .editor-header { display: none; }
 .app-workspace.view-content-edit .editor-header { display: flex; }
 
-/* Raw JSON is an advanced escape hatch — its disclosure toggle shows only in the
-   per-type Structure editor (admin-only ground), never in the reader or global admin. */
-.advanced-json-toggle { display: none; }
-.app-workspace.view-content-admin .advanced-json-toggle { display: inline-flex; }
-
 /* Honor the hidden attribute even on flex/inline-flex controls (nav + toolbar buttons). */
 [hidden] {
   display: none !important;
@@ -896,6 +897,15 @@ button.user-badge { cursor: pointer; }
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
   margin-bottom: 8px;
+  /* Left-aligned readable column (see --content-measure). Break-layout media escapes wider below. */
+  max-width: var(--content-measure);
+}
+
+/* Media (banner/map/gallery/hero) escapes the text measure — its editors want the room.
+   `data-layout` is emitted by formRenderer from the registry, so this stays in step with fieldKinds.
+   Headings carry no data-layout, so their divider re-narrows to the text column and stays aligned. */
+.field-card[data-layout="break"] {
+  max-width: var(--content-measure-wide);
 }
 
 .field-card-head {
@@ -939,6 +949,12 @@ button.user-badge { cursor: pointer; }
 
 .field-card-body {
   padding: 0 12px 12px;
+}
+
+/* Controls fill their card — .form-control has no intrinsic width, so without this a text input or
+   prose textarea renders at the browser default (~180px) marooned in a full-width card. */
+.field-card-body .form-control {
+  width: 100%;
 }
 
 /* A heading is a divider, not a collapsible field — no head chrome, just its <h2>. */
@@ -1023,17 +1039,6 @@ select[multiple].form-control option {
   display: flex;
   padding: 14px 20px;
   background: rgba(0, 0, 0, 0.2);
-}
-
-/* Advanced JSON toggle — a monospace-flavored escape hatch; lit gold when disclosed. */
-.advanced-json-toggle {
-  font-family: var(--font-mono);
-  letter-spacing: 0.02em;
-}
-
-.advanced-json-toggle.active {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
 }
 
 .compliance-badge {
@@ -1129,6 +1134,9 @@ select[multiple].form-control option {
 /* Rendered reading-view styling */
 .reader-body {
   line-height: 1.7;
+  /* Same readable column as the entry form (see --content-measure) — prose shouldn't run the full
+     panel width on a wide monitor. Harmless in the Structure preview column, which is already narrower. */
+  max-width: var(--content-measure);
 }
 
 .reader-body h1 {

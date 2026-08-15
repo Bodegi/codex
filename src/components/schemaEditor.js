@@ -531,7 +531,7 @@ export function renderSchemaEditor(
           <button type="button" class="btn btn-secondary btn-sm" data-se="back">← Back</button>
         </div>
         <div class="se-toolbar-end">
-          <button type="button" class="btn btn-secondary btn-sm" data-se="preview" aria-pressed="${previewPressed}">Preview</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-se="preview" aria-pressed="${previewPressed}"${previewMode ? ' hidden' : ''}>Preview</button>
           <div class="se-menu">
             <button type="button" class="btn btn-secondary btn-sm se-menu-trigger" data-se-menu="trigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯<span class="se-label-wide"> More</span></button>
             <div class="se-menu-list hidden" data-se-menu="list" role="menu" aria-label="More type actions">
