@@ -81,12 +81,13 @@ const PATTERN_ORDER = [
   ['square_top_right', 'Top-Right Square'],
   ['square_bottom_left', 'Bottom-Left Square'],
   ['square_bottom_right', 'Bottom-Right Square'],
-  // Names describe the rendered shape, which reads left↔right opposite to Minecraft's own
-  // `diagonal_left/right` ids — matched to the textures by eye, not to the id wording.
-  ['diagonal_left', 'Lower-Right Diagonal'],
-  ['diagonal_right', 'Lower-Left Diagonal'],
-  ['diagonal_up_left', 'Upper-Right Diagonal'],
-  ['diagonal_up_right', 'Upper-Left Diagonal'],
+  // Names describe the filled (drawn) triangle, verified against the mask data by which corner is
+  // empty. Minecraft's ids are counterintuitive: left/right match the visual, but the `up_` prefix
+  // labels the LOWER triangle — so `diagonal_up_left` fills the lower-left. Don't "correct" these.
+  ['diagonal_left', 'Upper-Left Diagonal'],
+  ['diagonal_right', 'Upper-Right Diagonal'],
+  ['diagonal_up_left', 'Lower-Left Diagonal'],
+  ['diagonal_up_right', 'Lower-Right Diagonal'],
   ['straight_cross', 'Square Cross'],
   ['cross', 'Diagonal Cross (Saltire)'],
   ['triangle_bottom', 'Bottom Triangle (Chevron)'],
