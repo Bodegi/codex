@@ -458,7 +458,6 @@ const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebarBackdrop = document.getElementById('sidebar-backdrop');
 const editToggleBtn = document.getElementById('btn-edit-toggle');
 const structureBtn = document.getElementById('btn-structure');
-const exportCodexBtn = document.getElementById('btn-export-codex');
 const advancedJsonBtn = document.getElementById('btn-advanced-json');
 const saveEntryBtn = document.getElementById('btn-save-entry');
 const historyEntryBtn = document.getElementById('btn-history-entry');
@@ -1474,9 +1473,8 @@ function applyViewChrome() {
   // Structure is reachable from the index landing too, so an admin needn't drill into an entry first.
   structureBtn.hidden = !(canAdmin && (inTypeRead || inIndex || inStructure));
   structureBtn.textContent = inStructure ? 'Back' : 'Structure';
-  // Export the whole codex (#2): any reader may take a copy, so it rides the reader surface, not the
-  // edit/admin gate. Shown while reading (read or index), where the reader-actions bar is visible.
-  exportCodexBtn.hidden = !(state.caps.canRead && (inTypeRead || inIndex));
+  // Export (#2) is a whole-codex owner operation — it lives on the admin Codices panel now, not the
+  // reader header (see exportCurrentCodex / the Codices panel), so nothing to toggle here.
   const editingEntry = v.kind === 'type' && v.mode === 'edit';
   saveEntryBtn.hidden = !(canEdit && editingEntry);
   // The form's discard exit, distinct from Save (#29): a never-saved draft (no id) reads "Cancel";
@@ -1527,9 +1525,9 @@ editorTitle.addEventListener('click', onCrumbClick);
 
 // Export the current codex to a JSON file (#2): gather meta + effective schemas + all entries
 // (active and archived) from live state and hand the browser a download. Image bytes aren't
-// bundled — entries keep their references (see exportCodex.js).
-exportCodexBtn.addEventListener('click', () => {
-  if (!state.caps.canRead) return;
+// bundled — entries keep their references (see exportCodex.js). Lives on the admin Codices panel
+// (the current codex's row) — a whole-codex owner operation, not a per-view reader action.
+function exportCurrentCodex() {
   const meta = state.codices.find((c) => c.codexId === state.currentCodexId) || { codexId: state.currentCodexId };
   const entries = Object.values(state.entryIndex).flat();
   const exportedAt = new Date().toISOString();
@@ -1543,7 +1541,7 @@ exportCodexBtn.addEventListener('click', () => {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-});
+}
 
 doneEditBtn.addEventListener('click', async () => {
   if (!(await confirmDiscardIfDirty())) return;
@@ -1777,6 +1775,8 @@ function wireCodicesPanel() {
   formContainer.querySelectorAll('[data-codex-restore]').forEach((btn) => {
     btn.addEventListener('click', () => setCodexStatus(btn.dataset.codexRestore, 'active'));
   });
+  // Export only appears on the current codex's row (only its schemas + entries are in memory).
+  formContainer.querySelector('[data-codex-export]')?.addEventListener('click', exportCurrentCodex);
 }
 
 // ── Images admin panel (label / cross-assign / archive-restore) ──────────────

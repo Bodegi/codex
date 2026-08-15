@@ -153,7 +153,9 @@ export function renderAccessPanel({ codexName, codexId, rows = [], query = '' })
  * writes nothing until "Create codex" is pressed. `active`/`archived` are codex meta docs
  * ({ codexId, name }); `templateSources` are the active codices whose type structure a new codex
  * can copy; `currentCodexId` marks the open codex (which can't be archived out from under the
- * author until they switch away). The starter sentinel is main.js's `STARTER_TEMPLATE_ID`.
+ * author until they switch away). The starter sentinel is main.js's `STARTER_TEMPLATE_ID`. The
+ * open codex's row also carries Export (whole-codex JSON) — only its schemas + entries are in
+ * memory, so it's the current row alone.
  */
 export function renderCodicesPanel({ active = [], archived = [], templateSources = [], currentCodexId }) {
   const templateOptions = [
@@ -177,6 +179,7 @@ export function renderCodicesPanel({ active = [], archived = [], templateSources
         <code class="admin-muted">${escapeHtml(c.codexId)}</code>
         ${isCurrent ? '<span class="admin-badge">current</span>' : ''}
         <span class="codex-row-actions">
+          ${isCurrent ? `<button class="btn btn-secondary btn-sm" data-codex-export="${escapeHtml(c.codexId)}" title="Download this codex as a JSON file (schemas + entries; image files not included)">Export</button>` : ''}
           <button class="btn btn-secondary btn-sm" data-codex-rename="${escapeHtml(c.codexId)}" disabled>Rename</button>
           <button class="btn btn-secondary btn-sm" data-codex-archive="${escapeHtml(c.codexId)}"${isCurrent ? ' disabled' : ''}>Archive</button>
         </span>
