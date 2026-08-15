@@ -533,13 +533,13 @@ export function renderSchemaEditor(
         <div class="se-toolbar-end">
           <button type="button" class="btn btn-secondary btn-sm" data-se="preview" aria-pressed="${previewPressed}">Preview</button>
           <div class="se-menu">
-            <button type="button" class="btn btn-secondary btn-sm se-menu-trigger" data-se-menu="trigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯ More</button>
+            <button type="button" class="btn btn-secondary btn-sm se-menu-trigger" data-se-menu="trigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯<span class="se-label-wide"> More</span></button>
             <div class="se-menu-list hidden" data-se-menu="list" role="menu" aria-label="More type actions">
               <button type="button" class="se-menu-item se-menu-mono" role="menuitem" data-se="edit-json">&lt;/&gt; Edit JSON</button>
               ${savedMenuItems}
             </div>
           </div>
-          <button type="button" class="btn btn-primary btn-sm" data-se="save">Save type</button>
+          <button type="button" class="btn btn-primary btn-sm" data-se="save">Save<span class="se-label-wide"> type</span></button>
         </div>
       </div>
       ${errorBlock}

@@ -3127,7 +3127,8 @@ function renderSyncStatus() {
   // re-rendered on each editor rebuild, so this also repopulates it after a rebuild).
   for (const el of document.querySelectorAll('[data-sync-badge]')) {
     el.className = `compliance-badge${toneClass}`;
-    el.innerHTML = `<span class="${dotClass}"></span> ${label}`;
+    el.title = label; // full text stays available when the label is hidden on a narrow toolbar
+    el.innerHTML = `<span class="${dotClass}"></span> <span class="sync-label">${label}</span>`;
   }
 }
 

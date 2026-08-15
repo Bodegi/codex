@@ -3297,7 +3297,6 @@ mark.search-hit {
 /* Header hamburger + drawer scrim exist only in the mobile layout below. */
 .sidebar-toggle { display: none; }
 .sidebar-backdrop { display: none; }
-.admin-desktop-note { display: none; }
 
 @media (max-width: 860px) {
   .app-container { padding: 10px 12px; gap: 12px; }
@@ -3367,21 +3366,6 @@ mark.search-hit {
   .form-grid-full { grid-column: span 1; }
   .app-workspace.view-content-admin { grid-template-columns: 1fr; }
 
-  /* The schema editor's side-by-side form/preview is built for a wide viewport;
-     say so rather than let it read as broken. Shown only in the Structure view. */
-  .app-workspace.view-content-admin .admin-desktop-note {
-    display: block;
-    grid-column: 1 / -1;
-    margin-bottom: 12px;
-    padding: 8px 12px;
-    border: 1px solid var(--border-dim);
-    border-left: 3px solid var(--accent-gold);
-    border-radius: var(--radius-sm);
-    background: rgba(245, 158, 11, 0.08);
-    color: var(--text-muted);
-    font-size: 12px;
-  }
-
   .editor-panel { padding: 14px 16px; }
 
   /* Reader/editor toolbar: the desktop row (title + actions + sync badge) is too
@@ -3411,6 +3395,17 @@ mark.search-hit {
   /* Comfortable touch targets on the primary controls. */
   .btn { min-height: 40px; }
   .nav-item { min-height: 40px; }
+}
+
+/* Phone: keep the sticky Structure toolbar to a single row. Drop the wide-only label suffixes
+   ("Save type" → "Save", "⋯ More" → "⋯") and the sync badge's text (its dot + tooltip carry the
+   status), so Back · dot · Preview · ⋯ · Save fit one line instead of wrapping to two. */
+@media (max-width: 560px) {
+  .se-toolbar { gap: 8px; }
+  .se-toolbar-start,
+  .se-toolbar-end { gap: 8px; }
+  .se-label-wide { display: none; }
+  .se-toolbar [data-sync-badge] .sync-label { display: none; }
 }
 
 /* ── Banner designer + read view (fieldKinds `banner`) ───────────────────── */
