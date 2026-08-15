@@ -64,6 +64,8 @@ import {
   addField,
   removeField,
   updateField,
+  updateFieldLabel,
+  stripProvisional,
   updateFieldAssociation,
   updateSummaryCard,
   setTitleField,
@@ -166,6 +168,15 @@ const state = {
   editingType: '',
   workingSchema: null,
   editorErrors: [],
+  // Field cards in the Structure editor collapse to a header until opened; this holds the keys of the
+  // currently-expanded cards so the state survives the wholesale re-renders (add/remove/move/kind).
+  expandedFields: new Set(),
+  // The same for the content (entry) form's collapsible cards. Kept so a card stays open across the
+  // mid-edit re-renders hero/gallery trigger on image-pick; cleared when a fresh entry is opened.
+  expandedContentFields: new Set(),
+  // Whether the Structure-mode live preview pane is showing (hidden by default so the editor is
+  // full-width). Preview reveals it rendered; Edit JSON reveals it raw. Reset on each Structure entry.
+  structurePreview: null, // null = hidden, 'rendered' | 'raw' = shown in that mode
   // A brand-new type in flight: its id while the builder holds an in-memory draft that hasn't been
   // Saved. It lives only in the store overlay (never localStorage/Firestore) so an abandoned draft
   // leaves no orphan — mirrors the entry flow (blank draft, persist on Save). `typeDraftDirty` gates
@@ -438,7 +449,6 @@ const previewRawTextarea = document.getElementById('raw-json-textarea');
 const previewRawContainer = document.getElementById('preview-content-raw');
 const jsonErrorEl = document.getElementById('json-error');
 const toastContainer = document.getElementById('toast-container');
-const activeFileIndicator = document.getElementById('active-file-indicator');
 const userProfileBadge = document.getElementById('user-profile-badge');
 const gatewayContainer = document.getElementById('gateway-container');
 const mainWorkspace = document.getElementById('main-workspace');
@@ -1354,10 +1364,51 @@ advancedJsonBtn.addEventListener('click', () => {
   setPreviewMode(state.currentViewMode === 'raw' ? 'rendered' : 'raw');
 });
 
+// Content-form field cards collapse to their head (see formRenderer.js). One delegated toggle on the
+// persistent form container flips the body's `hidden` (AT skips a shut card) and records the open set
+// so a card survives the mid-edit re-renders hero/gallery trigger. The schema editor uses
+// `data-se-toggle`, so there's no cross-fire on this shared container.
+formContainer.addEventListener('click', (e) => {
+  const toggle = e.target.closest('[data-field-toggle]');
+  if (!toggle || !formContainer.contains(toggle)) return;
+  const card = toggle.closest('[data-field-card]');
+  const bodyEl = card?.querySelector('.field-card-body');
+  if (!bodyEl) return;
+  const open = bodyEl.hidden; // about to open
+  bodyEl.hidden = !open;
+  card.classList.toggle('is-open', open);
+  toggle.setAttribute('aria-expanded', String(open));
+  const caret = toggle.querySelector('.field-card-caret');
+  if (caret) caret.textContent = open ? '▾' : '▸';
+  const key = bodyEl.id.replace(/^fc-/, ''); // body id is `fc-<field.key>`
+  if (open) state.expandedContentFields.add(key);
+  else state.expandedContentFields.delete(key);
+});
+
 // Force the rendered pane (used on every surface entry/exit so the JSON hatch never
 // lingers open across navigations).
 function showRenderedPane() {
   setPreviewMode('rendered');
+}
+
+// Structure-mode preview pane (Part 1): hidden by default so the editor is full-width; Preview
+// reveals it rendered, Edit JSON reveals it raw. `preview-collapsed` on the workspace drops the
+// reader column (see main.css). The Preview toggle's aria-pressed is patched in place — a full
+// editor rebuild would be needless churn for a pane toggle.
+function reflectPreviewToggle() {
+  const btn = typesMountEl().querySelector('[data-se="preview"]');
+  if (btn) btn.setAttribute('aria-pressed', String(state.structurePreview === 'rendered'));
+}
+function showStructurePreview(mode) {
+  state.structurePreview = mode;
+  mainWorkspace.classList.remove('preview-collapsed');
+  setPreviewMode(mode);
+  reflectPreviewToggle();
+}
+function hideStructurePreview() {
+  state.structurePreview = null;
+  mainWorkspace.classList.add('preview-collapsed');
+  reflectPreviewToggle();
 }
 
 // The single renderer: render the content area + chrome to match state.view. Used on navigation,
@@ -1410,6 +1461,9 @@ function applyViewChrome() {
     : 'view-content-read';
   mainWorkspace.classList.remove('view-content-read', 'view-content-edit', 'view-content-admin', 'view-global-admin');
   mainWorkspace.classList.add(cls);
+  // `preview-collapsed` (Structure's full-width editor) only applies in admin mode; drop it elsewhere
+  // so a lingering class never affects another layout. enterSchemaAdmin re-adds it on entry.
+  if (v.mode !== 'admin') mainWorkspace.classList.remove('preview-collapsed');
 
   // Edit sits in the reader header (content read); Save + the discard exit live in the form header
   // (edit). Structure is a toggle: "Structure" to enter from reading, "Back" to leave — never a dead end.
@@ -1443,15 +1497,18 @@ editToggleBtn.addEventListener('click', () => {
   applyViewChrome();
 });
 
+// Leaving Structure ("Back", from the reader-header toggle or the editor toolbar): guard an unsaved
+// new-type draft before it's discarded, then return to the reader.
+async function exitStructure() {
+  if (!state.caps.canAdmin || state.view.kind !== 'type' || !state.view.type) return;
+  if (!(await confirmDiscardIfDirty())) return;
+  goto(toRead(state.view));
+}
+
 structureBtn.addEventListener('click', async () => {
   if (!state.caps.canAdmin || state.view.kind !== 'type' || !state.view.type) return;
-  if (inSchemaAdmin()) {
-    // Leaving Structure ("Back") — guard an unsaved new-type draft before it's discarded.
-    if (!(await confirmDiscardIfDirty())) return;
-    goto(toRead(state.view));
-  } else {
-    goto(toSchemaAdmin(state.view));
-  }
+  if (inSchemaAdmin()) return exitStructure();
+  goto(toSchemaAdmin(state.view));
 });
 
 // The header breadcrumb's parent segment (see setEntryCrumb): navigate up to the type's index. Same
@@ -1594,6 +1651,11 @@ function enterSchemaAdmin(type) {
   const schema = getSchema(type);
   readerTitle.textContent = (schema && schema.label) || type;
   editorTitle.textContent = readerTitle.textContent;
+  // The preview pane starts hidden (editor full-width); Preview / Edit JSON reveal it. Reset fresh
+  // each entry so it never lingers open across navigations. The reader pane is still primed to
+  // rendered mode so revealing it lands on the entry preview, not a stale raw view.
+  state.structurePreview = null;
+  mainWorkspace.classList.add('preview-collapsed');
   showRenderedPane();
   setEditingType(type); // renders the schema editor into #form-container + refreshes the preview
 }
@@ -2400,8 +2462,11 @@ function renderTypesEditor() {
     editingType: state.editingType,
     errors: state.editorErrors,
     isNewDraft: state.editingType === state.newTypeDraft,
+    expanded: state.expandedFields,
+    previewMode: state.structurePreview,
   });
   attachSchemaEditor(mount.querySelector('.schema-editor'), handleSchemaIntent);
+  renderSyncStatus(); // populate the toolbar's freshly-rendered sync badge
   refreshWorkingPreview();
 }
 
@@ -2433,7 +2498,8 @@ function refreshWorkingPreview() {
     renderCtx
   )}</div>`;
   updateRenderedPreview(entry + card);
-  updateRawJson(JSON.stringify(state.workingSchema, null, 2));
+  // The raw-JSON hatch shows the persist form — no in-editor `provisional` markers leak into it.
+  updateRawJson(JSON.stringify(stripProvisional(state.workingSchema), null, 2));
 }
 
 // Re-evaluate the validation banner ONLY when one is already showing (a save has been blocked). We
@@ -2460,6 +2526,24 @@ function handleSchemaIntent(intent) {
     case 'edit-label':
       state.workingSchema = { ...s, label: intent.label };
       return refreshWorkingPreview();
+    case 'edit-field-label': {
+      // A provisional field's key tracks its label. The edit is non-structural (no rebuild, to keep
+      // input focus), so when the key changes we patch the visible key chip in place and migrate the
+      // expansion set — both keyed off the old key that the rebuild would otherwise carry stale.
+      const prevKey = s.fields[intent.fi]?.key;
+      state.workingSchema = updateFieldLabel(s, intent.fi, intent.label);
+      const newKey = state.workingSchema.fields[intent.fi]?.key;
+      if (newKey && newKey !== prevKey) {
+        if (state.expandedFields.delete(prevKey)) state.expandedFields.add(newKey);
+        const card = typesMountEl().querySelector(`.se-field[data-fi="${intent.fi}"]`);
+        if (card) {
+          card.dataset.key = newKey; // keeps the collapse toggle's key in sync before any rebuild
+          const chip = card.querySelector('.se-key');
+          if (chip) chip.textContent = newKey;
+        }
+      }
+      return refreshWorkingPreview();
+    }
     case 'set-title-field':
       // Repointing the title field doesn't restructure the editor — refresh the preview only.
       state.workingSchema = setTitleField(s, intent.key);
@@ -2470,6 +2554,21 @@ function handleSchemaIntent(intent) {
       return confirmRevertType();
     case 'archive':
       return confirmArchiveType();
+    case 'back':
+      return exitStructure();
+    case 'preview':
+      // Toggle the on-demand rendered preview pane. Edit JSON owns the raw mode; if raw is open,
+      // Preview switches it to rendered rather than closing the pane.
+      return state.structurePreview === 'rendered' ? hideStructurePreview() : showStructurePreview('rendered');
+    case 'edit-json':
+      return state.structurePreview === 'raw' ? hideStructurePreview() : showStructurePreview('raw');
+    case 'toggle-field': {
+      // The card already flipped its own DOM (see attachSchemaEditor); just record the state so it
+      // survives the next wholesale rebuild. No re-render.
+      if (intent.expanded) state.expandedFields.add(intent.key);
+      else state.expandedFields.delete(intent.key);
+      return undefined;
+    }
     case 'add-field':
       return addFieldFromPalette();
     case 'remove-field':
@@ -2510,9 +2609,12 @@ async function addFieldFromPalette() {
   const s = state.workingSchema;
   // A heading's label is its rendered text, so seed a friendlier default than "New Field".
   const label = kind === 'heading' ? 'New Heading' : 'New Field';
-  const field = { key: deriveKey(label, allFieldKeys(s)), label, kind };
+  // `provisional`: no entry data lives under this key yet, so the key tracks the label until the type
+  // is next saved (updateFieldLabel) — the fix for the frozen `newField` chip. Stripped on save.
+  const field = { key: deriveKey(label, allFieldKeys(s)), label, kind, provisional: true };
   if (kind === 'select') field.options = [];
   state.workingSchema = addField(s, field);
+  state.expandedFields.add(field.key); // open the new card so its label/kind are ready to edit
   renderTypesEditor();
 }
 
@@ -2537,6 +2639,9 @@ function saveWorkingSchema() {
     return;
   }
   state.editorErrors = [];
+  // Save commits every provisional key: drop the markers so those keys stop tracking their labels
+  // (they now hold entry data) and never land in stored data.
+  state.workingSchema = stripProvisional(state.workingSchema);
   // This save is what persists a new-type draft for the first time; clear the marker so it stops
   // being treated as unsaved (and now shows in the nav like any other type).
   state.newTypeDraft = null;
@@ -2627,6 +2732,7 @@ function applySchemaRawJsonEdit() {
 function renderForm() {
   state.baseVersion = state.formData.version ?? 0;
   state.dirty = false;
+  state.expandedContentFields.clear(); // a freshly-opened entry starts with every card collapsed
   renderFormWithoutResubscribe();
 }
 
@@ -2636,7 +2742,7 @@ function renderForm() {
 function renderFormWithoutResubscribe() {
   setEntryCrumb(curType(), entryTitle(state.formData, curType()));
 
-  formContainer.innerHTML = renderSchemaForm(getSchema(curType()), state.formData, renderCtx);
+  formContainer.innerHTML = renderSchemaForm(getSchema(curType()), state.formData, renderCtx, state.expandedContentFields);
 
   attachFormInputListeners();
   wireComponentMounts();
@@ -3016,8 +3122,13 @@ previewRawTextarea.addEventListener('change', () => {
 function renderSyncStatus() {
   const configured = !!(state.fbManager && state.fbManager.isConfigured());
   const { label, dotClass, toneClass } = syncBadge({ configured, connection: state.connection });
-  activeFileIndicator.className = `compliance-badge${toneClass}`;
-  activeFileIndicator.innerHTML = `<span class="${dotClass}"></span> ${label}`;
+  // Two badges carry this: the reader-header's `#active-file-indicator` and the Structure toolbar's,
+  // both tagged `[data-sync-badge]`. Update every holder so they never drift (the toolbar one is
+  // re-rendered on each editor rebuild, so this also repopulates it after a rebuild).
+  for (const el of document.querySelectorAll('[data-sync-badge]')) {
+    el.className = `compliance-badge${toneClass}`;
+    el.innerHTML = `<span class="${dotClass}"></span> ${label}`;
+  }
 }
 
 function showToast(message) {

@@ -574,6 +574,11 @@ button.user-badge { cursor: pointer; }
    type preview (+ Raw JSON power tool) on the right. */
 .app-workspace.view-content-admin { grid-template-columns: 1fr 1fr; }
 
+/* Preview is on-demand (Part 1): by default the editor takes the full width and the preview pane is
+   dropped; the toolbar's Preview / Edit JSON reveal it (restoring the split). */
+.app-workspace.view-content-admin.preview-collapsed { grid-template-columns: 1fr; }
+.app-workspace.view-content-admin.preview-collapsed .reader-panel { display: none; }
+
 /* Global-admin (invites, roster, image/icon/emblem libraries) has nothing to preview — the panel
    body goes full-width and the reader/preview pane is dropped entirely. */
 .app-workspace.view-global-admin { grid-template-columns: 1fr; }
@@ -881,6 +886,69 @@ button.user-badge { cursor: pointer; }
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+/* Content-form field cards (Part 2): each field collapses to a head (label + value summary) over a
+   body holding its control, so a tall component (the banner designer above all) no longer forces a
+   scroll to reach the next field. Body is `hidden` when collapsed (AT skips it). */
+.field-card {
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  margin-bottom: 8px;
+}
+
+.field-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  cursor: pointer;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.field-card-caret {
+  color: var(--text-dim);
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+
+.field-card-label {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+
+.field-card-summary {
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.field-card-summary.is-empty {
+  color: var(--text-dim);
+}
+
+.field-card-body {
+  padding: 0 12px 12px;
+}
+
+/* A heading is a divider, not a collapsible field — no head chrome, just its <h2>. */
+.field-card--heading {
+  border: none;
+  background: transparent;
+  margin-bottom: 0;
+}
+.field-card--heading .form-heading {
+  margin-bottom: 0;
 }
 
 .form-control {
@@ -2134,10 +2202,35 @@ mark.search-hit {
   gap: 16px;
 }
 
-.se-head {
+/* Sticky action toolbar (Part 1): pinned to the top of the scrolling editor panel so every action
+   stays reachable on a deep type. Its own background hides content scrolling beneath it. */
+.se-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 0 12px;
+  margin: 0 0 4px;
+  background: var(--bg-panel, rgba(20, 20, 28, 0.98));
+  border-bottom: 1px solid var(--border-dim);
+}
+
+.se-toolbar-start,
+.se-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* The type-picker / name / title-field controls — the editing config, distinct from the actions. */
+.se-config {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -2150,9 +2243,46 @@ mark.search-hit {
   color: var(--text-muted);
 }
 
-.se-head-actions {
+/* Overflow "⋯ More" menu — the de-emphasised / destructive actions, mirroring the user menu. */
+.se-menu { position: relative; }
+.se-menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 168px;
+  background: var(--bg-panel, rgba(20, 20, 28, 0.98));
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-glass);
+  padding: 4px;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 2px;
+}
+.se-menu-list.hidden { display: none; }
+.se-menu-item {
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text-main);
+  font-size: 13px;
+  padding: 8px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.se-menu-item:hover { background: rgba(255, 255, 255, 0.06); }
+.se-menu-item.se-danger:hover { color: var(--accent-crimson); }
+.se-menu-mono { font-family: var(--font-mono); letter-spacing: 0.02em; }
+
+/* Visible focus rings for the custom (non-.btn) toggles introduced here — the keyboard path. */
+.se-card-toggle:focus-visible,
+.se-menu-item:focus-visible,
+.field-card-head:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
 }
 
 .se-errors {
@@ -2193,29 +2323,67 @@ mark.search-hit {
   color: var(--accent-gold);
 }
 
-/* Control strip: card chrome (grip + reorder + which-component + key/remove), set apart from the
-   content body by a divider so "controls" read distinctly from "content". */
+/* Card head: grip + a disclosure toggle (kind + label summary) + the key/reorder/remove controls.
+   The divider under the head only shows when the card is open, so a collapsed card reads as a tidy
+   single row rather than a header with a dangling rule. */
 .se-field-head {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.se-field.is-open .se-field-head {
   padding-bottom: 8px;
   margin-bottom: 10px;
   border-bottom: 1px solid var(--border-dim);
 }
 
-.se-reorder {
+/* The disclosure toggle: takes the row's free width so the whole label area is the click target.
+   It is its OWN button — the reorder/remove controls sit beside it (never nested). */
+.se-card-toggle {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  cursor: pointer;
+  padding: 4px 2px;
+  text-align: left;
+}
+
+.se-card-caret {
+  color: var(--text-dim);
+  font-size: 11px;
   flex: 0 0 auto;
+}
+
+.se-card-toggle .se-kind-icon .palette-icon {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
+.se-card-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.se-field[data-kind='heading'] .se-card-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--accent-gold);
 }
 
 .se-head-end {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 /* Icon-only reorder/remove buttons — compact chrome, but real focusable buttons (the keyboard/AT

@@ -140,6 +140,35 @@ export function updateField(schema, fieldIndex, patch) {
 }
 
 /**
+ * Set a field's label. A `provisional` field (freshly added, never saved — so no entry data
+ * lives under its key yet) also re-derives its key from the new label, so the key chip tracks
+ * "New Field" → "heraldry" instead of freezing at the placeholder-derived `newField` (see
+ * `addField` provisional marking in main.js). A saved field keeps its immutable key. `deriveKey`
+ * excludes the field's own current key so a no-op rename doesn't bump it to `label2`.
+ */
+export function updateFieldLabel(schema, fieldIndex, label) {
+  const next = clone(schema);
+  const field = next.fields[fieldIndex];
+  field.label = label;
+  if (field.provisional) {
+    const others = next.fields.filter((_, i) => i !== fieldIndex).map((f) => f.key);
+    field.key = deriveKey(label, others);
+  }
+  return next;
+}
+
+/**
+ * A clone with every `provisional` marker dropped — the persist form of a working schema.
+ * Provisional is an in-editor-only flag (a field's key still tracks its label); once saved the
+ * key is permanent, so it must never land in stored data.
+ */
+export function stripProvisional(schema) {
+  const next = clone(schema);
+  for (const f of next.fields || []) delete f.provisional;
+  return next;
+}
+
+/**
  * Merge a patch into a field's `association` config (the map kind).
  * Nested + merge-based so partial edits (mode alone, refType alone) compose without clobbering the
  * sibling key, which a plain `updateField({ association })` would.
@@ -242,7 +271,7 @@ function subField(id, labelText, controlHtml, helpText) {
     </div>`;
 }
 
-function fieldRow(field, fi, types) {
+function fieldRow(field, fi, types, expanded) {
   const at = `data-fi="${fi}"`;
   const id = (control) => `se-${escapeHtml(field.key)}-${control}`;
   // Second line holds only the controls relevant to this field's kind — each labelled + described.
@@ -311,24 +340,31 @@ function fieldRow(field, fi, types) {
   // A heading stores no entry data, so its storage key is meaningless to show; every other
   // component surfaces its fixed key. The label input doubles as the heading's rendered text.
   const keyChip = field.kind === 'heading' ? '' : `<code class="se-key" title="storage key (fixed)">${escapeHtml(field.key)}</code>`;
-  // Two zones on purpose: a control strip (grip + reorder + key/remove — pure positioning chrome)
-  // sits above the content the author writes, which opens with the component chip (which kind this
-  // is / change it), then the label, then per-kind settings. The reorder nudges are icon-only but
-  // keep aria-labels — they are the keyboard/AT path the aria-hidden drag handle can't be.
+  const def = fieldKinds[field.kind] || {};
+  const titlePreview = escapeHtml(field.label || (field.kind === 'heading' ? '(unnamed heading)' : '(unnamed field)'));
+  const bodyId = id('body');
+  // The card collapses to its head (grip + a disclosure toggle summarising kind + label, then key +
+  // reorder/remove) so a deep type isn't a wall of open editors. The toggle is its OWN button — the
+  // reorder/remove/drag controls sit beside it, never nested inside it (no button-in-button). The
+  // body is `hidden` (not just CSS-collapsed) when shut so AT skips it. Reorder nudges keep their
+  // aria-labels — they're the keyboard/AT path the aria-hidden drag handle can't be.
   return `
-    <div class="se-field" ${at} data-drop="field" data-kind="${escapeHtml(field.kind)}">
+    <div class="se-field${expanded ? ' is-open' : ''}" ${at} data-key="${escapeHtml(field.key)}" data-drop="field" data-kind="${escapeHtml(field.kind)}">
       <div class="se-field-head">
-        <span class="se-reorder">
-          <span class="se-drag" ${at} draggable="true" data-drag="field" title="Drag to reorder" aria-hidden="true">⠿</span>
-          <button type="button" class="se-nudge" data-se="field-up" ${at} title="Move up" aria-label="Move up">▲</button>
-          <button type="button" class="se-nudge" data-se="field-down" ${at} title="Move down" aria-label="Move down">▼</button>
-        </span>
+        <span class="se-drag" ${at} draggable="true" data-drag="field" title="Drag to reorder" aria-hidden="true">⠿</span>
+        <button type="button" class="se-card-toggle" data-se-toggle aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="${bodyId}">
+          <span class="se-card-caret" aria-hidden="true">${expanded ? '▾' : '▸'}</span>
+          <span class="se-kind-icon" aria-hidden="true">${def.icon || ''}</span>
+          <span class="se-card-title">${titlePreview}</span>
+        </button>
         <span class="se-head-end">
           ${keyChip}
+          <button type="button" class="se-nudge" data-se="field-up" ${at} title="Move up" aria-label="Move up">▲</button>
+          <button type="button" class="se-nudge" data-se="field-down" ${at} title="Move down" aria-label="Move down">▼</button>
           <button type="button" class="se-nudge se-danger se-remove" data-se="field-remove" ${at} title="Remove field" aria-label="Remove field">×</button>
         </span>
       </div>
-      <div class="se-field-body">
+      <div class="se-field-body" id="${bodyId}"${expanded ? '' : ' hidden'}>
         <div class="se-field-type">${kindChip(field, at)}</div>
         <input class="se-input se-label" data-se="field-label" ${at} value="${escapeHtml(field.label || '')}" placeholder="${field.kind === 'heading' ? 'Heading text' : 'Field label'}">
         <div class="se-field-extras">${extras.join('')}</div>
@@ -462,24 +498,52 @@ function summaryCardBlock(schema) {
 /**
  * Build the schema-editor markup for a working schema. `types` is the list from
  * listTypes() (for the type picker + reference targets); `errors` are validation
- * messages to surface after a blocked save.
+ * messages to surface after a blocked save. `expanded` is the Set of field keys whose cards are
+ * open; `previewMode` (null | 'rendered' | 'raw') reflects the live-preview pane so the Preview
+ * toggle reads correctly across rebuilds.
  */
-export function renderSchemaEditor(schema, { types, editingType, errors = [], isNewDraft = false }) {
+export function renderSchemaEditor(
+  schema,
+  { types, editingType, errors = [], isNewDraft = false, expanded = new Set(), previewMode = null }
+) {
   const errorBlock = errors.length
     ? `<div class="se-errors">${errors.map((e) => `<div>${escapeHtml(e)}</div>`).join('')}</div>`
     : '';
-  const fieldRows = flatFields(schema).map((f, fi) => fieldRow(f, fi, types)).join('');
+  const fieldRows = flatFields(schema).map((f, fi) => fieldRow(f, fi, types, expanded.has(f.key))).join('');
 
   // Revert/Archive act on a saved schema (a persisted base to fall back to, a status to flip). A
-  // brand-new draft has neither — it's discarded by leaving — so only Save shows for it.
-  const savedActions = isNewDraft
+  // brand-new draft has neither — it's discarded by leaving — so the overflow menu holds only the
+  // JSON hatch for it.
+  const savedMenuItems = isNewDraft
     ? ''
-    : `<button type="button" class="btn btn-secondary btn-sm" data-se="reset">Revert changes</button>
-          <button type="button" class="btn btn-secondary btn-sm se-danger" data-se="archive">Archive type</button>`;
+    : `<button type="button" class="se-menu-item" role="menuitem" data-se="reset">Revert changes</button>
+            <button type="button" class="se-menu-item se-danger" role="menuitem" data-se="archive">Archive type</button>`;
+  const previewPressed = previewMode === 'rendered' ? 'true' : 'false';
 
+  // The action toolbar is sticky (see main.css) so every action stays reachable on a deep type. It
+  // carries the primary Save + the on-demand Preview toggle + a live sync badge; the de-emphasised
+  // escape hatches (Edit JSON) and destructive actions (Revert/Archive) tuck into an overflow menu.
   return `
     <div class="schema-editor">
-      <div class="se-head">
+      <div class="se-toolbar">
+        <div class="se-toolbar-start">
+          <button type="button" class="btn btn-secondary btn-sm" data-se="back">← Back</button>
+          <span class="compliance-badge is-local" data-sync-badge></span>
+        </div>
+        <div class="se-toolbar-end">
+          <button type="button" class="btn btn-secondary btn-sm" data-se="preview" aria-pressed="${previewPressed}">Preview</button>
+          <div class="se-menu">
+            <button type="button" class="btn btn-secondary btn-sm se-menu-trigger" data-se-menu="trigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯ More</button>
+            <div class="se-menu-list hidden" data-se-menu="list" role="menu" aria-label="More type actions">
+              <button type="button" class="se-menu-item se-menu-mono" role="menuitem" data-se="edit-json">&lt;/&gt; Edit JSON</button>
+              ${savedMenuItems}
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" data-se="save">Save type</button>
+        </div>
+      </div>
+      ${errorBlock}
+      <div class="se-config">
         <label class="se-type-pick">Editing type
           <select class="se-input" data-se="type-picker">${typeOptions(types, editingType)}</select>
         </label>
@@ -489,12 +553,7 @@ export function renderSchemaEditor(schema, { types, editingType, errors = [], is
         <label class="se-type-name se-title-field">Title field
           <select class="se-input" data-se="title-field">${titleFieldOptions(textSourceFields(schema), schema.titleField)}</select>
         </label>
-        <span class="se-head-actions">
-          ${savedActions}
-          <button type="button" class="btn btn-primary btn-sm" data-se="save">Save type</button>
-        </span>
       </div>
-      ${errorBlock}
       ${summaryCardBlock(schema)}
       <div class="se-fields" data-drop-fields="0">${fieldRows}</div>
       <button type="button" class="se-btn se-add" data-se="field-add">+ add component</button>
@@ -507,6 +566,9 @@ const CLICK_INTENTS = {
   save: () => ({ action: 'save' }),
   reset: () => ({ action: 'reset' }),
   archive: () => ({ action: 'archive' }),
+  back: () => ({ action: 'back' }),
+  preview: () => ({ action: 'preview' }),
+  'edit-json': () => ({ action: 'edit-json' }),
   'field-add': () => ({ action: 'add-field' }),
   // The kind chip opens the palette; the caller runs it and applies the chosen component.
   'field-kind': (d) => ({ action: 'pick-kind', fi: +d.fi }),
@@ -522,13 +584,66 @@ const CLICK_INTENTS = {
  * there is nothing to detach.
  */
 export function attachSchemaEditor(root, onIntent) {
+  const menuList = () => root.querySelector('[data-se-menu="list"]');
+  const menuTrigger = () => root.querySelector('[data-se-menu="trigger"]');
+  const closeMenu = () => {
+    const list = menuList();
+    if (!list || list.classList.contains('hidden')) return;
+    list.classList.add('hidden');
+    menuTrigger()?.setAttribute('aria-expanded', 'false');
+  };
+
   root.addEventListener('click', (e) => {
+    // Overflow "⋯ More" menu: the trigger toggles the list (focus the first item on open); an item
+    // click flows through to its data-se intent below and closes the menu; a click anywhere else
+    // closes it. No document listener — the root is replaced each rebuild, so that would leak.
+    const trigger = e.target.closest('[data-se-menu="trigger"]');
+    if (trigger && root.contains(trigger)) {
+      e.preventDefault();
+      const list = menuList();
+      const open = list.classList.toggle('hidden') === false;
+      trigger.setAttribute('aria-expanded', String(open));
+      if (open) list.querySelector('[role="menuitem"]')?.focus();
+      return;
+    }
+
+    // Collapse toggle: a card's disclosure button flips its body's `hidden` (so AT skips a shut
+    // card) and reports the new state so the caller persists it across rebuilds.
+    const toggle = e.target.closest('[data-se-toggle]');
+    if (toggle && root.contains(toggle)) {
+      e.preventDefault();
+      const card = toggle.closest('.se-field');
+      const body = card.querySelector('.se-field-body');
+      const open = body.hidden; // about to open
+      body.hidden = !open;
+      card.classList.toggle('is-open', open);
+      toggle.setAttribute('aria-expanded', String(open));
+      const caret = card.querySelector('.se-card-caret');
+      if (caret) caret.textContent = open ? '▾' : '▸';
+      onIntent({ action: 'toggle-field', key: card.dataset.key, expanded: open });
+      return;
+    }
+
     const btn = e.target.closest('[data-se]');
-    if (!btn || !root.contains(btn)) return;
+    if (!btn || !root.contains(btn)) {
+      closeMenu(); // click outside any control dismisses an open menu
+      return;
+    }
     const make = CLICK_INTENTS[btn.dataset.se];
     if (!make) return;
     e.preventDefault();
+    if (btn.closest('[data-se-menu="list"]')) closeMenu(); // a menu action dismisses the menu
     onIntent(make(btn.dataset));
+  });
+
+  // Escape closes the overflow menu and returns focus to its trigger.
+  root.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const list = menuList();
+    if (list && !list.classList.contains('hidden')) {
+      closeMenu();
+      menuTrigger()?.focus();
+    }
   });
 
   // Live text edits — no structural change, so the caller should not rebuild the editor.
@@ -539,7 +654,8 @@ export function attachSchemaEditor(root, onIntent) {
       case 'type-label':
         return onIntent({ action: 'edit-label', label: el.value });
       case 'field-label':
-        return onIntent({ action: 'edit-field', fi: +d.fi, patch: { label: el.value } });
+        // A dedicated intent: a provisional field's key tracks its label (see updateFieldLabel).
+        return onIntent({ action: 'edit-field-label', fi: +d.fi, label: el.value });
       case 'field-placeholder':
         return onIntent({ action: 'edit-field', fi: +d.fi, patch: { placeholder: el.value } });
       case 'field-options':

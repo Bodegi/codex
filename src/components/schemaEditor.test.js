@@ -8,6 +8,8 @@ import {
   addField,
   removeField,
   updateField,
+  updateFieldLabel,
+  stripProvisional,
   updateFieldAssociation,
   updateSummaryCard,
   setTitleField,
@@ -69,6 +71,44 @@ test('updateField merges a patch but never changes the key', () => {
   assert.equal(field.label, 'Identifier');
   assert.equal(field.kind, 'prose');
   assert.equal(field.key, 'id'); // key is immutable
+});
+
+test('updateFieldLabel re-derives a provisional field key from the new label', () => {
+  const base = { fields: [{ key: 'newField', label: 'New Field', kind: 'banner', provisional: true }] };
+  const after = updateFieldLabel(base, 0, 'Heraldry');
+  assert.equal(after.fields[0].label, 'Heraldry');
+  assert.equal(after.fields[0].key, 'heraldry'); // key tracks the label while provisional
+  assert.equal(base.fields[0].key, 'newField'); // input untouched (pure)
+});
+
+test('updateFieldLabel leaves a saved field key immutable', () => {
+  const after = updateFieldLabel(schema(), 1, 'Full Name'); // "name" field, not provisional
+  assert.equal(after.fields[1].label, 'Full Name');
+  assert.equal(after.fields[1].key, 'name'); // key frozen — entry data lives under it
+});
+
+test('updateFieldLabel excludes the field own key so a rename does not self-collide', () => {
+  const base = { fields: [{ key: 'climate', label: 'Climate', kind: 'text', provisional: true }] };
+  // Re-typing the same label must not bump the key to "climate2".
+  assert.equal(updateFieldLabel(base, 0, 'Climate').fields[0].key, 'climate');
+});
+
+test('updateFieldLabel keeps a provisional key unique against its siblings', () => {
+  const base = {
+    fields: [
+      { key: 'name', label: 'Name', kind: 'text' },
+      { key: 'newField', label: 'New Field', kind: 'text', provisional: true },
+    ],
+  };
+  assert.equal(updateFieldLabel(base, 1, 'Name').fields[1].key, 'name2');
+});
+
+test('stripProvisional drops the marker without touching the rest', () => {
+  const base = { fields: [{ key: 'heraldry', label: 'Heraldry', kind: 'banner', provisional: true }] };
+  const clean = stripProvisional(base);
+  assert.equal('provisional' in clean.fields[0], false);
+  assert.equal(clean.fields[0].key, 'heraldry');
+  assert.equal(base.fields[0].provisional, true); // input untouched (pure)
 });
 
 test('updateFieldAssociation merges into association without clobbering siblings', () => {

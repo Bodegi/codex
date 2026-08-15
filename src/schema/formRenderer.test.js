@@ -19,39 +19,41 @@ const SCHEMA = {
   ],
 };
 
-test('renderForm renders a heading component as an <h2> divider in the form', () => {
+test('renderForm renders a heading component as an <h2> divider (uncollapsible card)', () => {
   const html = renderForm(SCHEMA, {});
-  assert.match(html, /<h2 class="form-heading">Imagery<\/h2>/);
+  assert.match(html, /field-card--heading[^>]*><h2 class="form-heading">Imagery<\/h2>/);
 });
 
-test('renderForm renders each field label and a control carrying its field-key', () => {
+test('renderForm wraps each value field in a collapsible card: head label + hidden body control', () => {
   const html = renderForm(SCHEMA, { name: 'Dwarves' });
-  assert.match(html, />Name</);
-  assert.match(html, /data-field-key="name"[^>]*value="Dwarves"/);
-  assert.match(html, /data-field-key="notes"/);
-  assert.match(html, /data-field-key="tags"/);
+  // The head carries the label + a disclosure toggle; the control lives in a hidden body.
+  assert.match(html, /class="field-card-label">Name</);
+  assert.match(html, /data-field-toggle aria-expanded="false"/);
+  assert.match(html, /<div class="field-card-body" id="fc-name" hidden><input[^>]*data-field-key="name"[^>]*value="Dwarves"/);
+  assert.match(html, /id="fc-notes" hidden/);
+  assert.match(html, /id="fc-tags" hidden/);
 });
 
-test('renderForm renders media fields inline as break blocks carrying their field-key', () => {
+test('renderForm shows a read-only value summary in a collapsed card head', () => {
+  const html = renderForm(SCHEMA, { name: 'Dwarves' });
+  assert.match(html, /class="field-card-summary">Dwarves</);
+  // An empty field summarises to a muted em dash.
+  assert.match(html, /class="field-card-summary is-empty">—</);
+});
+
+test('renderForm renders media fields as cards carrying their field-key', () => {
   const html = renderForm(SCHEMA, {});
   assert.match(html, /data-field-key="heroImage"/);
   assert.match(html, /data-media="hero-pick"/);
+  assert.match(html, /id="fc-heroImage" hidden/); // collapsed by default
 });
 
-test('renderForm emits break components (heading, hero) outside the .form-grid', () => {
-  // The grid of text/prose/list fields closes before the heading; the heading and the hero that
-  // follow it stand on their own, not wrapped in a grid cell.
-  const html = renderForm(SCHEMA, {});
-  assert.match(html, /<\/div><h2 class="form-heading">Imagery<\/h2>/);
-  const afterHeading = html.slice(html.indexOf('>Imagery<'));
-  assert.doesNotMatch(afterHeading, /form-grid/);
-});
-
-test('renderForm gives prose/list the full-width grid cell', () => {
-  const html = renderForm(SCHEMA, {});
-  assert.match(html, /class="form-group form-grid-full"><label>Notes</);
-  assert.match(html, /class="form-group form-grid-full"><label>Tags</);
-  assert.match(html, /class="form-group"><label>Name</); // text stays a plain grid cell
+test('renderForm opens the cards named in the expanded set', () => {
+  const html = renderForm(SCHEMA, { name: 'Dwarves' }, undefined, new Set(['name']));
+  // The open card's body is not hidden and its toggle reads expanded.
+  assert.match(html, /<div class="field-card-body" id="fc-name"><input/);
+  assert.match(html, /data-field-toggle aria-expanded="true"/);
+  assert.match(html, /id="fc-notes" hidden/); // the rest stay collapsed
 });
 
 test('renderForm shows a placeholder for an unknown field kind', () => {
