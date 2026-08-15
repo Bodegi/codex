@@ -3397,15 +3397,18 @@ mark.search-hit {
   .nav-item { min-height: 40px; }
 }
 
-/* Phone: keep the sticky Structure toolbar to a single row. Drop the wide-only label suffixes
-   ("Save type" → "Save", "⋯ More" → "⋯") and the sync badge's text (its dot + tooltip carry the
-   status), so Back · dot · Preview · ⋯ · Save fit one line instead of wrapping to two. */
+/* Phone: keep header action rows tight. Collapse the sync badge to its status dot (its tooltip
+   carries the full text) so the reader/editor header stays title + one actions row, and the sticky
+   Structure toolbar stays a single row. Also drop the wide-only label suffixes ("Save type" →
+   "Save", "⋯ More" → "⋯"). A *warning* state (connection lost / access changed) keeps its text —
+   that one is worth an extra row. */
 @media (max-width: 560px) {
   .se-toolbar { gap: 8px; }
   .se-toolbar-start,
   .se-toolbar-end { gap: 8px; }
   .se-label-wide { display: none; }
-  .se-toolbar [data-sync-badge] .sync-label { display: none; }
+  [data-sync-badge] .sync-label { display: none; }
+  [data-sync-badge].is-stale .sync-label { display: inline; }
 }
 
 /* ── Banner designer + read view (fieldKinds `banner`) ───────────────────── */
