@@ -1134,8 +1134,21 @@ select[multiple].form-control option {
 /* Rendered reading-view styling */
 .reader-body {
   line-height: 1.7;
-  /* Same readable column as the entry form (see --content-measure) — prose shouldn't run the full
-     panel width on a wide monitor. Harmless in the Structure preview column, which is already narrower. */
+  /* Media (hero/gallery/map/banner — all direct children) fills this wider bound; the text flow below
+     re-narrows to the readable measure. Mirrors the entry form, where break-layout cards escape wider
+     than the fields. Harmless in the Structure preview column, which is already narrower than either. */
+  max-width: var(--content-measure-wide);
+}
+
+/* The text flow stays at the readable measure; media is the escape (see .reader-body above). Read-view
+   values are all block-wrapped direct children (<p>/<ul>/<h2>/<h3>), so a child selector suffices. */
+.reader-body > h1,
+.reader-body > h2,
+.reader-body > h3,
+.reader-body > p,
+.reader-body > ul,
+.reader-body > ol,
+.reader-body > blockquote {
   max-width: var(--content-measure);
 }
 
