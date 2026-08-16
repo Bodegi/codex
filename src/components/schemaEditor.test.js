@@ -103,6 +103,39 @@ test('updateFieldLabel keeps a provisional key unique against its siblings', () 
   assert.equal(updateFieldLabel(base, 1, 'Name').fields[1].key, 'name2');
 });
 
+test('updateFieldLabel migrates summary-card pointers when a provisional key changes (#38)', () => {
+  const base = {
+    fields: [
+      { key: 'name', label: 'Name', kind: 'text' },
+      { key: 'newField', label: 'New Field', kind: 'select', multi: true, provisional: true },
+    ],
+    summaryCard: {
+      title: 'newField',
+      subtitle: 'newField',
+      emblem: 'newField',
+      badges: ['newField', 'name'],
+      rows: [{ label: 'New Field', key: 'newField' }],
+    },
+  };
+  const after = updateFieldLabel(base, 1, 'Categories');
+  const key = after.fields[1].key;
+  assert.equal(key, 'categories');
+  assert.equal(after.summaryCard.title, key);
+  assert.equal(after.summaryCard.subtitle, key);
+  assert.equal(after.summaryCard.emblem, key);
+  assert.deepEqual(after.summaryCard.badges, [key, 'name']);
+  assert.deepEqual(after.summaryCard.rows, [{ label: 'New Field', key }]);
+  assert.equal(base.summaryCard.subtitle, 'newField'); // input not mutated
+});
+
+test('updateFieldLabel leaves summary pointers alone for a saved (non-provisional) field', () => {
+  const base = {
+    fields: [{ key: 'name', label: 'Name', kind: 'text' }],
+    summaryCard: { subtitle: 'name' },
+  };
+  assert.equal(updateFieldLabel(base, 0, 'Full Name').summaryCard.subtitle, 'name');
+});
+
 test('stripProvisional drops the marker without touching the rest', () => {
   const base = { fields: [{ key: 'heraldry', label: 'Heraldry', kind: 'banner', provisional: true }] };
   const clean = stripProvisional(base);

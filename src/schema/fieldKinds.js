@@ -336,8 +336,8 @@ export const fieldKinds = {
   },
 
   hero: {
-    title: 'Banner image',
-    description: 'A single large image shown at the top of the entry.',
+    title: 'Hero',
+    description: 'A single large hero image spanning the top of the entry.',
     icon: ICONS.hero,
     layout: 'break',
     renderInput(field, value, ctx) {

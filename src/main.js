@@ -68,6 +68,7 @@ import {
   stripProvisional,
   updateFieldAssociation,
   updateSummaryCard,
+  summaryCardBlock,
   setTitleField,
   repointTitleField,
   moveField,
@@ -2542,6 +2543,12 @@ function handleSchemaIntent(intent) {
           const chip = card.querySelector('.se-key');
           if (chip) chip.textContent = newKey;
         }
+        // The summary-card selectors label their options and carry their selections by field key,
+        // so a rename leaves them stale until a rebuild. Re-render just that block in place (its
+        // handlers are delegated off the editor root, and the focused label input lives elsewhere,
+        // so neither breaks) — the pointer migration in updateFieldLabel keeps the picks intact.
+        const summary = typesMountEl().querySelector('.se-summary');
+        if (summary) summary.outerHTML = summaryCardBlock(state.workingSchema);
       }
       return refreshWorkingPreview();
     }

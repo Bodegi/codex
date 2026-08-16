@@ -53,6 +53,10 @@ function badgeValues(field, value, ctx) {
     return toList(value).map(resolve).filter((s) => String(s).trim() !== '');
   }
   if (field.kind === 'list') return toList(value);
+  // A multi-select is a badge too: one chip per chosen option. The card always renders badges as
+  // chips — the field's list/tags/inline display toggle governs the full entry read view, not the
+  // compact card (issue #39).
+  if (field.kind === 'select' && field.multi) return toList(value).filter((s) => String(s).trim() !== '');
   // Any other kind contributes a single chip from its display string, when non-empty.
   const single = displayValue(field, value, ctx);
   return single != null && String(single).trim() !== '' ? [String(single)] : [];

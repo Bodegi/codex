@@ -82,6 +82,21 @@ test('reference badges resolve to the target label via ctx.resolveRef', () => {
   assert.match(html, /<span class="summary-badge">Boreal<\/span>/);
 });
 
+test('a multi-select badge renders one chip per chosen option (#39)', () => {
+  const schema = {
+    type: 't',
+    titleField: 'name',
+    summaryCard: { badges: ['cats'] },
+    fields: [
+      { key: 'name', label: 'Name', kind: 'text' },
+      { key: 'cats', label: 'Categories', kind: 'select', multi: true, options: ['Power', 'Magic'] },
+    ],
+  };
+  const html = renderSummaryCard(schema, { id: 'x', name: 'X', cats: ['Power', 'Magic'] }, {});
+  const chips = [...html.matchAll(/<span class="summary-badge">([^<]+)<\/span>/g)].map((m) => m[1]);
+  assert.deepEqual(chips, ['Power', 'Magic']);
+});
+
 test('rows render as labelled value pairs, and empty ones collapse', () => {
   const html = renderSummaryCard(SCHEMA, ENTRY, ctx);
   assert.match(html, /summary-row-label">Exports<\/span><span class="summary-row-value">Glass</);

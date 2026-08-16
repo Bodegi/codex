@@ -27,6 +27,10 @@ const PLACEHOLDER_KINDS = new Set(['text', 'prose', 'list', 'number']);
 /** Summary-card badge fields become chips (multi-value kinds); row fields become labelled scalars. */
 const BADGE_KINDS = new Set(['list', 'reference']);
 const ROW_KINDS = new Set(['text', 'prose', 'number', 'date', 'select', 'boolean']);
+// A multi-value `select` is multi-value → a badge (chips), not a row; its single-value sibling
+// stays a scalar row (issue #39).
+const isBadgeField = (f) => BADGE_KINDS.has(f.kind) || (f.kind === 'select' && !!f.multi);
+const isRowField = (f) => ROW_KINDS.has(f.kind) && !(f.kind === 'select' && f.multi);
 /** The card's visual slot: kinds the registry can render as an emblem (hero image, banner). */
 const EMBLEM_KINDS = new Set(emblemKinds());
 
@@ -149,12 +153,26 @@ export function updateField(schema, fieldIndex, patch) {
 export function updateFieldLabel(schema, fieldIndex, label) {
   const next = clone(schema);
   const field = next.fields[fieldIndex];
+  const prevKey = field.key;
   field.label = label;
   if (field.provisional) {
     const others = next.fields.filter((_, i) => i !== fieldIndex).map((f) => f.key);
     field.key = deriveKey(label, others);
+    if (field.key !== prevKey && next.summaryCard) migrateSummaryKey(next.summaryCard, prevKey, field.key);
   }
   return next;
+}
+
+// A provisional field's key tracks its label, so a rename changes the key its summary-card config
+// points at. Follow the rename across every summary reference — title/subtitle/emblem are single
+// keys, badges are keys, rows are {label, key} — so the pointer never dangles and Save can't
+// silently drop the selection (issue #38).
+function migrateSummaryKey(card, oldKey, newKey) {
+  for (const slot of ['title', 'subtitle', 'emblem']) {
+    if (card[slot] === oldKey) card[slot] = newKey;
+  }
+  if (Array.isArray(card.badges)) card.badges = card.badges.map((k) => (k === oldKey ? newKey : k));
+  if (Array.isArray(card.rows)) card.rows = card.rows.map((r) => (r.key === oldKey ? { ...r, key: newKey } : r));
 }
 
 /**
@@ -488,13 +506,13 @@ function summaryComposeList(fields, selectedKeys, seType) {
  * browsed as an index (summaryCard.js). Title/subtitle are single-field picks; badges
  * (list/reference) and rows (text/prose) are multi-select checkbox groups.
  */
-function summaryCardBlock(schema) {
+export function summaryCardBlock(schema) {
   const card = schema.summaryCard || {};
   const fields = contentFields(schema);
   const textFields = textSourceFields(schema); // single-value title/subtitle picks only
   const emblemFields = fields.filter((f) => EMBLEM_KINDS.has(f.kind));
-  const badgeFields = fields.filter((f) => BADGE_KINDS.has(f.kind));
-  const rowFields = fields.filter((f) => ROW_KINDS.has(f.kind));
+  const badgeFields = fields.filter(isBadgeField);
+  const rowFields = fields.filter(isRowField);
   const rowKeys = (card.rows || []).map((r) => r.key);
   // The emblem pick only appears once the type has an emblem-capable field (a banner or hero) to
   // point at — no slot for a type that can't fill it.
