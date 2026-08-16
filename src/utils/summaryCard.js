@@ -30,6 +30,16 @@ import { getSchema } from '../schema/schemaStore.js';
 import { toList, displayValue, renderEmblem } from '../schema/fieldKinds.js';
 import { escapeHtml } from '../schema/inlineText.js';
 
+// Summary-card slot eligibility — the single source of truth, shared with the Structure editor's
+// compose lists (schemaEditor.js imports these). Multi-value kinds are chips (badges); scalars are
+// labelled rows. A multi-select is a badge, not a row; its single-value sibling stays a scalar row
+// (issue #39). Null-safe so a since-removed field (or one that changed slot) is skipped, not drawn —
+// the renderer guards on these, so a stale card.rows / card.badges entry can't paint a ghost slot.
+const BADGE_KINDS = new Set(['list', 'reference']);
+const ROW_KINDS = new Set(['text', 'prose', 'number', 'date', 'select', 'boolean']);
+export const isBadgeField = (f) => !!f && (BADGE_KINDS.has(f.kind) || (f.kind === 'select' && !!f.multi));
+export const isRowField = (f) => !!f && ROW_KINDS.has(f.kind) && !(f.kind === 'select' && f.multi);
+
 /** Key → field map over the flat field list (fields are keyed uniquely per type). */
 function fieldMap(schema) {
   const map = new Map();
@@ -90,13 +100,16 @@ export function renderSummaryCard(schema, entry, ctx) {
 
   let badges = '';
   const chips = (card.badges || [])
-    .flatMap((key) => badgeValues(fields.get(key), d[key], ctx))
+    .flatMap((key) => (isBadgeField(fields.get(key)) ? badgeValues(fields.get(key), d[key], ctx) : []))
     .map((v) => `<span class="summary-badge">${escapeHtml(v)}</span>`);
   if (chips.length) badges = `<div class="summary-card-badges">${chips.join('')}</div>`;
 
   let rows = '';
   const rowHtml = (card.rows || [])
     .map(({ label, key }) => {
+      // Skip a slot the field no longer belongs in — e.g. a select that later became multi-value is
+      // now a badge, leaving a stale card.rows entry the config no longer shows (issue #39, the 2x).
+      if (!isRowField(fields.get(key))) return '';
       const value = display(fields, key, d, ctx);
       if (value.trim() === '') return '';
       return `<div class="summary-card-row"><span class="summary-row-label">${escapeHtml(

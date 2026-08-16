@@ -1239,12 +1239,17 @@ select[multiple].form-control option {
   color: var(--text-main);
 }
 
-.reader-body ul, .reader-body ol {
+/* Bulleted/numbered lists indent for their markers; the pill list (.field-tags) is markerless and
+   must sit flush with its field label, so it opts out of the indent + the per-item spacing. */
+.reader-body ul:not(.field-tags), .reader-body ol {
   padding-left: 20px;
   margin-bottom: 14px;
 }
+.reader-body ul.field-tags {
+  margin-bottom: 14px;
+}
 
-.reader-body li {
+.reader-body li:not(.field-tag) {
   margin-bottom: 4px;
 }
 

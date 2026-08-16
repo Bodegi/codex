@@ -19,18 +19,14 @@
 
 import { escapeHtml } from '../schema/inlineText.js';
 import { fieldKinds, emblemKinds } from '../schema/fieldKinds.js';
+import { isBadgeField, isRowField } from '../utils/summaryCard.js';
 import { newId } from '../utils/id.js';
 
 /** Kinds that take a free-text placeholder (media/reference/select/date/boolean don't). */
 const PLACEHOLDER_KINDS = new Set(['text', 'prose', 'list', 'number']);
 
-/** Summary-card badge fields become chips (multi-value kinds); row fields become labelled scalars. */
-const BADGE_KINDS = new Set(['list', 'reference']);
-const ROW_KINDS = new Set(['text', 'prose', 'number', 'date', 'select', 'boolean']);
-// A multi-value `select` is multi-value → a badge (chips), not a row; its single-value sibling
-// stays a scalar row (issue #39).
-const isBadgeField = (f) => BADGE_KINDS.has(f.kind) || (f.kind === 'select' && !!f.multi);
-const isRowField = (f) => ROW_KINDS.has(f.kind) && !(f.kind === 'select' && f.multi);
+// Summary-card badge (chips) vs row (labelled scalar) eligibility lives in summaryCard.js — the one
+// source of truth the renderer also guards on. The compose lists below filter by the same predicates.
 /** The card's visual slot: kinds the registry can render as an emblem (hero image, banner). */
 const EMBLEM_KINDS = new Set(emblemKinds());
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { renderSummaryCard, renderTypeIndex } from './summaryCard.js';
+import { renderSummaryCard, renderTypeIndex, isBadgeField, isRowField } from './summaryCard.js';
 import { loadCodex } from '../schema/schemaStore.js';
 import { demoSchemas } from '../data/demoFixture.js';
 
@@ -95,6 +95,31 @@ test('a multi-select badge renders one chip per chosen option (#39)', () => {
   const html = renderSummaryCard(schema, { id: 'x', name: 'X', cats: ['Power', 'Magic'] }, {});
   const chips = [...html.matchAll(/<span class="summary-badge">([^<]+)<\/span>/g)].map((m) => m[1]);
   assert.deepEqual(chips, ['Power', 'Magic']);
+});
+
+test('slot eligibility: multi-select is a badge not a row; single-select the reverse; null-safe', () => {
+  assert.equal(isBadgeField({ kind: 'select', multi: true }), true);
+  assert.equal(isRowField({ kind: 'select', multi: true }), false);
+  assert.equal(isBadgeField({ kind: 'select' }), false);
+  assert.equal(isRowField({ kind: 'select' }), true);
+  assert.equal(isBadgeField(undefined), false);
+  assert.equal(isRowField(undefined), false);
+});
+
+test('a stale card.rows entry for a now-multi-select field is not drawn twice (#39 / 2x)', () => {
+  const schema = {
+    type: 't',
+    titleField: 'name',
+    // Categories is a badge, but a leftover rows entry from when it was a scalar select still points at it.
+    summaryCard: { badges: ['cats'], rows: [{ label: 'Categories', key: 'cats' }] },
+    fields: [
+      { key: 'name', label: 'Name', kind: 'text' },
+      { key: 'cats', label: 'Categories', kind: 'select', multi: true, options: ['Power'] },
+    ],
+  };
+  const html = renderSummaryCard(schema, { id: 'x', name: 'X', cats: ['Power'] }, {});
+  assert.match(html, /<span class="summary-badge">Power<\/span>/); // drawn as a badge
+  assert.doesNotMatch(html, /summary-card-row/); // and NOT also as a labelled row
 });
 
 test('rows render as labelled value pairs, and empty ones collapse', () => {
