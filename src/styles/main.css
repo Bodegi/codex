@@ -1013,12 +1013,51 @@ select[multiple].form-control option {
 }
 .field-tag {
   font-size: 12px;
+  line-height: 1.5;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--border-dim);
   padding: 2px 10px;
   border-radius: 12px;
 }
 .field-tag a { text-decoration: none; }
+
+/* Click-to-toggle multi-value input (multi-select / multi-reference). A selected option highlights
+   like the active sidebar-nav item — the gold inset bar + elevated ground (issue #43). */
+.toggle-select {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.toggle-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.toggle-option:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+}
+.toggle-option.is-selected {
+  color: #fff;
+  background: var(--bg-surface-elevated);
+  box-shadow: inset 3px 0 0 var(--accent-gold);
+}
+.toggle-unavailable { color: var(--text-muted); font-weight: 400; }
+.toggle-empty { color: var(--text-muted); font-size: 13px; }
 
 /* Reader / preview panel */
 .reader-panel {

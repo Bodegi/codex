@@ -497,25 +497,39 @@ function refLink(targetType, id, ctx) {
 }
 
 /**
- * Multi-value select input — a native <select multiple> over the field's own options. Any stored
- * value no longer in the option list is carried as a selected "(unavailable)" option so it survives
- * edit → save, mirroring the single-value control and the reference control's dangling-id handling.
+ * A click-to-toggle multi-value control (shared by multi-select and multi-reference). Each option is
+ * a row that highlights like the active sidebar-nav item when selected; a plain click toggles it —
+ * no ctrl/cmd-click, which the native <select multiple> made confusing (issue #43). The form harvest
+ * reads it by click delegation (main.js), not the input scrape, so the root carries `data-field-key`
+ * but no `data-field-kind`. `entries`: [{ value, label, selected, unavailable? }].
+ */
+function toggleSelectInput(field, entries) {
+  const rows = entries
+    .map((e) => {
+      const tail = e.unavailable ? ' <span class="toggle-unavailable">(unavailable)</span>' : '';
+      return `<button type="button" class="toggle-option${e.selected ? ' is-selected' : ''}" role="option" aria-selected="${e.selected ? 'true' : 'false'}" data-value="${escapeHtml(e.value)}">${escapeHtml(e.label)}${tail}</button>`;
+    })
+    .join('');
+  const body = rows || '<span class="toggle-empty">No options defined.</span>';
+  return `<div class="toggle-select" data-field-key="${field.key}" data-multi="true" role="listbox" aria-multiselectable="true"${field.label ? ` aria-label="${escapeHtml(field.label)}"` : ''}>${body}</div>`;
+}
+
+/**
+ * Multi-value select input — the toggle control over the field's own options. A stored value no
+ * longer in the option list is carried as a selected "(unavailable)" row so it survives edit → save,
+ * mirroring the single-value control's dangling-value handling.
  */
 function selectMultiInput(field, value) {
   const opts = toList(field.options);
   const current = toList(value);
   const known = new Set(opts);
   const selected = new Set(current);
-  const options = [];
+  const entries = [];
   for (const v of current) {
-    if (known.has(v)) continue;
-    options.push(`<option value="${escapeHtml(v)}" selected>${escapeHtml(v)} (unavailable)</option>`);
+    if (!known.has(v)) entries.push({ value: v, label: v, selected: true, unavailable: true });
   }
-  options.push(
-    ...opts.map((o) => `<option value="${escapeHtml(o)}"${selected.has(o) ? ' selected' : ''}>${escapeHtml(o)}</option>`)
-  );
-  const size = Math.min(Math.max(options.length, 3), 8);
-  return `<select multiple size="${size}" class="form-control" data-field-key="${field.key}" data-field-kind="select" data-multi="true">${options.join('')}</select>`;
+  for (const o of opts) entries.push({ value: o, label: o, selected: selected.has(o) });
+  return toggleSelectInput(field, entries);
 }
 
 /**
@@ -528,25 +542,23 @@ function selectMultiInput(field, value) {
 function referenceMultiInput(field, value, ctx) {
   const target = field.targetType || '';
   const current = toList(value);
-  const entries = ctx?.listEntries ? ctx.listEntries(target) : null;
-  if (!entries) {
+  const list = ctx?.listEntries ? ctx.listEntries(target) : null;
+  if (!list) {
+    // No entry index available — keep the ids editable in a plain text input (never lost). This
+    // scrape-read fallback keeps its data-field-kind so main.js reads it via readFieldValue.
     return `<input type="text" class="form-control" data-field-key="${field.key}" data-field-kind="reference" data-multi="true" value="${escapeHtml(current.join(', '))}" placeholder="comma-separated ids">`;
   }
-  const known = new Set(entries.map((e) => e.id));
+  const known = new Set(list.map((e) => e.id));
   const selected = new Set(current);
-  const options = [];
+  const entries = [];
   for (const id of current) {
-    if (known.has(id)) continue;
-    const label = ctx?.resolveRef ? ctx.resolveRef(target, id).label : id;
-    options.push(`<option value="${escapeHtml(id)}" selected>${escapeHtml(label)} (unavailable)</option>`);
+    if (!known.has(id)) {
+      const label = ctx?.resolveRef ? ctx.resolveRef(target, id).label : id;
+      entries.push({ value: id, label, selected: true, unavailable: true });
+    }
   }
-  options.push(
-    ...entries.map(
-      (e) => `<option value="${escapeHtml(e.id)}"${selected.has(e.id) ? ' selected' : ''}>${escapeHtml(e.label)}</option>`
-    )
-  );
-  const size = Math.min(Math.max(options.length, 3), 8);
-  return `<select multiple size="${size}" class="form-control" data-field-key="${field.key}" data-field-kind="reference" data-multi="true" data-ref-target="${escapeHtml(target)}">${options.join('')}</select>`;
+  for (const e of list) entries.push({ value: e.id, label: e.label, selected: selected.has(e.id) });
+  return toggleSelectInput(field, entries);
 }
 
 /** Multi-value reference read view — resolved target links through the shared display toggle. */

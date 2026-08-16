@@ -148,7 +148,7 @@ test('reference renderRead with no value renders a muted None', () => {
 
 // --- reference (multi) ---
 
-test('multi reference renderInput builds a <select multiple> with stored ids selected', () => {
+test('multi reference renderInput builds a toggle control with stored ids selected', () => {
   const ctx = {
     listEntries: () => [
       { id: 'dwarves', label: 'Dwarves' },
@@ -161,11 +161,12 @@ test('multi reference renderInput builds a <select multiple> with stored ids sel
     ['dwarves', 'orcs'],
     ctx
   );
-  assert.match(html, /<select multiple/);
+  assert.match(html, /class="toggle-select"/);
   assert.match(html, /data-multi="true"/);
-  assert.match(html, /<option value="dwarves" selected>Dwarves<\/option>/);
-  assert.match(html, /<option value="orcs" selected>Orcs<\/option>/);
-  assert.match(html, /<option value="elves">Elves<\/option>/);
+  assert.doesNotMatch(html, /data-field-kind/); // read by click delegation, not the input scrape
+  assert.match(html, /class="toggle-option is-selected"[^>]*data-value="dwarves"[^>]*>Dwarves<\/button>/);
+  assert.match(html, /class="toggle-option is-selected"[^>]*data-value="orcs"[^>]*>Orcs<\/button>/);
+  assert.match(html, /class="toggle-option"[^>]*data-value="elves"[^>]*>Elves<\/button>/);
 });
 
 test('multi reference renderInput accepts a legacy comma string and preserves dangling ids', () => {
@@ -178,9 +179,9 @@ test('multi reference renderInput accepts a legacy comma string and preserves da
     'dwarves, orcs',
     ctx
   );
-  assert.match(html, /<option value="dwarves" selected>dwarves \(unavailable\)<\/option>/);
-  assert.match(html, /<option value="orcs" selected>orcs \(unavailable\)<\/option>/);
-  assert.match(html, /<option value="elves">Elves<\/option>/);
+  assert.match(html, /class="toggle-option is-selected"[^>]*data-value="dwarves"[^>]*>dwarves <span class="toggle-unavailable">\(unavailable\)<\/span>/);
+  assert.match(html, /class="toggle-option is-selected"[^>]*data-value="orcs"[^>]*>orcs <span class="toggle-unavailable">/);
+  assert.match(html, /class="toggle-option"[^>]*data-value="elves"[^>]*>Elves<\/button>/);
 });
 
 test('multi reference renderInput without ctx falls back to a comma text input carrying the ids', () => {
@@ -296,17 +297,17 @@ test('select renderRead shows the chosen value; empty renders a muted placeholde
 
 // --- select (multi) ---
 
-test('multi select renderInput is a <select multiple> over field.options with stored values selected', () => {
+test('multi select renderInput is a toggle control over field.options with stored values selected', () => {
   const html = fieldKinds.select.renderInput(
     { key: 'cats', kind: 'select', multi: true, options: ['Power', 'Magic', 'Storage'] },
     ['Power', 'Magic']
   );
-  assert.match(html, /<select multiple/);
-  assert.match(html, /data-field-kind="select"/);
+  assert.match(html, /class="toggle-select"/);
   assert.match(html, /data-multi="true"/);
-  assert.match(html, /<option value="Power" selected>Power<\/option>/);
-  assert.match(html, /<option value="Magic" selected>Magic<\/option>/);
-  assert.match(html, /<option value="Storage">Storage<\/option>/);
+  assert.doesNotMatch(html, /data-field-kind/); // read by click delegation, not the input scrape
+  assert.match(html, /class="toggle-option is-selected"[^>]*data-value="Power"[^>]*>Power<\/button>/);
+  assert.match(html, /class="toggle-option is-selected"[^>]*data-value="Magic"[^>]*>Magic<\/button>/);
+  assert.match(html, /class="toggle-option"[^>]*data-value="Storage"[^>]*>Storage<\/button>/);
 });
 
 test('multi select renderInput carries a stored value no longer in the options as (unavailable)', () => {
@@ -314,8 +315,8 @@ test('multi select renderInput carries a stored value no longer in the options a
     { key: 'cats', kind: 'select', multi: true, options: ['Power'] },
     ['Power', 'Ritual']
   );
-  assert.match(html, /<option value="Ritual" selected>Ritual \(unavailable\)<\/option>/);
-  assert.match(html, /<option value="Power" selected>Power<\/option>/);
+  assert.match(html, /class="toggle-option is-selected"[^>]*data-value="Ritual"[^>]*>Ritual <span class="toggle-unavailable">\(unavailable\)<\/span>/);
+  assert.match(html, /class="toggle-option is-selected"[^>]*data-value="Power"[^>]*>Power<\/button>/);
 });
 
 test('multi select renderRead defaults to a bulleted list and honors display modes', () => {

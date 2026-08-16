@@ -2797,6 +2797,25 @@ function attachFormInputListeners() {
     input.addEventListener('input', sync);
     input.addEventListener('change', sync);
   });
+  // The click-to-toggle multi-value control (multi-select / multi-reference) reports by click, not
+  // the scrape above — its root has data-field-key but no data-field-kind. Fresh nodes each render,
+  // so attaching here (like the scrape) never stacks listeners.
+  formContainer.querySelectorAll('.toggle-select').forEach((ctrl) => {
+    ctrl.addEventListener('click', (e) => {
+      const opt = e.target.closest('.toggle-option');
+      if (!opt || !ctrl.contains(opt)) return;
+      const now = opt.getAttribute('aria-selected') !== 'true';
+      opt.setAttribute('aria-selected', String(now));
+      opt.classList.toggle('is-selected', now);
+      const key = ctrl.dataset.fieldKey;
+      state.formData[key] = [...ctrl.querySelectorAll('.toggle-option')]
+        .filter((b) => b.getAttribute('aria-selected') === 'true')
+        .map((b) => b.dataset.value);
+      setEntryCrumb(curType(), entryTitle(state.formData, curType()));
+      state.dirty = true;
+      refreshBuilderPreview();
+    });
+  });
 }
 
 // The mount-time context: renderCtx (image/reference resolution) plus the picker seam every
