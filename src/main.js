@@ -2588,6 +2588,10 @@ function handleSchemaIntent(intent) {
     case 'edit-field':
       state.workingSchema = updateField(s, intent.fi, intent.patch);
       return refreshWorkingPreview();
+    case 'edit-field-structural':
+      // A multi toggle adds/removes the dependent "Display as" control — rebuild the editor DOM.
+      state.workingSchema = updateField(s, intent.fi, intent.patch);
+      return renderTypesEditor();
     case 'edit-association':
       // A mode change toggles whether the target picker shows — rebuild the editor (structural).
       state.workingSchema = updateFieldAssociation(s, intent.fi, intent.patch);
@@ -2751,13 +2755,13 @@ function renderFormWithoutResubscribe() {
 }
 
 // Read a form control back into its stored value shape: list → array (one per line);
-// multi-value reference → array of ids (selected <option>s, or comma-split for the
-// no-index text fallback); everything else → the raw string.
+// multi-value reference/select → array of values (selected <option>s, or comma-split for the
+// reference no-index text fallback); everything else → the raw string.
 function readFieldValue(el) {
   const kind = el.dataset.fieldKind;
   if (kind === 'boolean') return el.checked;
   if (kind === 'list') return el.value.split('\n').map((s) => s.trim()).filter(Boolean);
-  if (kind === 'reference' && el.dataset.multi) {
+  if ((kind === 'reference' || kind === 'select') && el.dataset.multi) {
     return el.multiple
       ? [...el.selectedOptions].map((o) => o.value).filter(Boolean)
       : el.value.split(',').map((s) => s.trim()).filter(Boolean);

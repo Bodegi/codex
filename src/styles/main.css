@@ -999,10 +999,26 @@ select[multiple].form-control option {
   border-radius: var(--radius-sm);
 }
 
-/* Multi-value reference read view — comma-separated target links. */
-.ref-list {
+/* Array-value read views (list / multi-select / multi-reference), driven by the `display` toggle. */
+.field-inline { /* inline: comma-separated flowing text */
   margin: 0;
 }
+.field-tags { /* tags: neutral pills */
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.field-tag {
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-dim);
+  padding: 2px 10px;
+  border-radius: 12px;
+}
+.field-tag a { text-decoration: none; }
 
 /* Reader / preview panel */
 .reader-panel {

@@ -271,6 +271,36 @@ function subField(id, labelText, controlHtml, helpText) {
     </div>`;
 }
 
+// The "Allow multiple" toggle — shared by select and reference. Checking it re-renders the row
+// (field-multi is structural) so the dependent "Display as" control appears/disappears.
+function multiCheckbox(field, id, at, helpText) {
+  return `
+    <div class="se-sub-field se-sub-field-check">
+      <label class="se-meta"><input type="checkbox" id="${id('multi')}" aria-describedby="${id('multi')}-help" data-se="field-multi" ${at}${field.multi ? ' checked' : ''}> Allow multiple</label>
+      <span class="se-sub-help" id="${id('multi')}-help">${escapeHtml(helpText)}</span>
+    </div>`;
+}
+
+// How several values read in the entry view — shown for any array-valued field (list, or a
+// multi select/reference). Mirrors fieldKinds' `displayMode`: default 'list'.
+const DISPLAY_MODES = [
+  ['list', 'Bulleted list'],
+  ['tags', 'Tags'],
+  ['inline', 'Inline text'],
+];
+function displayControl(field, id, at) {
+  const mode = ['list', 'tags', 'inline'].includes(field.display) ? field.display : 'list';
+  const opts = DISPLAY_MODES.map(
+    ([v, label]) => `<option value="${v}"${v === mode ? ' selected' : ''}>${label}</option>`
+  ).join('');
+  return subField(
+    id('display'),
+    'Display as',
+    `<select id="${id('display')}" aria-describedby="${id('display')}-help" class="se-input se-sub" data-se="field-display" ${at}>${opts}</select>`,
+    'How several values read in the entry: a bulleted list, pills, or inline text.'
+  );
+}
+
 function fieldRow(field, fi, types, expanded) {
   const at = `data-fi="${fi}"`;
   const id = (control) => `se-${escapeHtml(field.key)}-${control}`;
@@ -296,6 +326,11 @@ function fieldRow(field, fi, types, expanded) {
         'The fixed choices an author picks from — one per line.'
       )
     );
+    extras.push(multiCheckbox(field, id, at, 'Let an author pick several options instead of just one.'));
+    if (field.multi) extras.push(displayControl(field, id, at));
+  }
+  if (field.kind === 'list') {
+    extras.push(displayControl(field, id, at));
   }
   if (field.kind === 'reference') {
     extras.push(
@@ -306,11 +341,8 @@ function fieldRow(field, fi, types, expanded) {
         'The type whose entries this field can point to.'
       )
     );
-    extras.push(`
-      <div class="se-sub-field se-sub-field-check">
-        <label class="se-meta"><input type="checkbox" id="${id('multi')}" aria-describedby="${id('multi')}-help" data-se="field-multi" ${at}${field.multi ? ' checked' : ''}> Allow multiple</label>
-        <span class="se-sub-help" id="${id('multi')}-help">Let one entry link to several targets instead of just one.</span>
-      </div>`);
+    extras.push(multiCheckbox(field, id, at, 'Let one entry link to several targets instead of just one.'));
+    if (field.multi) extras.push(displayControl(field, id, at));
   }
   if (field.kind === 'map') {
     // Per-field association config: how a marker links to an entry. The
@@ -686,7 +718,11 @@ export function attachSchemaEditor(root, onIntent) {
       case 'field-assoc-target':
         return onIntent({ action: 'edit-association', fi: +d.fi, patch: { refType: el.value } });
       case 'field-multi':
-        return onIntent({ action: 'edit-field', fi: +d.fi, patch: { multi: el.checked } });
+        // Structural: toggling multi adds/removes the dependent "Display as" control, so the row
+        // must rebuild (like field-assoc-mode), not just refresh the preview.
+        return onIntent({ action: 'edit-field-structural', fi: +d.fi, patch: { multi: el.checked } });
+      case 'field-display':
+        return onIntent({ action: 'edit-field', fi: +d.fi, patch: { display: el.value } });
       case 'summary-title':
         return onIntent({ action: 'edit-summary', patch: { title: el.value } });
       case 'summary-subtitle':

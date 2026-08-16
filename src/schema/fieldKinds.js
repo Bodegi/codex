@@ -87,6 +87,27 @@ export function toList(value) {
     .filter(Boolean);
 }
 
+/** A field's array-value display mode: 'list' (default) | 'tags' | 'inline'. */
+function displayMode(field) {
+  return field.display === 'tags' || field.display === 'inline' ? field.display : 'list';
+}
+
+/**
+ * The one read-view body for every array-valued component (list, multi-select, multi-reference),
+ * so the `display` toggle renders identically across all of them. `cells` are already-safe HTML
+ * fragments (escaped text, or a resolved reference link); each caller handles its own empty case
+ * before calling. 'list' reproduces the historical bulleted `<ul>` exactly (default, no regression).
+ */
+function renderMultiValues(cells, mode) {
+  if (mode === 'tags') {
+    return `<ul class="field-tags">${cells.map((c) => `<li class="field-tag">${c}</li>`).join('')}</ul>`;
+  }
+  if (mode === 'inline') {
+    return `<p class="field-inline">${cells.join(', ')}</p>`;
+  }
+  return `<ul>${cells.map((c) => `<li>${c}</li>`).join('')}</ul>`;
+}
+
 /** A resolved image thumb, or the not-found placeholder when the id can't resolve. */
 function thumb(id, resolveImage) {
   const url = resolveImage ? resolveImage(id) : null;
@@ -192,8 +213,10 @@ export const fieldKinds = {
     // Options live on `field.options` (an array of strings; the editor authors them one-per-line).
     // A stored value not in the current option list is carried as a selected "(unavailable)" option
     // so a since-removed choice survives edit → save rather than being silently wiped — mirroring
-    // the reference control's handling of a dangling id.
+    // the reference control's handling of a dangling id. `field.multi` switches single-choice to
+    // multi-choice, exactly as it does for reference; the read view then honors the display toggle.
     renderInput(field, value, _ctx) {
+      if (field.multi) return selectMultiInput(field, value);
       const opts = toList(field.options);
       const current = value == null ? '' : String(value);
       const options = ['<option value="">— none —</option>'];
@@ -205,12 +228,21 @@ export const fieldKinds = {
       );
       return `<select class="form-control" data-field-key="${field.key}" data-field-kind="select">${options.join('')}</select>`;
     },
-    renderRead(_field, value, _ctx) {
+    renderRead(field, value, _ctx) {
+      if (field.multi) {
+        const items = toList(value);
+        if (items.length === 0) return MUTED_EMPTY;
+        return renderMultiValues(items.map((i) => escapeHtml(i)), displayMode(field));
+      }
       if (value == null || String(value).trim() === '') return MUTED_EMPTY;
       return `<p>${escapeHtml(value)}</p>`;
     },
-    // The label reads as a plausible chosen value in the schematic layout preview.
-    sampleValue: (field) => toList(field.options)[0] || field.label,
+    // The option(s) read as a plausible chosen value in the schematic layout preview.
+    sampleValue: (field) => {
+      const opts = toList(field.options);
+      if (field.multi) return opts.slice(0, 2).length ? opts.slice(0, 2) : [field.label];
+      return opts[0] || field.label;
+    },
   },
 
   boolean: {
@@ -237,10 +269,10 @@ export const fieldKinds = {
     renderInput(field, value, _ctx) {
       return `<textarea class="form-control" data-field-key="${field.key}" data-field-kind="list" rows="3" placeholder="One per line">${escapeHtml(toList(value).join('\n'))}</textarea>`;
     },
-    renderRead(_field, value, _ctx) {
+    renderRead(field, value, _ctx) {
       const items = toList(value);
       if (items.length === 0) return MUTED_EMPTY;
-      return `<ul>${items.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}</ul>`;
+      return renderMultiValues(items.map((i) => escapeHtml(i)), displayMode(field));
     },
     sampleValue: (field) => field.label,
   },
@@ -465,6 +497,28 @@ function refLink(targetType, id, ctx) {
 }
 
 /**
+ * Multi-value select input — a native <select multiple> over the field's own options. Any stored
+ * value no longer in the option list is carried as a selected "(unavailable)" option so it survives
+ * edit → save, mirroring the single-value control and the reference control's dangling-id handling.
+ */
+function selectMultiInput(field, value) {
+  const opts = toList(field.options);
+  const current = toList(value);
+  const known = new Set(opts);
+  const selected = new Set(current);
+  const options = [];
+  for (const v of current) {
+    if (known.has(v)) continue;
+    options.push(`<option value="${escapeHtml(v)}" selected>${escapeHtml(v)} (unavailable)</option>`);
+  }
+  options.push(
+    ...opts.map((o) => `<option value="${escapeHtml(o)}"${selected.has(o) ? ' selected' : ''}>${escapeHtml(o)}</option>`)
+  );
+  const size = Math.min(Math.max(options.length, 3), 8);
+  return `<select multiple size="${size}" class="form-control" data-field-key="${field.key}" data-field-kind="select" data-multi="true">${options.join('')}</select>`;
+}
+
+/**
  * Multi-value reference input — a native <select multiple> over the target type's
  * entries. Any stored id no longer in the entry list (deleted/archived, or the type
  * has no entries yet) is carried as a selected "(unavailable)" option so it survives
@@ -495,11 +549,11 @@ function referenceMultiInput(field, value, ctx) {
   return `<select multiple size="${size}" class="form-control" data-field-key="${field.key}" data-field-kind="reference" data-multi="true" data-ref-target="${escapeHtml(target)}">${options.join('')}</select>`;
 }
 
-/** Multi-value reference read view — the resolved targets as a comma-separated link list. */
+/** Multi-value reference read view — resolved target links through the shared display toggle. */
 function referenceMultiRead(field, value, ctx) {
   const ids = toList(value);
   if (ids.length === 0) return '<span class="muted">None</span>';
-  return `<p class="ref-list">${ids.map((id) => refLink(field.targetType, id, ctx)).join(', ')}</p>`;
+  return renderMultiValues(ids.map((id) => refLink(field.targetType, id, ctx)), displayMode(field));
 }
 
 /** The registry entry for a kind, or null for unknown kinds. */
@@ -533,6 +587,7 @@ export function displayValue(field, value, ctx) {
   if (field.kind === 'banner') return ''; // structured heraldry, not text (like map — never String(value))
   if (field.kind === 'boolean') return value === true || value === 'true' ? 'Yes' : 'No';
   if (field.kind === 'list') return toList(value).join(', ');
+  if (field.kind === 'select' && field.multi) return toList(value).join(', ');
   if (field.kind === 'reference') {
     const resolve = (id) => (ctx?.resolveRef ? ctx.resolveRef(field.targetType, id).label : id);
     if (field.multi) return toList(value).map(resolve).join(', ');

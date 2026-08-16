@@ -73,6 +73,15 @@ test('list renderRead renders a <ul> of items; empty renders a muted placeholder
   assert.match(fieldKinds.list.renderRead({ key: 'e' }, []), /class="muted"/);
 });
 
+test('list renderRead honors the display toggle (tags / inline), escaping items', () => {
+  assert.equal(
+    fieldKinds.list.renderRead({ key: 'e', display: 'tags' }, ['a', 'b']),
+    '<ul class="field-tags"><li class="field-tag">a</li><li class="field-tag">b</li></ul>'
+  );
+  assert.equal(fieldKinds.list.renderRead({ key: 'e', display: 'inline' }, ['a', 'b']), '<p class="field-inline">a, b</p>');
+  assert.match(fieldKinds.list.renderRead({ key: 'e', display: 'tags' }, ['<x>']), /&lt;x&gt;/);
+});
+
 // --- reference ---
 
 test('reference renderInput builds a select from ctx.listEntries with the current value selected', () => {
@@ -184,7 +193,7 @@ test('multi reference renderInput without ctx falls back to a comma text input c
   assert.match(html, /value="dwarves, orcs"/);
 });
 
-test('multi reference renderRead links each resolvable target and mutes missing ones', () => {
+test('multi reference renderRead links each resolvable target and mutes missing ones (default list)', () => {
   const ctx = {
     resolveRef: (_type, id) =>
       id === 'ghosts' ? { label: id, exists: false } : { label: id[0].toUpperCase() + id.slice(1), exists: true },
@@ -196,7 +205,25 @@ test('multi reference renderRead links each resolvable target and mutes missing 
   );
   assert.match(html, /<a [^>]*data-ref-id="dwarves"[^>]*>Dwarves<\/a>/);
   assert.match(html, /<span class="muted-ref"[^>]*>ghosts<\/span>/);
-  assert.match(html, /Dwarves<\/a>, <span/); // comma-separated
+  assert.match(html, /^<ul><li>/); // default display is a bulleted list
+});
+
+test('multi reference renderRead honors display: inline (comma) and tags (pills)', () => {
+  const ctx = { resolveRef: (_t, id) => ({ label: id[0].toUpperCase() + id.slice(1), exists: true }) };
+  const inline = fieldKinds.reference.renderRead(
+    { targetType: 'civilization', multi: true, display: 'inline' },
+    ['dwarves', 'orcs'],
+    ctx
+  );
+  assert.match(inline, /class="field-inline"/);
+  assert.match(inline, /Dwarves<\/a>, <a/); // comma-separated
+  const tags = fieldKinds.reference.renderRead(
+    { targetType: 'civilization', multi: true, display: 'tags' },
+    ['dwarves', 'orcs'],
+    ctx
+  );
+  assert.match(tags, /class="field-tags"/);
+  assert.match(tags, /<li class="field-tag"><a/);
 });
 
 test('multi reference renderRead with no ids renders a muted None', () => {
@@ -265,6 +292,43 @@ test('select renderInput preserves a stored value no longer in the option list',
 test('select renderRead shows the chosen value; empty renders a muted placeholder', () => {
   assert.match(fieldKinds.select.renderRead({ key: 'tier' }, 'Gold'), /<p>Gold<\/p>/);
   assert.match(fieldKinds.select.renderRead({ key: 'tier' }, ''), /class="muted"/);
+});
+
+// --- select (multi) ---
+
+test('multi select renderInput is a <select multiple> over field.options with stored values selected', () => {
+  const html = fieldKinds.select.renderInput(
+    { key: 'cats', kind: 'select', multi: true, options: ['Power', 'Magic', 'Storage'] },
+    ['Power', 'Magic']
+  );
+  assert.match(html, /<select multiple/);
+  assert.match(html, /data-field-kind="select"/);
+  assert.match(html, /data-multi="true"/);
+  assert.match(html, /<option value="Power" selected>Power<\/option>/);
+  assert.match(html, /<option value="Magic" selected>Magic<\/option>/);
+  assert.match(html, /<option value="Storage">Storage<\/option>/);
+});
+
+test('multi select renderInput carries a stored value no longer in the options as (unavailable)', () => {
+  const html = fieldKinds.select.renderInput(
+    { key: 'cats', kind: 'select', multi: true, options: ['Power'] },
+    ['Power', 'Ritual']
+  );
+  assert.match(html, /<option value="Ritual" selected>Ritual \(unavailable\)<\/option>/);
+  assert.match(html, /<option value="Power" selected>Power<\/option>/);
+});
+
+test('multi select renderRead defaults to a bulleted list and honors display modes', () => {
+  const field = { key: 'cats', kind: 'select', multi: true };
+  assert.equal(fieldKinds.select.renderRead(field, ['Power', 'Magic']), '<ul><li>Power</li><li>Magic</li></ul>');
+  assert.match(fieldKinds.select.renderRead({ ...field, display: 'tags' }, ['Power']), /<li class="field-tag">Power<\/li>/);
+  assert.match(fieldKinds.select.renderRead({ ...field, display: 'inline' }, ['Power', 'Magic']), /class="field-inline">Power, Magic</);
+  assert.match(fieldKinds.select.renderRead(field, []), /class="muted"/);
+});
+
+test('multi select sampleValue is an array so the layout preview renders through the multi path', () => {
+  assert.deepEqual(sampleValue({ kind: 'select', multi: true, options: ['A', 'B', 'C'], label: 'Cats' }), ['A', 'B']);
+  assert.deepEqual(sampleValue({ kind: 'select', multi: true, options: [], label: 'Cats' }), ['Cats']);
 });
 
 // --- boolean ---

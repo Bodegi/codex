@@ -8,10 +8,11 @@
  */
 
 const ARRAY_KINDS = new Set(['list', 'gallery']);
+const MULTI_KINDS = new Set(['reference', 'select']);
 
-/** Whether a field's empty value is an array (list/gallery, or a multi-value reference). */
+/** Whether a field's empty value is an array (list/gallery, or a multi-value reference/select). */
 function isArrayField(field) {
-  return ARRAY_KINDS.has(field.kind) || (field.kind === 'reference' && !!field.multi);
+  return ARRAY_KINDS.has(field.kind) || (MULTI_KINDS.has(field.kind) && !!field.multi);
 }
 
 /** An empty, active entry shaped by `schema` — ready to bind to the form. */
