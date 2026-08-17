@@ -108,7 +108,10 @@ service cloud.firestore {
         allow update: if canWriteEntry()
           && request.resource.data.version is int
           && request.resource.data.version == (('version' in resource.data ? resource.data.version : 0) + 1);
-        allow delete: if canWriteEntry();
+        // Soft-delete is the archive `status` flag (an editor `update`, restorable). A real document
+        // delete is an admin break-glass beside it (CodexScope.deleteEntry) — permanent, no restore —
+        // so hard delete is admin-only. Mirrors capabilities.canAdmin on the UI side.
+        allow delete: if isAdmin();
 
         // Per-entry recovery ring. Each save copies the version it writes here (doc id == that
         // version), atomic with the live write, so a bad "overwrite mine" — or an out-of-band

@@ -462,6 +462,7 @@ const closePreviewBtn = document.getElementById('btn-close-preview');
 const saveEntryBtn = document.getElementById('btn-save-entry');
 const historyEntryBtn = document.getElementById('btn-history-entry');
 const archiveEntryBtn = document.getElementById('btn-archive-entry');
+const deleteEntryBtn = document.getElementById('btn-delete-entry');
 const doneEditBtn = document.getElementById('btn-done-edit');
 const readerTitle = document.getElementById('reader-title');
 const editorTitle = document.getElementById('editor-title');
@@ -1485,6 +1486,9 @@ function applyViewChrome() {
   doneEditBtn.textContent = state.formData.id ? 'Back' : 'Cancel';
   // Archive only makes sense for an already-saved entry (a brand-new draft has no id yet).
   archiveEntryBtn.hidden = !(canEdit && editingEntry && !!state.formData.id);
+  // Permanent delete is the admin break-glass beside Archive: admin-only (not just editor), and only
+  // for an already-saved entry. Mirrors the isAdmin() gate on the entry `delete` rule.
+  deleteEntryBtn.hidden = !(state.caps.canAdmin && editingEntry && !!state.formData.id);
   // History is a cloud-only recovery surface (local-only entries reset on reload — nothing to ring),
   // and only a saved entry has a ring.
   const cloudEntry = !!(codexScope() && codexScope().isConfigured());
@@ -1562,6 +1566,7 @@ doneEditBtn.addEventListener('click', async () => {
 saveEntryBtn.addEventListener('click', () => saveEntry());
 historyEntryBtn.addEventListener('click', () => openEntryHistory());
 archiveEntryBtn.addEventListener('click', () => archiveCurrentEntry());
+deleteEntryBtn.addEventListener('click', () => deleteCurrentEntry());
 
 // ── Sidebar search box ───────────────────────────────────────────────────────
 // Debounced: the first non-empty keystroke transitions into the search view (full re-render for the
@@ -3006,6 +3011,50 @@ async function archiveCurrentEntry() {
     confirmLabel: 'Archive',
   });
   if (ok) setEntryStatus(curType(), state.formData.id, 'archived');
+}
+
+// Permanently delete an entry (admin break-glass). Unlike archive, there's no status flag and no
+// history to restore from — the entry and its ring are gone for good. Configured mode goes through
+// CodexScope.deleteEntry (rules gate on isAdmin); local-only drops it from the in-memory index.
+// After deleting the open entry, selects another active one — mirroring archive's navigation.
+function deleteEntryPermanently(type, id) {
+  if (!state.caps.canAdmin) return;
+  const entry = findEntryByTypeId(type, id);
+  if (!entry) return;
+  const scope = codexScope();
+  if (scope && scope.isConfigured()) {
+    scope.deleteEntry(type, id).catch((err) => showToast('Delete error: ' + err.message));
+  } else {
+    const list = state.entryIndex[type];
+    if (list) state.entryIndex[type] = list.filter((e) => e.id !== id);
+  }
+  if (state.formData.id === id && curType() === type) {
+    const remaining = activeEntries(state.entryIndex, type, entryLabel).filter((e) => e.id !== id);
+    state.formData = remaining[0] ? { ...remaining[0] } : { type };
+    state.view = normalize(toRead(state.view), viewCtx());
+    renderForm();
+  }
+  renderTypeNav();
+  applyViewChrome();
+  highlightNav();
+  showToast('Deleted entry permanently');
+}
+
+// Permanently delete the entry open in the editor (header Delete button, admin-only). Irreversible —
+// so the confirm spells that out and surfaces the same dependents warning as archive (the refs go
+// dangling for good, not just hidden).
+async function deleteCurrentEntry() {
+  if (!state.caps.canAdmin || !state.formData.id) return;
+  const type = curType();
+  const id = state.formData.id;
+  const warning = dependentsWarning(referencesTo(state.entryIndex, getSchema, type, id));
+  const base = 'This permanently removes the entry and its version history. It cannot be undone or restored.';
+  const ok = await openConfirm({
+    title: 'Delete this entry permanently?',
+    message: warning ? `${base} ${warning}` : base,
+    confirmLabel: 'Delete permanently',
+  });
+  if (ok) deleteEntryPermanently(type, id);
 }
 
 // A prior version's timestamp, rendered for the history list. Falls back to the raw string if it

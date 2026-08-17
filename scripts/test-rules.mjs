@@ -84,6 +84,7 @@ const permMocks = (uid, codexId, { role = 'editor', exists = true } = {}) => {
   ];
 };
 
+const ENTRY_PATH = `${DB}/codices/cx1/entries/type_ent`;
 const HISTORY_PATH = `${DB}/codices/cx1/entries/type_ent/history/5`;
 
 // Each case: a human label, expectation, and the simulated request (+ optional resource / mocks).
@@ -159,6 +160,18 @@ const CASES = [
     label: 'admin creates an invite → invites write ALLOW',
     expectation: 'ALLOW',
     request: { auth: { uid: 'admin1', token: { email: ADMIN_EMAIL } }, method: 'create', path: `${DB}/invites/tok-x`, time: NOW, resource: { data: { token: 'tok-x', status: 'active' } } },
+  },
+  // Hard delete of an entry doc is an admin break-glass (soft archive is an editor status update).
+  {
+    label: 'editor tries to hard-delete an entry → delete DENY',
+    expectation: 'DENY',
+    request: { auth: { uid: 'u1', token: { email: 'u1@x.com' } }, method: 'delete', path: ENTRY_PATH, time: NOW },
+    functionMocks: permMocks('u1', 'cx1', { role: 'editor' }),
+  },
+  {
+    label: 'admin hard-deletes an entry → delete ALLOW',
+    expectation: 'ALLOW',
+    request: { auth: { uid: 'admin1', token: { email: ADMIN_EMAIL } }, method: 'delete', path: ENTRY_PATH, time: NOW },
   },
   // Entry-history recovery ring (codices/{cx}/entries/{e}/history/{version}).
   {

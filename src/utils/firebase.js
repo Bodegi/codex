@@ -479,6 +479,20 @@ export class CodexScope {
   }
 
   /**
+   * Hard-delete an entry — the admin break-glass beside the editor's soft Archive (saveEntryStatus).
+   * Permanent: no status flag, no snapshot, nothing to restore. Firestore has no cascade, so the
+   * entry's `history` ring is deleted first (else those docs orphan), then the live doc. Rules gate
+   * the entry delete on isAdmin(); history delete stays canWriteEntry (admin qualifies). No-op when
+   * unconfigured — local-only entries are dropped from the in-memory index by the caller instead.
+   */
+  async deleteEntry(type, id) {
+    if (!this.db) return;
+    const ring = await getDocs(collection(this.db, ...entryHistoryCollectionPath(this.codexId, type, id)));
+    await Promise.all(ring.docs.map((d) => deleteDoc(d.ref)));
+    await deleteDoc(doc(this.db, ...entryDocPath(this.codexId, type, id)));
+  }
+
+  /**
    * One-shot read of an entry's history ring — the retained versions, newest first (including the
    * live version, which is snapshotted under its own id — see saveEntry). Each doc is a full snapshot
    * of the entry at that version. Empty when unsaved; `[]` when unconfigured. Sorted client-side
