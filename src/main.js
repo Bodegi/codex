@@ -3016,9 +3016,11 @@ function formatWhen(iso) {
   return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString();
 }
 
-// Version history for the open entry (#4): fetch the retained prior versions and let the author
-// restore one. Restore loads the snapshot into the editor as unsaved edits (guarding a dirty draft
-// first); the real write happens on the next Save, which snapshots the version it supersedes.
+// Version history for the open entry (#4): fetch the retained versions and let the author restore an
+// earlier one. Restore loads the snapshot into the editor as unsaved edits (guarding a dirty draft
+// first); the real write happens on the next Save, which snapshots the version it writes. The ring
+// now holds the live version too (#44 — for out-of-band recovery), so drop that row here: restoring
+// the current state is a no-op, and this dialog is about going *back*.
 async function openEntryHistory() {
   const scope = codexScope();
   if (!(scope && scope.isConfigured()) || !state.formData.id) return;
@@ -3030,12 +3032,14 @@ async function openEntryHistory() {
     showToast('Couldn’t load history: ' + err.message);
     return;
   }
-  const rows = history.map((snap) => ({
-    version: snap.version ?? 0,
-    when: formatWhen(snap.updatedAt),
-    summary: entryTitle(snap, type),
-    data: snap,
-  }));
+  const rows = history
+    .filter((snap) => (snap.version ?? 0) !== state.baseVersion)
+    .map((snap) => ({
+      version: snap.version ?? 0,
+      when: formatWhen(snap.updatedAt),
+      summary: entryTitle(snap, type),
+      data: snap,
+    }));
   const chosen = await openHistoryModal({ rows });
   if (!chosen) return;
   if (!(await confirmDiscardIfDirty())) return;

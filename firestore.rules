@@ -110,10 +110,12 @@ service cloud.firestore {
           && request.resource.data.version == (('version' in resource.data ? resource.data.version : 0) + 1);
         allow delete: if canWriteEntry();
 
-        // Per-entry recovery ring. Each save copies the prior version here (doc id == that version)
-        // before the live doc is overwritten, so a bad "overwrite mine" is recoverable; pruning keeps
-        // the last N (src/schema/entryHistory.js). Snapshots are immutable — no update. Same read/write
-        // gate as the entry itself: viewers can browse history, editors write (the save txn) and prune.
+        // Per-entry recovery ring. Each save copies the version it writes here (doc id == that
+        // version), atomic with the live write, so a bad "overwrite mine" — or an out-of-band
+        // corruption of the live doc — is recoverable; pruning keeps the last N
+        // (src/schema/entryHistory.js). Each version is written once, so create suffices — snapshots
+        // are immutable (no update). Same read/write gate as the entry: viewers browse, editors write
+        // (the save txn) and prune.
         match /history/{version} {
           allow read:          if isAdmin() || hasPerm(codexId);
           allow create, delete: if canWriteEntry();

@@ -1,10 +1,10 @@
 /**
  * Codex — Entry version-history modal.
  *
- * Lists an entry's retained prior versions (the `history/{version}` ring) and lets the user pick one
- * to restore. Restore is non-destructive: it resolves the chosen snapshot's data and the caller loads
- * it into the editor as unsaved edits — the actual overwrite only happens on the next Save, which
- * itself snapshots the version it supersedes. Resolves the picked snapshot's `data`, or `null` on close.
+ * Lists an entry's earlier versions (the `history/{version}` ring, minus the live version the caller
+ * filters out) and lets the user pick one to restore. Restore is non-destructive: it resolves the
+ * chosen snapshot's data and the caller loads it into the editor as unsaved edits — the actual
+ * overwrite only happens on the next Save. Resolves the picked snapshot's `data`, or `null` on close.
  *
  * Same overlay idiom as confirmModal.js / conflictModal.js (reuses `confirm-overlay` / `confirm-modal`
  * CSS); it renders a scrollable list, so it carries a few `history-*` classes of its own.

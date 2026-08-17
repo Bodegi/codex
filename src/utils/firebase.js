@@ -385,8 +385,11 @@ export class CodexScope {
    * current doc. `force` is the "overwrite mine" path — write regardless of a stale base version.
    * Returns the new version. Full replace (not merge) is why deletions persist.
    *
-   * Since the overwrite is destructive (force especially), the same transaction first snapshots the
-   * prior doc into the `history/{version}` ring, so a bad overwrite is recoverable (issue #4).
+   * Since the overwrite is destructive (force especially), the same transaction also records the doc
+   * it's *writing* into the `history/{version}` ring (keyed by the version being written), so a bad
+   * overwrite is recoverable (issue #4). Snapshotting the written version — not the prior one — is
+   * what keeps the *live* version itself in the ring, so recovery can restore the newest state even
+   * after an out-of-band corruption of the live doc, and a single-save entry still has history (#44).
    *
    * CALLER CONTRACT: `data` must be the COMPLETE entry, not a partial patch. The write is a full `set`
    * with no merge (below), so any field omitted from `data` is silently erased — and it still satisfies
@@ -404,7 +407,7 @@ export class CodexScope {
       throw err;
     }
     const ref = doc(this.db, ...entryDocPath(this.codexId, type, id));
-    let snapshotVersion = null; // the prior version copied into history this save (null on first create)
+    let snapshotVersion = null; // the version copied into history this save (== the version written)
     const nextVersion = await runTransaction(this.db, async (tx) => {
       const snap = await tx.get(ref);
       const current = snap.exists() ? snap.data() : null;
@@ -416,10 +419,11 @@ export class CodexScope {
         err.current = current;
         throw err;
       }
-      // Snapshot the doc we're about to overwrite (incl. the force/overwrite path) — atomic with the
-      // overwrite, so there's never an overwrite without its prior version preserved.
-      snapshotVersion = current ? this._snapshotPriorVersion(tx, type, id, current) : null;
-      tx.set(ref, { ...data, type, id, version: nextVersion, updatedAt: now() });
+      // Write the live doc AND record it into history under its own version — atomic, so the live
+      // version is always in the ring (even for the force/overwrite path and single-save creates).
+      const written = { ...data, type, id, version: nextVersion, updatedAt: now() };
+      tx.set(ref, written);
+      snapshotVersion = this._snapshotVersion(tx, type, id, written);
       return nextVersion;
     });
     this._pruneHistory(type, id, snapshotVersion);
@@ -427,13 +431,14 @@ export class CodexScope {
   }
 
   /**
-   * Copy a soon-to-be-overwritten entry doc into its history ring (doc id == that version). Called
-   * INSIDE the save transaction so the snapshot and the overwrite commit atomically. Returns the
-   * snapshotted version (for post-commit pruning). A legacy doc with no `version` snapshots at 0.
+   * Record the doc a save is writing into its history ring (doc id == that doc's version). Called
+   * INSIDE the save transaction so the snapshot and the live write commit atomically. Each version
+   * is written to the ring exactly once, by the save that produces it (so the create satisfies the
+   * immutable-history rule — no re-write). Returns the snapshotted version (for post-commit pruning).
    */
-  _snapshotPriorVersion(tx, type, id, current) {
-    const version = current.version ?? 0;
-    tx.set(doc(this.db, ...entryHistoryDocPath(this.codexId, type, id, version)), current);
+  _snapshotVersion(tx, type, id, written) {
+    const version = written.version;
+    tx.set(doc(this.db, ...entryHistoryDocPath(this.codexId, type, id, version)), written);
     return version;
   }
 
@@ -464,8 +469,9 @@ export class CodexScope {
       if (!snap.exists()) return undefined;
       const current = snap.data();
       const nextVersion = (current.version ?? 0) + 1;
-      snapshotVersion = this._snapshotPriorVersion(tx, type, id, current); // status flips bump version → snapshot too
-      tx.set(ref, { ...current, status, version: nextVersion, updatedAt: now() });
+      const written = { ...current, status, version: nextVersion, updatedAt: now() };
+      tx.set(ref, written);
+      snapshotVersion = this._snapshotVersion(tx, type, id, written); // status flips bump version → snapshot too
       return nextVersion;
     });
     this._pruneHistory(type, id, snapshotVersion);
@@ -473,9 +479,10 @@ export class CodexScope {
   }
 
   /**
-   * One-shot read of an entry's history ring — the retained prior versions, newest first. Each doc is
-   * a full snapshot of the entry as it was at that version (see saveEntry). Empty when there's no
-   * history yet; `[]` when unconfigured. Sorted client-side (the ring is small — last N).
+   * One-shot read of an entry's history ring — the retained versions, newest first (including the
+   * live version, which is snapshotted under its own id — see saveEntry). Each doc is a full snapshot
+   * of the entry at that version. Empty when unsaved; `[]` when unconfigured. Sorted client-side
+   * (the ring is small — last N).
    */
   async getEntryHistory(type, id) {
     if (!this.db) return [];
