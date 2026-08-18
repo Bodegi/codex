@@ -7,10 +7,17 @@
  * there are more images than fit. Composed into the preview after the entry HTML — never part of
  * the entry body. Empty gallery -> renders nothing.
  *
- * The centering geometry (`carouselOffset`) and the autoplay-eligibility test (`carouselAutoplays`)
- * are pure and Node-tested; `initCarousel` is the browser-only seam that measures the DOM and wires
- * the timers/arrows. `initCarousel` tears down the carousels it set up on the previous render of the
- * same root (the reader pane re-renders by innerHTML), so timers and listeners never leak.
+ * When the strip overflows, it loops **seamlessly** in one direction: copies of the slides are
+ * cloned onto both ends, so advancing off the last slide keeps sliding forward into a clone of the
+ * first, then snaps back to the real first once the transition ends (clone and real are identical,
+ * so the snap is invisible). The end clones also give the first/last slides a neighbor to peek and
+ * let the arrows wrap both ways. A gallery that already fits stays a static, un-cloned strip.
+ *
+ * The pure, Node-tested core is the centering geometry (`carouselOffset`), the overflow test
+ * (`carouselAutoplays`), and the clone count (`carouselCloneCount`); `initCarousel` is the
+ * browser-only seam that measures the DOM, clones, and wires the timers/arrows. It tears down the
+ * carousels it set up on the previous render of the same root (the reader pane re-renders by
+ * innerHTML), so timers and listeners never leak.
  */
 
 import { notFoundImage } from '../schema/notFoundImage.js';
@@ -35,6 +42,16 @@ export function carouselAutoplays({ count, slideWidth, stride, viewportWidth }) 
   if (count < 2 || stride <= 0) return false;
   const trackWidth = (count - 1) * stride + slideWidth;
   return trackWidth > viewportWidth + 1; // +1px slack so an exact fit doesn't autoplay
+}
+
+/**
+ * Clones to add on EACH end for the seamless loop: enough to cover a viewport-plus-one of slides so
+ * a slide sitting on a clone still has real-looking neighbors peeking, capped at `count` (cloning
+ * more than the whole gallery just repeats it). 0 when there's nothing to loop. Pure — no DOM.
+ */
+export function carouselCloneCount({ count, stride, viewportWidth }) {
+  if (count < 2 || stride <= 0) return 0;
+  return Math.min(count, Math.ceil(viewportWidth / stride) + 1);
 }
 
 /**
@@ -82,70 +99,122 @@ function measure(carousel) {
   return { track, viewport, slides, slideWidth, stride, viewportWidth: viewport.clientWidth };
 }
 
-// Wire one carousel: centering, arrows, ping-pong autoplay. Returns a cleanup fn that clears the
-// timer and detaches listeners (called on the next render of the same root).
+// Wire one carousel: centering, arrows, seamless-loop autoplay. Returns a cleanup fn that clears
+// the timer and detaches listeners (called on the next render of the same root).
+//
+// Loop layout (when the strip overflows): the track holds [k tail clones][n reals][k head clones].
+// `i` is the logical index (0..n-1); `dom` is the DOM slot we center. Stepping off the real band
+// into a clone animates smoothly, then a snap of ±n (a no-transition reposition onto the identical
+// real slide) brings `dom` back into the real band without a visible jump. A gallery that fits is
+// left un-cloned and simply clamps at its ends, with the arrows disabling there.
 function setupCarousel(carousel) {
   const prev = carousel.querySelector('.carousel-prev');
   const next = carousel.querySelector('.carousel-next');
-  const count = Number(carousel.dataset.count) || carousel.querySelectorAll('.carousel-slide').length;
+  const track = carousel.querySelector('.carousel-track');
+  const count = carousel.querySelectorAll('.carousel-slide').length;
   const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-  let index = 0;
-  let dir = 1;
-  let timer = null;
+  // Decide loop vs. static from a first measurement of the real (un-cloned) slides.
+  const m0 = measure(carousel);
+  const looping = !!m0 && carouselAutoplays({ count, slideWidth: m0.slideWidth, stride: m0.stride, viewportWidth: m0.viewportWidth });
 
-  const apply = () => {
+  let k = 0;
+  if (looping && track) {
+    k = carouselCloneCount({ count, stride: m0.stride, viewportWidth: m0.viewportWidth });
+    const reals = [...track.querySelectorAll('.carousel-slide')];
+    const clone = (node) => {
+      const c = node.cloneNode(true);
+      c.classList.add('carousel-clone');
+      c.setAttribute('aria-hidden', 'true');
+      return c;
+    };
+    // Tail clones (last k reals) go before the block; head clones (first k) after — so the sequence
+    // tiles continuously and every real slide has a neighbor to peek on both sides.
+    reals.slice(count - k).forEach((s) => track.insertBefore(clone(s), reals[0]));
+    reals.slice(0, k).forEach((s) => track.appendChild(clone(s)));
+  }
+
+  const realStart = k; // DOM slot of real slide 0
+  let i = 0; // logical index [0, count-1]
+  let dom = realStart; // DOM slot currently centered
+  let timer = null;
+  let snapArmed = false;
+
+  const inClones = () => dom < realStart || dom > realStart + count - 1;
+
+  const apply = (animate) => {
     const m = measure(carousel);
     if (!m) return;
-    index = Math.max(0, Math.min(index, m.slides.length - 1));
-    const offset = carouselOffset({ index, slideWidth: m.slideWidth, stride: m.stride, viewportWidth: m.viewportWidth });
-    m.track.style.transform = `translateX(${offset}px)`;
-    m.slides.forEach((s, i) => s.classList.toggle('is-active', i === index));
-    if (prev) prev.disabled = index === 0;
-    if (next) next.disabled = index === m.slides.length - 1;
+    if (!animate) track.style.transition = 'none';
+    const offset = carouselOffset({ index: dom, slideWidth: m.slideWidth, stride: m.stride, viewportWidth: m.viewportWidth });
+    track.style.transform = `translateX(${offset}px)`;
+    if (!animate) {
+      void track.offsetWidth; // flush the jump before restoring the transition
+      track.style.transition = '';
+    }
+    m.slides.forEach((s, idx) => s.classList.toggle('is-active', idx === dom));
+    if (!looping) {
+      if (prev) prev.disabled = i === 0;
+      if (next) next.disabled = i === count - 1;
+    }
   };
 
-  const go = (i) => {
-    index = Math.max(0, Math.min(i, count - 1));
-    apply();
+  // Bring `dom` back into the real band with an instant (no-transition) reposition onto the
+  // identical real slide. A no-op when already in the band.
+  const snap = () => {
+    if (dom < realStart) dom += count;
+    else if (dom > realStart + count - 1) dom -= count;
+    snapArmed = false;
+    apply(false);
+  };
+
+  const go = (delta) => {
+    if (looping) {
+      if (inClones()) snap(); // collapse a pending snap first so rapid steps never outrun the clones
+      i = (i + delta + count) % count;
+      dom += delta;
+      apply(true);
+      if (inClones()) snapArmed = true; // finish the wrap once the slide-in transition ends
+    } else {
+      i = Math.max(0, Math.min(i + delta, count - 1));
+      dom = i;
+      apply(true);
+    }
   };
 
   const stopAuto = () => {
     if (timer) clearInterval(timer);
     timer = null;
   };
-
   const startAuto = () => {
     stopAuto();
-    if (reduceMotion) return;
-    const m = measure(carousel);
-    if (!m || !carouselAutoplays({ count, slideWidth: m.slideWidth, stride: m.stride, viewportWidth: m.viewportWidth })) return;
-    timer = setInterval(() => {
-      // Ping-pong so the active card never snaps back across the whole track.
-      if (index + dir > count - 1 || index + dir < 0) dir = -dir;
-      go(index + dir);
-    }, AUTOPLAY_MS);
+    if (reduceMotion || !looping) return;
+    timer = setInterval(() => go(1), AUTOPLAY_MS);
   };
 
   const onPrev = () => {
-    go(index - 1);
+    go(-1);
     startAuto(); // user interaction resets the autoplay clock
   };
   const onNext = () => {
-    go(index + 1);
+    go(1);
     startAuto();
   };
   const onEnter = () => stopAuto();
   const onLeave = () => startAuto();
-  const onResize = () => apply();
+  const onResize = () => apply(false);
+  const onTransitionEnd = (e) => {
+    if (e.target === track && e.propertyName === 'transform' && snapArmed) snap();
+  };
 
   prev?.addEventListener('click', onPrev);
   next?.addEventListener('click', onNext);
   carousel.addEventListener('mouseenter', onEnter);
   carousel.addEventListener('mouseleave', onLeave);
+  track?.addEventListener('transitionend', onTransitionEnd);
   window.addEventListener('resize', onResize);
 
-  apply();
+  apply(false); // initial center is instant — don't slide in from 0
   startAuto();
 
   return () => {
@@ -154,6 +223,7 @@ function setupCarousel(carousel) {
     next?.removeEventListener('click', onNext);
     carousel.removeEventListener('mouseenter', onEnter);
     carousel.removeEventListener('mouseleave', onLeave);
+    track?.removeEventListener('transitionend', onTransitionEnd);
     window.removeEventListener('resize', onResize);
   };
 }

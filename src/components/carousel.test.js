@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { renderCarousel, carouselOffset, carouselAutoplays } from './carousel.js';
+import { renderCarousel, carouselOffset, carouselAutoplays, carouselCloneCount } from './carousel.js';
 
 test('renderCarousel: empty gallery renders nothing', () => {
   assert.equal(renderCarousel([], () => 'x'), '');
@@ -36,4 +36,15 @@ test('carouselAutoplays: only when the laid-out track is wider than the viewport
   assert.equal(carouselAutoplays({ count: 4, slideWidth: 300, stride: 320, viewportWidth: 800 }), true);
   // A single image never autoplays.
   assert.equal(carouselAutoplays({ count: 1, slideWidth: 300, stride: 320, viewportWidth: 200 }), false);
+});
+
+test('carouselCloneCount: covers a viewport-plus-one of slides, capped at the gallery size', () => {
+  // 800/320 = 2.5 → ceil 3, +1 = 4, but only 6 slides so 4 clones each end.
+  assert.equal(carouselCloneCount({ count: 6, stride: 320, viewportWidth: 800 }), 4);
+  // Cap: never clone more than the whole gallery.
+  assert.equal(carouselCloneCount({ count: 3, stride: 320, viewportWidth: 2000 }), 3);
+  // Nothing to loop.
+  assert.equal(carouselCloneCount({ count: 1, stride: 320, viewportWidth: 800 }), 0);
+  // A slide wider than the viewport still clones at least a neighbor each side (ceil(<1)+1 = 2).
+  assert.equal(carouselCloneCount({ count: 5, stride: 900, viewportWidth: 400 }), 2);
 });
