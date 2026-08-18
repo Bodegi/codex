@@ -1430,31 +1430,38 @@ select[multiple].form-control option {
   margin-top: 28px;
 }
 
+/* Index-driven centered gallery: the track is translated so the active slide sits mid-viewport,
+   with neighbors peeking (dimmed) at the edges. No scrollbar — position is a transform (carousel.js). */
 .carousel-viewport {
   position: relative;
-  display: flex;
-  align-items: center;
+  overflow: hidden;
 }
 
 .carousel-track {
   display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  padding-bottom: 8px;
+  gap: 16px;
+  padding: 8px 0;
+  transition: transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
 }
 
 .carousel-slide {
-  flex: 0 0 auto;
-  width: min(80%, 320px);
-  scroll-snap-align: center;
+  flex: 0 0 min(68%, 340px);
+  opacity: 0.45;
+  transform: scale(0.9);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+.carousel-slide.is-active {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .carousel-slide img {
   width: 100%;
   border-radius: var(--radius-md);
   display: block;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
 }
 
 .carousel-missing {
@@ -1468,26 +1475,35 @@ select[multiple].form-control option {
   border-radius: var(--radius-md);
 }
 
+/* Arrows overlay the viewport edges so they don't consume track width (keeps the centering exact). */
 .carousel-arrow {
-  flex: 0 0 auto;
-  background: rgba(0, 0, 0, 0.5);
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.55);
   border: 1px solid var(--border-dim);
   color: var(--text-main);
   font-size: 20px;
   line-height: 1;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   cursor: pointer;
   z-index: 2;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
 }
 
-.carousel-arrow:hover {
+.carousel-arrow:hover:not(:disabled) {
   border-color: var(--accent-gold);
 }
 
-.carousel-prev { margin-right: -17px; }
-.carousel-next { margin-left: -17px; }
+.carousel-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.carousel-prev { left: 10px; }
+.carousel-next { right: 10px; }
 
 /* Image Picker Modal */
 .image-picker-overlay {
@@ -1766,6 +1782,47 @@ select[multiple].form-control option {
   color: var(--text-muted);
   padding: 24px;
   text-align: center;
+}
+
+/* Multi-select (gallery) mode: thumbs toggle a checked state, a footer confirms the batch. */
+.image-picker-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border-dim);
+}
+
+.image-picker-item.is-multi .image-picker-pick {
+  position: relative;
+}
+
+.image-picker-item.is-picked .image-picker-pick {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 1px var(--accent-gold);
+}
+
+.image-picker-pick .image-picker-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-gold);
+  color: #1a1206;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.image-picker-item.is-picked .image-picker-check {
+  opacity: 1;
+  transform: scale(1);
 }
 
 /* Summary-card index (Axis 2): a type's entries as a grid of cards. Generalizes the old Matrix. */

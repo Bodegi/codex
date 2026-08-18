@@ -2890,13 +2890,17 @@ function currentPreviewHTML() {
 // Re-render the current builder entry & refresh both preview panels
 function refreshBuilderPreview() {
   updateRenderedPreview(currentPreviewHTML());
-  initCarousel(previewRendered);
-  initMapReadCanvases(previewRendered);
   updateRawJson(currentEntryJson());
 }
 
+// The single write path to the reader pane. Wires the read-side components that need a post-render
+// pass (carousel centering/autoplay, map canvases) wherever entry HTML is shown — the builder
+// preview, the Structure entry preview, the reader. Both inits are safe no-ops on content without
+// them, and initCarousel tears down the carousels it wired last time so timers never accumulate.
 function updateRenderedPreview(html) {
   previewRendered.innerHTML = html;
+  initCarousel(previewRendered);
+  initMapReadCanvases(previewRendered);
 }
 
 // Click any content image to open it full-size. Delegated once per container so it survives the

@@ -8,6 +8,11 @@
  *
  *   const id = await openImagePicker(imageIndex.listImages());
  *
+ * `multiple: true` switches to gallery mode: thumbnails toggle a checked state instead of
+ * resolving on click, and a footer "Add N" button resolves with the ordered array of picked
+ * ids (or [] if cancelled). The default single-select flow (hero, inline image) is unchanged,
+ * still resolving one id — so callers branch on the shape only when they asked for `multiple`.
+ *
  * Editors of the current codex get two extra affordances, wired through injected callbacks
  * so the picker itself stays store-free:
  *   - **Upload** — `onUpload(file) → id | { id, label, url }` uploads one file into the current
@@ -31,12 +36,13 @@ function escapeAttr(text) {
     .replace(/"/g, '&quot;');
 }
 
-function itemHtml(img, canManage) {
+function itemHtml(img, canManage, multiple) {
   return `
-    <div class="image-picker-item" data-id="${escapeAttr(img.id)}" title="${escapeAttr(img.label)}">
-      <button type="button" class="image-picker-pick" data-pick>
+    <div class="image-picker-item${multiple ? ' is-multi' : ''}" data-id="${escapeAttr(img.id)}" title="${escapeAttr(img.label)}">
+      <button type="button" class="image-picker-pick" data-pick aria-pressed="false">
         ${img.url ? `<img src="${escapeAttr(img.url)}" alt="${escapeAttr(img.label)}" loading="lazy">` : notFoundImage('image-missing-picker')}
         <span>${escapeAttr(img.label)}</span>
+        ${multiple ? '<span class="image-picker-check" aria-hidden="true">✓</span>' : ''}
       </button>
       ${canManage ? `<button type="button" class="image-picker-remove" data-remove aria-label="Remove from this codex" title="Remove from this codex">×</button>` : ''}
     </div>`;
@@ -44,29 +50,33 @@ function itemHtml(img, canManage) {
 
 /**
  * Open the picker over an injected image list ([{ id, label, url }], from the live index).
- * Resolves to the picked (or just-uploaded) image id, or null if cancelled.
- *   opts = { canManage, onUpload(file) → Promise<id | {id,label,url}>, onRemove(id) → Promise<boolean> }
+ * Single-select (default) resolves to the picked (or just-uploaded) image id, or null if
+ * cancelled. `multiple: true` resolves to the ordered array of checked ids, or [] if cancelled.
+ *   opts = { canManage, multiple, onUpload(file) → Promise<id | {id,label,url}>, onRemove(id) → Promise<boolean> }
  */
-export function openImagePicker(images = [], { canManage = false, onUpload, onRemove } = {}) {
+export function openImagePicker(images = [], { canManage = false, multiple = false, onUpload, onRemove } = {}) {
   return new Promise((resolve) => {
     const list = images.slice();
+    // Ordered set of picked ids (multi mode only); selection order is the insert order.
+    const picked = [];
 
     const gridHtml = () =>
       list.length
-        ? list.map((img) => itemHtml(img, canManage && !!onRemove)).join('')
+        ? list.map((img) => itemHtml(img, canManage && !!onRemove, multiple)).join('')
         : `<p class="image-picker-empty">No images in this codex yet.</p>`;
 
     const overlay = document.createElement('div');
     overlay.className = 'image-picker-overlay';
     overlay.innerHTML = `
-      <div class="image-picker-modal" role="dialog" aria-modal="true" aria-label="Select an image">
+      <div class="image-picker-modal" role="dialog" aria-modal="true" aria-label="${multiple ? 'Select images' : 'Select an image'}">
         <div class="image-picker-header">
-          <strong>Select an image</strong>
+          <strong>${multiple ? 'Select images' : 'Select an image'}</strong>
           ${canManage && onUpload ? `<button type="button" class="btn btn-primary btn-sm image-picker-upload" data-upload title="Upload images — pick several, or drag them onto this window">＋ Upload</button>` : ''}
           <button type="button" class="image-picker-close" aria-label="Close" title="Close">×</button>
         </div>
         <div class="image-picker-status" data-status hidden></div>
         <div class="image-picker-grid">${gridHtml()}</div>
+        ${multiple ? `<div class="image-picker-footer"><button type="button" class="btn btn-primary image-picker-confirm" data-confirm disabled>Add images</button></div>` : ''}
       </div>`;
 
     const grid = overlay.querySelector('.image-picker-grid');
@@ -80,6 +90,7 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
 
     const modal = overlay.querySelector('.image-picker-modal');
     const uploadBtn = overlay.querySelector('[data-upload]');
+    const confirmBtn = overlay.querySelector('[data-confirm]');
     const canUpload = canManage && !!onUpload;
 
     const setStatus = (msg, isError = false) => {
@@ -88,19 +99,35 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
       statusEl.classList.toggle('is-error', isError);
     };
 
-    const close = (id) => {
+    // Cancelling yields the empty shape for the caller's mode: [] in multi, null in single.
+    const cancelValue = () => (multiple ? [] : null);
+    const close = (value) => {
       overlay.remove();
       document.removeEventListener('keydown', onKey);
-      resolve(id);
+      resolve(value);
     };
     const onKey = (e) => {
-      if (e.key === 'Escape') close(null);
+      if (e.key === 'Escape') close(cancelValue());
+    };
+
+    // Toggle one thumb's picked state (multi mode); keep the confirm button in sync.
+    const togglePick = (item) => {
+      const id = item.dataset.id;
+      const i = picked.indexOf(id);
+      const nowPicked = i === -1;
+      if (nowPicked) picked.push(id);
+      else picked.splice(i, 1);
+      item.classList.toggle('is-picked', nowPicked);
+      item.querySelector('[data-pick]')?.setAttribute('aria-pressed', String(nowPicked));
+      confirmBtn.disabled = picked.length === 0;
+      confirmBtn.textContent = picked.length ? `Add ${picked.length} image${picked.length > 1 ? 's' : ''}` : 'Add images';
     };
 
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) return close(null);
-      if (e.target.closest('.image-picker-close')) return close(null);
+      if (e.target === overlay) return close(cancelValue());
+      if (e.target.closest('.image-picker-close')) return close(cancelValue());
       if (e.target.closest('[data-upload]')) return fileInput.click();
+      if (e.target.closest('[data-confirm]')) return close(picked.slice());
 
       const removeBtn = e.target.closest('[data-remove]');
       if (removeBtn) {
@@ -110,7 +137,9 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
       const pick = e.target.closest('[data-pick]');
       if (pick) {
         const item = pick.closest('.image-picker-item');
-        if (item) close(item.dataset.id);
+        if (!item) return;
+        if (multiple) return togglePick(item);
+        close(item.dataset.id);
       }
     });
 
@@ -123,6 +152,7 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
         if (removed) {
           const i = list.findIndex((img) => img.id === id);
           if (i !== -1) list.splice(i, 1);
+          if (item.classList.contains('is-picked')) togglePick(item); // drop it from the pending selection
           item.remove();
           if (!list.length) grid.innerHTML = gridHtml();
         } else {
@@ -150,7 +180,7 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
       if (!img.id || list.some((x) => x.id === img.id)) return false;
       if (!list.length) grid.innerHTML = ''; // clear the "no images" message
       list.push(img);
-      grid.insertAdjacentHTML('beforeend', itemHtml(img, canManage && !!onRemove));
+      grid.insertAdjacentHTML('beforeend', itemHtml(img, canManage && !!onRemove, multiple));
       return true;
     };
 
@@ -191,7 +221,8 @@ export function openImagePicker(images = [], { canManage = false, onUpload, onRe
       fileInput.value = '';
       setBusy(false);
       // Upload-and-use only when the user offered exactly one file and it went through cleanly.
-      if (files.length === 1 && uploaded.length === 1 && !rejects.length) return close(uploaded[0].id);
+      // In multi mode there is no upload-and-use — the new thumb just joins the grid to be picked.
+      if (!multiple && files.length === 1 && uploaded.length === 1 && !rejects.length) return close(uploaded[0].id);
       if (uploaded.length) {
         const n = uploaded.length;
         const skipped = rejects.length ? `, ${rejects.length} skipped` : '';

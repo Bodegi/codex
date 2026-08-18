@@ -126,9 +126,10 @@ function insertAtCursor(field, text) {
   field.focus();
 }
 
-/** Open the image picker for a mount, honoring the ctx-supplied list + editor affordances. */
-function pickImage(ctx) {
-  return openImagePicker(ctx?.listImages ? ctx.listImages() : [], ctx?.pickerOptions || {});
+/** Open the image picker for a mount, honoring the ctx-supplied list + editor affordances.
+ * `opts` (e.g. `{ multiple: true }`) merges over the ctx picker options. */
+function pickImage(ctx, opts = {}) {
+  return openImagePicker(ctx?.listImages ? ctx.listImages() : [], { ...(ctx?.pickerOptions || {}), ...opts });
 }
 
 export const fieldKinds = {
@@ -417,8 +418,8 @@ export const fieldKinds = {
           const idx = Number(btn.dataset.index);
           const g = toList(value).slice();
           if (action === 'gallery-add') {
-            const id = await pickImage(ctx);
-            if (id) { g.push(id); onChange(g); }
+            const ids = await pickImage(ctx, { multiple: true });
+            if (ids && ids.length) { onChange(g.concat(ids)); }
           } else if (action === 'gallery-remove') {
             g.splice(idx, 1);
             onChange(g);
