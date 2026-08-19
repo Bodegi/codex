@@ -177,6 +177,9 @@ const state = {
   // Whether the Structure-mode live preview pane is showing (hidden by default so the editor is
   // full-width). Preview reveals it rendered; Edit JSON reveals it raw. Reset on each Structure entry.
   structurePreview: null, // null = hidden, 'rendered' | 'raw' = shown in that mode
+  // The entry editor's on-demand live preview, mirroring structurePreview: false = form full-width
+  // (pane collapsed), true = the rendered entry shown alongside. Reset to collapsed on each edit entry.
+  entryPreviewOpen: false,
   // A brand-new type in flight: its id while the builder holds an in-memory draft that hasn't been
   // Saved. It lives only in the store overlay (never localStorage/Firestore) so an abandoned draft
   // leaves no orphan — mirrors the entry flow (blank draft, persist on Save). `typeDraftDirty` gates
@@ -464,6 +467,9 @@ const historyEntryBtn = document.getElementById('btn-history-entry');
 const archiveEntryBtn = document.getElementById('btn-archive-entry');
 const deleteEntryBtn = document.getElementById('btn-delete-entry');
 const doneEditBtn = document.getElementById('btn-done-edit');
+const previewEntryBtn = document.getElementById('btn-preview-entry');
+const entryMenuTrigger = document.getElementById('btn-entry-menu');
+const entryMenuList = document.getElementById('entry-menu-list');
 const readerTitle = document.getElementById('reader-title');
 const editorTitle = document.getElementById('editor-title');
 
@@ -1358,9 +1364,12 @@ function setPreviewMode(mode) {
   previewRawContainer.classList.toggle('hidden', !raw);
 }
 
-// The preview column's own dismiss (Structure only). Entering rendered vs raw stays on the editor
-// toolbar (Preview / More ▸ Edit JSON); this just collapses whichever is open.
-closePreviewBtn.addEventListener('click', hideStructurePreview);
+// The preview column's own dismiss. It serves both editors' on-demand preview, so it routes to
+// whichever is open: the Structure raw/rendered pane, or the entry editor's live preview.
+closePreviewBtn.addEventListener('click', () => {
+  if (inSchemaAdmin()) hideStructurePreview();
+  else hideEntryPreview();
+});
 
 // Content-form field cards collapse to their head (see formRenderer.js). One delegated toggle on the
 // persistent form container flips the body's `hidden` (AT skips a shut card) and records the open set
@@ -1410,6 +1419,28 @@ function hideStructurePreview() {
   state.structurePreview = null;
   mainWorkspace.classList.add('preview-collapsed');
   reflectPreviewToggle();
+}
+
+// Entry-editor preview pane — the content-side twin of showStructurePreview. The live entry HTML is
+// already kept current in the reader pane by refreshBuilderPreview (fired on every edit); this only
+// reveals/hides the column. Opening refreshes once more so any break component (map canvas) inits
+// while the pane is actually visible — it can't measure inside a display:none column.
+function showEntryPreview() {
+  state.entryPreviewOpen = true;
+  mainWorkspace.classList.remove('preview-collapsed');
+  reflectEntryPreviewToggle();
+  refreshBuilderPreview();
+}
+function hideEntryPreview() {
+  state.entryPreviewOpen = false;
+  mainWorkspace.classList.add('preview-collapsed');
+  reflectEntryPreviewToggle();
+}
+function reflectEntryPreviewToggle() {
+  previewEntryBtn.setAttribute('aria-pressed', String(state.entryPreviewOpen));
+  // Preview opens the pane; the pane's own Close dismisses it — so hide the opener while it's open.
+  previewEntryBtn.hidden = state.entryPreviewOpen;
+  closePreviewBtn.hidden = !state.entryPreviewOpen;
 }
 
 // The single renderer: render the content area + chrome to match state.view. Used on navigation,
@@ -1462,9 +1493,11 @@ function applyViewChrome() {
     : 'view-content-read';
   mainWorkspace.classList.remove('view-content-read', 'view-content-edit', 'view-content-admin', 'view-global-admin');
   mainWorkspace.classList.add(cls);
-  // `preview-collapsed` (Structure's full-width editor) only applies in admin mode; drop it elsewhere
-  // so a lingering class never affects another layout. enterSchemaAdmin re-adds it on entry.
-  if (v.mode !== 'admin') mainWorkspace.classList.remove('preview-collapsed');
+  // `preview-collapsed` drives the on-demand preview split for both editors. In entry-edit it tracks
+  // state.entryPreviewOpen; Structure (admin) manages its own on entry (enterSchemaAdmin). Any other
+  // view clears it so a lingering class never affects another layout.
+  if (v.mode === 'edit') mainWorkspace.classList.toggle('preview-collapsed', !state.entryPreviewOpen);
+  else if (v.mode !== 'admin') mainWorkspace.classList.remove('preview-collapsed');
 
   // Edit sits in the reader header (content read); Save + the discard exit live in the form header
   // (edit). Structure is a toggle: "Structure" to enter from reading, "Back" to leave — never a dead end.
@@ -1476,10 +1509,14 @@ function applyViewChrome() {
   // admin needn't drill into an entry first). Leaving is the editor toolbar's own "← Back" — so this
   // no longer shows inside Structure, where the preview column carries only its Close.
   structureBtn.hidden = !(canAdmin && (inTypeRead || inIndex));
-  closePreviewBtn.hidden = !inStructure;
   // Export (#2) is a whole-codex owner operation — it lives on the admin Codices panel now, not the
   // reader header (see exportCurrentCodex / the Codices panel), so nothing to toggle here.
   const editingEntry = v.kind === 'type' && v.mode === 'edit';
+  // Close dismisses whichever on-demand preview is open. In Structure the reader panel's visibility
+  // gates it (shown only when the preview isn't collapsed); in edit it tracks entryPreviewOpen.
+  closePreviewBtn.hidden = !(inStructure || (editingEntry && state.entryPreviewOpen));
+  // The entry preview's opener: edit-mode only, hidden while the pane is open (Close dismisses it).
+  previewEntryBtn.hidden = !(canEdit && editingEntry) || state.entryPreviewOpen;
   saveEntryBtn.hidden = !(canEdit && editingEntry);
   // The form's discard exit, distinct from Save (#29): a never-saved draft (no id) reads "Cancel";
   // an existing entry reads "Back". The header breadcrumb's type up-link is the same exit.
@@ -1493,11 +1530,17 @@ function applyViewChrome() {
   // and only a saved entry has a ring.
   const cloudEntry = !!(codexScope() && codexScope().isConfigured());
   historyEntryBtn.hidden = !(canEdit && editingEntry && !!state.formData.id && cloudEntry);
+  // The ⋯ More overflow only earns its slot when it holds a visible action — a brand-new draft (no id)
+  // hides all three, so hide the trigger (and shut any open list) rather than offer an empty menu.
+  const anyMenuItem = !historyEntryBtn.hidden || !archiveEntryBtn.hidden || !deleteEntryBtn.hidden;
+  entryMenuTrigger.hidden = !(editingEntry && anyMenuItem);
+  if (entryMenuTrigger.hidden) closeEntryMenu();
 }
 
 editToggleBtn.addEventListener('click', () => {
   if (!state.caps.canEdit || state.view.kind !== 'type' || !state.view.type) return;
   state.view = toEdit(state.view);
+  state.entryPreviewOpen = false; // enter edit with the preview collapsed (form full-width)
   renderFormWithoutResubscribe(); // reflect current formData (e.g. an id just assigned on save)
   applyViewChrome();
 });
@@ -1567,6 +1610,31 @@ saveEntryBtn.addEventListener('click', () => saveEntry());
 historyEntryBtn.addEventListener('click', () => openEntryHistory());
 archiveEntryBtn.addEventListener('click', () => archiveCurrentEntry());
 deleteEntryBtn.addEventListener('click', () => deleteCurrentEntry());
+previewEntryBtn.addEventListener('click', showEntryPreview);
+
+// The entry editor's "⋯ More" overflow (History / Archive / Delete), mirroring the Structure editor's
+// menu. The trigger toggles the list (focusing the first item on open); an item click runs its own
+// handler and closes the menu; a click anywhere else, or Escape, closes it.
+function closeEntryMenu() {
+  if (entryMenuList.classList.contains('hidden')) return;
+  entryMenuList.classList.add('hidden');
+  entryMenuTrigger.setAttribute('aria-expanded', 'false');
+}
+entryMenuTrigger.addEventListener('click', (e) => {
+  e.preventDefault();
+  const open = entryMenuList.classList.toggle('hidden') === false;
+  entryMenuTrigger.setAttribute('aria-expanded', String(open));
+  if (open) entryMenuList.querySelector('[role="menuitem"]:not([hidden])')?.focus();
+});
+entryMenuList.addEventListener('click', () => closeEntryMenu()); // any item click dismisses the menu
+document.addEventListener('click', (e) => {
+  if (!entryMenuTrigger.contains(e.target) && !entryMenuList.contains(e.target)) closeEntryMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || entryMenuList.classList.contains('hidden')) return;
+  closeEntryMenu();
+  entryMenuTrigger.focus();
+});
 
 // ── Sidebar search box ───────────────────────────────────────────────────────
 // Debounced: the first non-empty keystroke transitions into the search view (full re-render for the
@@ -2751,6 +2819,7 @@ function renderForm() {
   state.baseVersion = state.formData.version ?? 0;
   state.dirty = false;
   state.expandedContentFields.clear(); // a freshly-opened entry starts with every card collapsed
+  state.entryPreviewOpen = false; // and with the on-demand preview collapsed (form full-width)
   renderFormWithoutResubscribe();
   resetReaderScroll(); // don't inherit the previous entry's scroll offset
 }

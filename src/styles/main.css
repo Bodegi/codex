@@ -570,11 +570,12 @@ button.user-badge { cursor: pointer; }
 }
 .app-workspace.view-content-read .editor-panel { display: none; }
 
-/* Content edit: full-width form, reader hidden. Save/Done return to the reader. */
-.app-workspace.view-content-edit {
-  grid-template-columns: 1fr;
-}
-.app-workspace.view-content-edit .reader-panel { display: none; }
+/* Content edit: two-panel form + live entry preview, mirroring the Structure editor. Preview is
+   on-demand — by default the form takes the full width and the preview pane is dropped
+   (`preview-collapsed`); the toolbar's Preview toggle reveals it (restoring the split). */
+.app-workspace.view-content-edit { grid-template-columns: 1fr 1fr; }
+.app-workspace.view-content-edit.preview-collapsed { grid-template-columns: 1fr; }
+.app-workspace.view-content-edit.preview-collapsed .reader-panel { display: none; }
 
 /* Per-type schema editor ("Structure") is two-panel: the editor/subnav on the left, its live
    type preview (+ Raw JSON power tool) on the right. */
@@ -822,6 +823,16 @@ button.user-badge { cursor: pointer; }
   gap: 10px;
   flex-shrink: 0;
 }
+
+/* The editor header's leading cluster: the discard-exit "Back" ahead of the breadcrumb title,
+   mirroring the Structure toolbar's `← Back` at the far left. */
+.editor-toolbar-start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0; /* let the breadcrumb title ellipsis instead of pushing the actions off */
+}
+.editor-toolbar-start .panel-title { min-width: 0; }
 
 .form-scrollable {
   flex: 1;
@@ -2407,9 +2418,12 @@ mark.search-hit {
   color: var(--text-muted);
 }
 
-/* Overflow "⋯ More" menu — the de-emphasised / destructive actions, mirroring the user menu. */
-.se-menu { position: relative; }
-.se-menu-list {
+/* Overflow "⋯ More" menu — the de-emphasised / destructive actions, mirroring the user menu. Shared
+   by the Structure editor (`.se-menu`) and the entry editor (`.ee-menu`); same idiom, two hosts. */
+.se-menu,
+.ee-menu { position: relative; }
+.se-menu-list,
+.ee-menu-list {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
@@ -2424,8 +2438,10 @@ mark.search-hit {
   flex-direction: column;
   gap: 2px;
 }
-.se-menu-list.hidden { display: none; }
-.se-menu-item {
+.se-menu-list.hidden,
+.ee-menu-list.hidden { display: none; }
+.se-menu-item,
+.ee-menu-item {
   text-align: left;
   background: transparent;
   border: none;
@@ -2436,13 +2452,16 @@ mark.search-hit {
   cursor: pointer;
   white-space: nowrap;
 }
-.se-menu-item:hover { background: rgba(255, 255, 255, 0.06); }
-.se-menu-item.se-danger:hover { color: var(--accent-crimson); }
+.se-menu-item:hover,
+.ee-menu-item:hover { background: rgba(255, 255, 255, 0.06); }
+.se-menu-item.se-danger:hover,
+.ee-menu-item.ee-danger:hover { color: var(--accent-crimson); }
 .se-menu-mono { font-family: var(--font-mono); letter-spacing: 0.02em; }
 
 /* Visible focus rings for the custom (non-.btn) toggles introduced here — the keyboard path. */
 .se-card-toggle:focus-visible,
 .se-menu-item:focus-visible,
+.ee-menu-item:focus-visible,
 .field-card-head:focus-visible {
   outline: 2px solid var(--accent-gold);
   outline-offset: -2px;
@@ -3549,10 +3568,12 @@ mark.search-hit {
   }
   .app-container.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 
-  /* Collapse the two-column grids: entry form + admin schema editor stack. */
+  /* Collapse the two-column grids: entry form + admin schema editor stack. When a preview is
+     revealed on a phone, the panels stack (single column) rather than cramping side by side. */
   .form-grid { grid-template-columns: 1fr; }
   .form-grid-full { grid-column: span 1; }
-  .app-workspace.view-content-admin { grid-template-columns: 1fr; }
+  .app-workspace.view-content-admin,
+  .app-workspace.view-content-edit { grid-template-columns: 1fr; }
 
   .editor-panel { padding: 14px 16px; }
 
@@ -3594,7 +3615,8 @@ mark.search-hit {
   .se-toolbar { gap: 8px; }
   .se-toolbar-start,
   .se-toolbar-end { gap: 8px; }
-  .se-label-wide { display: none; }
+  .se-label-wide,
+  .ee-label-wide { display: none; }
   [data-sync-badge] .sync-label { display: none; }
   [data-sync-badge].is-stale .sync-label { display: inline; }
 }

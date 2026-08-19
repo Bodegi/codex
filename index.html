@@ -71,14 +71,23 @@
         <!-- Editor (form) panel — full-width in builder edit mode; left panel in admin -->
         <section class="editor-panel glass-card">
           <div class="editor-header">
-            <h2 id="editor-title" class="panel-title"></h2>
-            <!-- Right-aligned cluster: auxiliary → nav → primary at the trailing edge (mirrors the
-                 reader header's `Structure · Edit`). Destructive Archive stays out of the trailing slot. -->
-            <div class="editor-actions">
-              <button id="btn-history-entry" class="btn btn-secondary btn-sm" hidden>History</button>
-              <button id="btn-archive-entry" class="btn btn-secondary btn-sm" hidden>Archive</button>
-              <button id="btn-delete-entry" class="btn btn-danger btn-sm" hidden>Delete</button>
+            <!-- Mirrors the Structure editor's toolbar: Back leads the breadcrumb title on the left;
+                 the trailing cluster is Preview (on-demand live entry preview) · ⋯ More (History /
+                 Archive / Delete) · primary Save. -->
+            <div class="editor-toolbar-start">
               <button id="btn-done-edit" class="btn btn-secondary btn-sm">Back</button>
+              <h2 id="editor-title" class="panel-title"></h2>
+            </div>
+            <div class="editor-actions">
+              <button id="btn-preview-entry" class="btn btn-secondary btn-sm" type="button" aria-pressed="false">Preview</button>
+              <div class="ee-menu">
+                <button id="btn-entry-menu" class="btn btn-secondary btn-sm ee-menu-trigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯<span class="ee-label-wide"> More</span></button>
+                <div id="entry-menu-list" class="ee-menu-list hidden" role="menu" aria-label="More entry actions">
+                  <button id="btn-history-entry" class="ee-menu-item" role="menuitem" type="button" hidden>History</button>
+                  <button id="btn-archive-entry" class="ee-menu-item" role="menuitem" type="button" hidden>Archive</button>
+                  <button id="btn-delete-entry" class="ee-menu-item ee-danger" role="menuitem" type="button" hidden>Delete</button>
+                </div>
+              </div>
               <button id="btn-save-entry" class="btn btn-primary btn-sm">Save</button>
             </div>
           </div>
@@ -94,8 +103,9 @@
             <div class="reader-actions">
               <button id="btn-structure" class="btn btn-secondary btn-sm" hidden>Structure</button>
               <button id="btn-edit-toggle" class="btn btn-primary btn-sm" hidden>Edit</button>
-              <!-- Structure preview only: dismiss the live-preview column. Entering Structure and
-                   switching to raw JSON both live on the editor toolbar (Preview / More ▸ Edit JSON). -->
+              <!-- Dismiss the on-demand live-preview column — shown for both the Structure editor and
+                   the entry editor (whichever opened it). Opening it lives on each editor's Preview
+                   toggle (Structure also reveals raw JSON via More ▸ Edit JSON). -->
               <button id="btn-close-preview" class="btn btn-secondary btn-sm" type="button" hidden title="Hide the preview">✕ Close</button>
             </div>
           </div>
