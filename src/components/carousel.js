@@ -118,6 +118,13 @@ function setupCarousel(carousel) {
   const m0 = measure(carousel);
   const looping = !!m0 && carouselAutoplays({ count, slideWidth: m0.slideWidth, stride: m0.stride, viewportWidth: m0.viewportWidth });
 
+  // Everything fits → pure-CSS layout, no transform/arrows/autoplay. `is-fill` (2+ images) grows a
+  // centered row to fill the width; `is-single` (one image) stays centered with space both sides.
+  if (!looping) {
+    carousel.classList.add('is-static', count === 1 ? 'is-single' : 'is-fill');
+    return () => carousel.classList.remove('is-static', 'is-single', 'is-fill');
+  }
+
   let k = 0;
   if (looping && track) {
     k = carouselCloneCount({ count, stride: m0.stride, viewportWidth: m0.viewportWidth });
@@ -135,7 +142,6 @@ function setupCarousel(carousel) {
   }
 
   const realStart = k; // DOM slot of real slide 0
-  let i = 0; // logical index [0, count-1]
   let dom = realStart; // DOM slot currently centered
   let timer = null;
   let snapArmed = false;
@@ -153,10 +159,6 @@ function setupCarousel(carousel) {
       track.style.transition = '';
     }
     m.slides.forEach((s, idx) => s.classList.toggle('is-active', idx === dom));
-    if (!looping) {
-      if (prev) prev.disabled = i === 0;
-      if (next) next.disabled = i === count - 1;
-    }
   };
 
   // Bring `dom` back into the real band with an instant (no-transition) reposition onto the
@@ -169,17 +171,10 @@ function setupCarousel(carousel) {
   };
 
   const go = (delta) => {
-    if (looping) {
-      if (inClones()) snap(); // collapse a pending snap first so rapid steps never outrun the clones
-      i = (i + delta + count) % count;
-      dom += delta;
-      apply(true);
-      if (inClones()) snapArmed = true; // finish the wrap once the slide-in transition ends
-    } else {
-      i = Math.max(0, Math.min(i + delta, count - 1));
-      dom = i;
-      apply(true);
-    }
+    if (inClones()) snap(); // collapse a pending snap first so rapid steps never outrun the clones
+    dom += delta;
+    apply(true);
+    if (inClones()) snapArmed = true; // finish the wrap once the slide-in transition ends
   };
 
   const stopAuto = () => {
@@ -202,7 +197,6 @@ function setupCarousel(carousel) {
   };
   const onEnter = () => stopAuto();
   const onLeave = () => startAuto();
-  const onResize = () => apply(false);
   const onTransitionEnd = (e) => {
     if (e.target === track && e.propertyName === 'transform' && snapArmed) snap();
   };
@@ -212,7 +206,6 @@ function setupCarousel(carousel) {
   carousel.addEventListener('mouseenter', onEnter);
   carousel.addEventListener('mouseleave', onLeave);
   track?.addEventListener('transitionend', onTransitionEnd);
-  window.addEventListener('resize', onResize);
 
   apply(false); // initial center is instant — don't slide in from 0
   startAuto();
@@ -224,16 +217,39 @@ function setupCarousel(carousel) {
     carousel.removeEventListener('mouseenter', onEnter);
     carousel.removeEventListener('mouseleave', onLeave);
     track?.removeEventListener('transitionend', onTransitionEnd);
-    window.removeEventListener('resize', onResize);
+    // Reset to pristine real slides so a resize re-init starts clean.
+    track?.querySelectorAll('.carousel-clone').forEach((c) => c.remove());
+    if (track) {
+      track.style.transform = '';
+      track.style.transition = '';
+    }
+    track?.querySelectorAll('.carousel-slide').forEach((s) => s.classList.remove('is-active'));
+    if (prev) prev.disabled = false;
+    if (next) next.disabled = false;
   };
 }
 
 /**
  * Wire every carousel within a rendered preview root. Safe to call always, and idempotent across
- * re-renders of the same root: it tears down the carousels it wired last time before wiring the
- * new DOM, so autoplay timers and resize listeners never accumulate.
+ * re-renders of the same root: it tears down the carousels it wired last time (resetting their DOM)
+ * before wiring the new DOM, so autoplay timers, clones, and listeners never accumulate. A single
+ * debounced resize handler re-runs the whole pass, so a window resize re-decides loop-vs-static and
+ * re-centers every carousel at once.
  */
 export function initCarousel(root) {
   (root.__carouselCleanups || []).forEach((fn) => fn());
-  root.__carouselCleanups = [...root.querySelectorAll('.carousel')].map(setupCarousel);
+  if (root.__onCarouselResize) {
+    window.removeEventListener('resize', root.__onCarouselResize);
+    root.__onCarouselResize = null;
+  }
+  const carousels = [...root.querySelectorAll('.carousel')];
+  root.__carouselCleanups = carousels.map(setupCarousel);
+  if (carousels.length) {
+    let t;
+    root.__onCarouselResize = () => {
+      clearTimeout(t);
+      t = setTimeout(() => initCarousel(root), 150);
+    };
+    window.addEventListener('resize', root.__onCarouselResize);
+  }
 }

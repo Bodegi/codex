@@ -36,7 +36,7 @@
      single-line input (or a line of prose) never stretches the whole panel on a wide monitor.
      `-wide` is the escape hatch for break-layout media (banner/map/gallery) that wants more room. */
   --content-measure: 820px;
-  --content-measure-wide: 1120px;
+  --content-measure-wide: 1400px;
 
   /* Radius & Shadows */
   --radius-sm: 6px;
@@ -1356,13 +1356,20 @@ select[multiple].form-control option {
   cursor: help;
 }
 
-/* Hero image (read-side) */
+/* Hero image (read-side). Height is reserved up-front so the banner never pops in and shoves the
+   body down on load (layout shift). Until the raster paints, the box shows a dimmed emblem
+   watermark as a placeholder; object-fit:cover then paints the loaded image over every background
+   layer, so the watermark and its dimming gradient are only ever seen while the image is in flight. */
 .reader-body .entry-hero {
   width: 100%;
-  max-height: 320px;
+  height: 320px;
   object-fit: cover;
   border-radius: var(--radius-md);
   margin-bottom: 18px;
+  background:
+    linear-gradient(rgba(10, 14, 20, 0.55), rgba(10, 14, 20, 0.55)),
+    url("../assets/logo-emblem.svg") no-repeat center / auto 55%,
+    var(--bg-surface);
 }
 
 /* Media controls (builder / write-side) */
@@ -1455,6 +1462,25 @@ select[multiple].form-control option {
 .carousel-slide.is-active {
   opacity: 1;
   transform: scale(1);
+}
+
+/* Static (non-looping) gallery: everything fits, so there's no active/dimmed distinction, no arrows,
+   and no transform. `is-fill` (2+ images) grows the slides to fill a centered row so no lopsided gap
+   is left; `is-single` (one image) keeps the slide its natural size, centered with space both sides. */
+.carousel.is-static .carousel-track {
+  justify-content: center;
+  transform: none !important;
+}
+.carousel.is-static .carousel-slide {
+  opacity: 1;
+  transform: none;
+}
+.carousel.is-fill .carousel-slide {
+  flex: 1 1 0;
+  max-width: 460px;
+}
+.carousel.is-static .carousel-arrow {
+  display: none;
 }
 
 .carousel-slide img {
@@ -2795,6 +2821,30 @@ mark.search-hit {
   border-color: var(--accent-gold);
   color: var(--accent-gold);
 }
+/* Gallery navigation (only present when the lightbox was opened from a multi-image carousel).
+   Pinned to the screen edges so they clear the image at any size. */
+.lightbox-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border-dim);
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--text-main);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.lightbox-arrow:hover {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+.lightbox-prev { left: 16px; }
+.lightbox-next { right: 16px; }
 
 /* Confirm modal — replaces native confirm() for destructive actions. */
 .confirm-overlay {
