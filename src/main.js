@@ -1674,6 +1674,7 @@ function enterTypeIndex(type) {
   readerTitle.textContent = (schema && schema.label) || type;
   showRenderedPane();
   updateRenderedPreview(renderTypeIndex(type, activeEntries(state.entryIndex, type, entryLabel), renderCtx));
+  resetReaderScroll(); // switching to the index starts at the top, not the last entry's scroll
 }
 
 // ── Reader search ────────────────────────────────────────────────────────────
@@ -2751,6 +2752,7 @@ function renderForm() {
   state.dirty = false;
   state.expandedContentFields.clear(); // a freshly-opened entry starts with every card collapsed
   renderFormWithoutResubscribe();
+  resetReaderScroll(); // don't inherit the previous entry's scroll offset
 }
 
 // Re-render the form WITHOUT touching write-path state. Use THIS (not renderForm) for any mid-edit
@@ -2901,6 +2903,14 @@ function updateRenderedPreview(html) {
   previewRendered.innerHTML = html;
   initCarousel(previewRendered);
   initMapReadCanvases(previewRendered);
+}
+
+// A freshly-navigated reader surface starts at the top. Not automatic: replacing innerHTML alone
+// leaves the scroll container where it was (browser scroll-anchoring holds the previous entry's
+// offset), so opening a shorter entry after a long one would inherit a mid-page scroll. Call this
+// only from navigation (open a different entry / index), never from a live-edit re-render.
+function resetReaderScroll() {
+  previewRendered.scrollTop = 0;
 }
 
 // Click any content image to open it full-size. Delegated once per container so it survives the
