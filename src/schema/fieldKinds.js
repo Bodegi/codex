@@ -27,9 +27,10 @@
  * from `data-field-key` as before.
  *
  * `selfRender` (optional) tells the builder's onChange NOT to rebuild the whole form after a
- * commit. hero/gallery rely on that rebuild to refresh their thumbnails; the map does not — it
- * owns a live canvas with ephemeral pan/zoom a teardown would reset, so it redraws itself and
- * only the read preview refreshes (see main.js `wireComponentMounts`).
+ * commit. `hero` relies on that rebuild to refresh its thumbnail; the self-rendering kinds
+ * (map/banner/group/gallery) own a live subtree — a canvas, an open designer, caption inputs mid-edit
+ * — that a teardown would reset, so each repaints itself and only the read preview refreshes (see
+ * main.js `wireComponentMounts`).
  *
  * The pure kinds (text / prose / number / date / select / boolean / list / reference) stay free of
  * build-tool coupling and are unit-testable under plain Node. The media components need the image
@@ -47,6 +48,7 @@
 import { escapeHtml, formatInline } from './inlineText.js';
 import { notFoundImage } from './notFoundImage.js';
 import { normalizeGroup, groupSubFields, recordLabel } from './groupModel.js';
+import { normalizeGallery } from './galleryModel.js';
 import { openImagePicker } from '../components/imagePicker.js';
 import { renderCarousel } from '../components/carousel.js';
 import { renderMapInput, renderMapRead, mountMap } from '../components/mapComponent.js';
@@ -109,6 +111,29 @@ function renderMultiValues(cells, mode) {
     return `<p class="field-inline">${cells.join(', ')}</p>`;
   }
   return `<ul>${cells.map((c) => `<li>${c}</li>`).join('')}</ul>`;
+}
+
+/** The inner markup of the gallery builder (label + captioned thumb rows + add button), used by both
+ *  `renderInput` and the self-render `mount`'s repaint. Caption inputs carry no `data-field-kind`, so
+ *  the top-level form scrape ignores them — the gallery mount owns them. */
+function galleryInner(field, items, ctx) {
+  const rows = items
+    .map(
+      (item, i) => `
+        <div class="media-gallery-item" data-index="${i}">
+          ${thumb(item.id, ctx?.resolveImage)}
+          <input type="text" class="form-control media-gallery-caption" data-gallery-caption data-index="${i}" value="${escapeHtml(item.caption)}" placeholder="Caption (optional)">
+          <div class="media-gallery-actions">
+            <button type="button" data-media="gallery-left" data-index="${i}" title="Move left" aria-label="Move left">◀</button>
+            <button type="button" data-media="gallery-remove" data-index="${i}" title="Remove image" aria-label="Remove image">×</button>
+            <button type="button" data-media="gallery-right" data-index="${i}" title="Move right" aria-label="Move right">▶</button>
+          </div>
+        </div>`
+    )
+    .join('');
+  return `<label>${escapeHtml(field.label)}</label>
+    <div class="media-gallery-row">${rows || '<span class="media-empty">No carousel images</span>'}</div>
+    <button type="button" class="btn btn-secondary btn-sm" data-media="gallery-add">＋ Add Image</button>`;
 }
 
 /** A resolved image thumb, or the not-found placeholder when the id can't resolve. */
@@ -383,60 +408,49 @@ export const fieldKinds = {
     sampleValue: () => SAMPLE_IMAGE_ID,
   },
 
+  // `selfRender`: the gallery owns a live subtree (thumbnails + per-image caption inputs). A full form
+  // rebuild on every keystroke would blow away caption focus, so — like banner/map/group — it repaints
+  // its own subtree and only the read preview refreshes. Value shape is `[{id,caption}]` (galleryModel
+  // reads a legacy bare-id array too). Caption inputs carry no data-field-kind, so the top-level scrape
+  // ignores them; the mount wires them.
   gallery: {
     title: 'Gallery',
-    description: 'A carousel of several images.',
+    description: 'A carousel of several images, each with an optional caption.',
     icon: ICONS.gallery,
     layout: 'break',
+    selfRender: true,
     renderInput(field, value, ctx) {
-      const gallery = toList(value);
-      const items = gallery
-        .map(
-          (id, i) => `
-          <div class="media-gallery-item">
-            ${thumb(id, ctx?.resolveImage)}
-            <div class="media-gallery-actions">
-              <button type="button" data-media="gallery-left" data-index="${i}" title="Move left" aria-label="Move left">◀</button>
-              <button type="button" data-media="gallery-remove" data-index="${i}" title="Remove image" aria-label="Remove image">×</button>
-              <button type="button" data-media="gallery-right" data-index="${i}" title="Move right" aria-label="Move right">▶</button>
-            </div>
-          </div>`
-        )
-        .join('');
-      return `<div class="form-group form-media" data-field-key="${escapeHtml(field.key)}">
-        <label>${escapeHtml(field.label)}</label>
-        <div class="media-gallery-row">
-          ${items || '<span class="media-empty">No carousel images</span>'}
-        </div>
-        <button type="button" class="btn btn-secondary btn-sm" data-media="gallery-add">＋ Add Image</button>
-      </div>`;
+      return `<div class="form-group form-media" data-field-key="${escapeHtml(field.key)}">${galleryInner(field, normalizeGallery(value), ctx)}</div>`;
     },
     renderRead(_field, value, ctx) {
-      return renderCarousel(toList(value), ctx?.resolveImage);
+      return renderCarousel(normalizeGallery(value), ctx?.resolveImage);
     },
-    mount(el, { value, onChange, ctx }) {
-      el.querySelectorAll('[data-media]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const action = btn.dataset.media;
-          const idx = Number(btn.dataset.index);
-          const g = toList(value).slice();
-          if (action === 'gallery-add') {
-            const ids = await pickImage(ctx, { multiple: true });
-            if (ids && ids.length) { onChange(g.concat(ids)); }
-          } else if (action === 'gallery-remove') {
-            g.splice(idx, 1);
-            onChange(g);
-          } else if (action === 'gallery-left' && idx > 0) {
-            [g[idx - 1], g[idx]] = [g[idx], g[idx - 1]];
-            onChange(g);
-          } else if (action === 'gallery-right' && idx < g.length - 1) {
-            [g[idx + 1], g[idx]] = [g[idx], g[idx + 1]];
-            onChange(g);
-          }
+    mount(el, { field, value, onChange, ctx }) {
+      let items = normalizeGallery(value);
+      const persist = () => onChange(items.map((it) => ({ ...it })));
+      const paint = () => { el.innerHTML = galleryInner(field, items, ctx); wire(); };
+      const wire = () => {
+        el.querySelectorAll('[data-media]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const action = btn.dataset.media;
+            const idx = Number(btn.dataset.index);
+            if (action === 'gallery-add') {
+              const ids = await pickImage(ctx, { multiple: true });
+              if (ids && ids.length) { items = items.concat(ids.map((id) => ({ id, caption: '' }))); persist(); paint(); }
+            } else if (action === 'gallery-remove') { items.splice(idx, 1); persist(); paint(); }
+            else if (action === 'gallery-left' && idx > 0) { [items[idx - 1], items[idx]] = [items[idx], items[idx - 1]]; persist(); paint(); }
+            else if (action === 'gallery-right' && idx < items.length - 1) { [items[idx + 1], items[idx]] = [items[idx], items[idx + 1]]; persist(); paint(); }
+          });
         });
-      });
+        // A caption edit updates its item and persists WITHOUT a repaint — repainting would drop focus
+        // mid-type. selfRender means the persist only refreshes the read preview, not the whole form.
+        el.querySelectorAll('[data-gallery-caption]').forEach((input) => {
+          input.addEventListener('input', () => { items[Number(input.dataset.index)].caption = input.value; persist(); });
+        });
+      };
+      paint();
     },
-    sampleValue: () => [SAMPLE_IMAGE_ID],
+    sampleValue: () => [{ id: SAMPLE_IMAGE_ID, caption: '' }],
   },
 
   // The map component lives in its own module (canvas engine); the registry just delegates.
@@ -650,6 +664,7 @@ export function displayValue(field, value, ctx) {
   if (field.kind === 'heading') return ''; // schema chrome, no per-entry value
   if (field.kind === 'banner') return ''; // structured heraldry, not text (like map — never String(value))
   if (field.kind === 'group') return ''; // a record-array, not text (nested values read through their own kinds)
+  if (field.kind === 'gallery') return ''; // [{id,caption}] media, not text
   if (field.kind === 'boolean') return value === true || value === 'true' ? 'Yes' : 'No';
   if (field.kind === 'list') return toList(value).join(', ');
   if (field.kind === 'select' && field.multi) return toList(value).join(', ');

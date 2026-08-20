@@ -458,6 +458,28 @@ test('gallery renderRead renders a carousel of the ids; empty → nothing', () =
   assert.equal(fieldKinds.gallery.renderRead({ key: 'gallery' }, [], ctx), '');
 });
 
+test('gallery is self-render (caption inputs must survive edits) and its sample carries a caption slot', () => {
+  assert.equal(fieldKinds.gallery.selfRender, true);
+  const sample = fieldKinds.gallery.sampleValue();
+  assert.ok(Array.isArray(sample) && sample.length === 1 && 'caption' in sample[0]);
+});
+
+test('gallery renderInput renders a caption input per image (no data-field-kind — the mount owns it)', () => {
+  const ctx = { resolveImage: (id) => `/i/${id}` };
+  const html = fieldKinds.gallery.renderInput({ key: 'gallery', label: 'Gallery', kind: 'gallery' }, [{ id: 'a.png', caption: 'Dawn' }], ctx);
+  assert.match(html, /data-gallery-caption/);
+  assert.match(html, /value="Dawn"/);
+  assert.doesNotMatch(html, /data-field-kind=/);
+});
+
+test('gallery renderRead surfaces per-image captions (figcaption), reading the legacy id shape too', () => {
+  const ctx = { resolveImage: (id) => `/i/${id}` };
+  const captioned = fieldKinds.gallery.renderRead({ key: 'gallery' }, [{ id: 'a.png', caption: 'Market square' }], ctx);
+  assert.match(captioned, /carousel-caption">Market square</);
+  assert.match(captioned, /data-caption="Market square"/);
+  assert.doesNotMatch(fieldKinds.gallery.renderRead({ key: 'gallery' }, ['a.png'], ctx), /figcaption/);
+});
+
 // --- map (break component) ---
 
 test('map is a break, self-render component the registry resolves', () => {

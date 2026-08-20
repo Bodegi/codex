@@ -22,6 +22,8 @@ import {
   updateSubField,
   updateSubFieldLabel,
   moveSubField,
+  moveFieldIntoGroup,
+  moveSubFieldOut,
 } from './schemaEditor.js';
 import { validateSchema } from '../schema/schemaValidate.js';
 
@@ -306,6 +308,45 @@ test('stripProvisional strips markers from group sub-fields too', () => {
   const clean = stripProvisional(base);
   assert.ok(!('provisional' in clean.fields[1]));
   assert.ok(!('provisional' in clean.fields[1].fields[0]));
+});
+
+test('moveFieldIntoGroup nests a top-level field into the group and drops it from the top level', () => {
+  // groupSchema fields: [id, crests(group), name, notes]. Move "notes" (fi 3) into the group (fi 1).
+  const after = moveFieldIntoGroup(groupSchema(), 3, 1);
+  assert.deepEqual(after.fields.map((f) => f.key), ['id', 'crests', 'name']); // notes gone from top level
+  assert.equal(after.fields[1].fields.at(-1).key, 'notes'); // appended to the group
+});
+
+test('moveFieldIntoGroup fixes the group index when the field sat before it', () => {
+  // Move "id" (fi 0, before the group at fi 1) into the group.
+  const after = moveFieldIntoGroup(groupSchema(), 0, 1);
+  assert.deepEqual(after.fields.map((f) => f.key), ['crests', 'name', 'notes']);
+  assert.equal(after.fields[0].fields.at(-1).key, 'id');
+});
+
+test('moveFieldIntoGroup renames on a key collision within the group, and refuses un-nestable kinds', () => {
+  const s = groupSchema();
+  s.fields.push({ key: 'caption', label: 'Caption', kind: 'text' }); // collides with the group's 'caption'
+  const after = moveFieldIntoGroup(s, 4, 1);
+  assert.equal(after.fields[1].fields.at(-1).key, 'caption2');
+  // A gallery can't be nested → no-op.
+  const s2 = groupSchema();
+  s2.fields.push({ key: 'pics', label: 'Pics', kind: 'gallery' });
+  assert.equal(moveFieldIntoGroup(s2, 4, 1), s2);
+});
+
+test('moveSubFieldOut lifts a sub-field to the top level, just after the group', () => {
+  const after = moveSubFieldOut(groupSchema(), 1, 1); // 'caption' out of the group
+  assert.deepEqual(after.fields.map((f) => f.key), ['id', 'crests', 'caption', 'name', 'notes']);
+  assert.deepEqual(after.fields[1].fields.map((f) => f.key), ['crest']); // only crest remains inside
+});
+
+test('moveSubFieldOut renames on a top-level key collision', () => {
+  const s = groupSchema();
+  s.fields[0].key = 'caption'; // a top-level field already named 'caption'
+  s.titleField = 'caption';
+  const after = moveSubFieldOut(s, 1, 1);
+  assert.equal(after.fields[2].key, 'caption2'); // the lifted sub-field is renamed
 });
 
 test('a group built through the sub-field transforms passes validateSchema', () => {

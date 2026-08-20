@@ -79,6 +79,8 @@ import {
   updateSubField,
   updateSubFieldLabel,
   moveSubField,
+  moveFieldIntoGroup,
+  moveSubFieldOut,
 } from './components/schemaEditor.js';
 import { openComponentPalette } from './components/componentPalette.js';
 import { ALLOWED_INNER_KINDS } from './schema/groupModel.js';
@@ -110,6 +112,7 @@ import { createImageStore } from './utils/imageStore.js';
 import { uploadImage, labelFromFilename, validateImageFile } from './schema/imageUpload.js';
 import { optimizeImage } from './utils/imageOptimize.js';
 import { attachLightbox } from './components/lightbox.js';
+import { attachBannerRecipe } from './components/bannerComponent.js';
 import { openConfirm } from './components/confirmModal.js';
 import { openConflictModal } from './components/conflictModal.js';
 import { openHistoryModal } from './components/historyModal.js';
@@ -2710,6 +2713,14 @@ function handleSchemaIntent(intent) {
       // key chip is cosmetic and refreshes on the next rebuild — refresh the preview only, keep focus.
       state.workingSchema = updateSubFieldLabel(s, intent.fi, intent.si, intent.label);
       return refreshWorkingPreview();
+    case 'move-field-into-group':
+      // repointTitleField is defensive — the UI hides the control for the title field, but a moved
+      // field could still leave titleField dangling in an edge case.
+      state.workingSchema = repointTitleField(moveFieldIntoGroup(s, intent.fi, intent.groupFi));
+      return renderTypesEditor();
+    case 'move-subfield-out':
+      state.workingSchema = moveSubFieldOut(s, intent.fi, intent.si);
+      return renderTypesEditor();
     default:
       return undefined;
   }
@@ -2998,9 +3009,9 @@ function wireComponentMounts() {
       onChange: (v) => {
         state.formData[field.key] = v;
         state.dirty = true;
-        // selfRender components (map) own a live DOM/canvas a full form rebuild would reset;
-        // they redraw themselves, so we only refresh the read preview. Others rebuild the form
-        // (that's how hero/gallery thumbnails refresh).
+        // selfRender components (map/banner/group/gallery) own a live subtree a full rebuild would
+        // reset; they repaint themselves, so we only refresh the read preview. `hero` is not
+        // selfRender — it rebuilds the form (that's how its thumbnail refreshes on an image pick).
         if (component.selfRender) refreshBuilderPreview();
         else renderFormWithoutResubscribe();
       },
@@ -3056,6 +3067,10 @@ function resetReaderScroll() {
 // by the lightbox's own selector). previewRendered covers inline/hero/carousel; formContainer, the gallery.
 attachLightbox(previewRendered);
 attachLightbox(formContainer);
+
+// Click any read-view banner to open its build-recipe modal. Delegated once, like the lightbox; the
+// reader preview is where banner read views (entry, index emblems aside, group items) render.
+attachBannerRecipe(previewRendered);
 
 // Reference links in the reading view navigate to the target entry.
 previewRendered.addEventListener('click', (e) => {

@@ -141,9 +141,9 @@ export function patternList() {
 
 // ── Value shape ──────────────────────────────────────────────────────────────
 
-/** A fresh, empty banner: a white base with no layers. */
+/** A fresh, empty banner: a white base, no layers, no caption. */
 export function emptyBanner() {
-  return { base: DEFAULT_DYE, layers: [] };
+  return { base: DEFAULT_DYE, layers: [], caption: '' };
 }
 
 /**
@@ -151,6 +151,7 @@ export function emptyBanner() {
  * dye falls back to white, non-array layers become `[]`, each layer keeps its (string) pattern id
  * even if unknown — a pattern from a newer game version must survive a load/save round-trip rather
  * than be silently dropped — with an unknown layer color falling back to white. Caps at MAX_LAYERS.
+ * An optional `caption` (a free-text description of the heraldry) rides along, coerced to a string.
  */
 export function normalizeBanner(value) {
   if (!value || typeof value !== 'object') return emptyBanner();
@@ -160,7 +161,7 @@ export function normalizeBanner(value) {
     .filter((l) => l && typeof l === 'object' && typeof l.pattern === 'string' && l.pattern)
     .slice(0, MAX_LAYERS)
     .map((l) => ({ pattern: l.pattern, color: DYE_BY_ID.has(l.color) ? l.color : DEFAULT_DYE }));
-  return { base, layers };
+  return { base, layers, caption: typeof value.caption === 'string' ? value.caption : '' };
 }
 
 /** True when a banner has no layers — nothing to render as heraldry. */

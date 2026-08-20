@@ -21,8 +21,17 @@
  */
 
 import { notFoundImage } from '../schema/notFoundImage.js';
+import { normalizeGallery } from '../schema/galleryModel.js';
 
 const AUTOPLAY_MS = 10000;
+
+function escapeHtml(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 /**
  * translateX (px) that centers slide `index` in a viewport of width `viewportWidth`, given a
@@ -55,25 +64,29 @@ export function carouselCloneCount({ count, stride, viewportWidth }) {
 }
 
 /**
- * HTML for the carousel, or '' when there are no gallery images. `resolveImage(id) → url|null`
- * is injected (the live image index lives in main.js); an unresolved id degrades to the
- * not-found SVG so a removed image never breaks the strip.
+ * HTML for the carousel, or '' when there are no gallery images. Accepts either the `{id,caption}`
+ * gallery shape or a legacy bare-id array (normalizeGallery reads both). `resolveImage(id) → url|null`
+ * is injected (the live image index lives in main.js); an unresolved id degrades to the not-found SVG
+ * so a removed image never breaks the strip. A slide's caption rides a `data-caption` attribute so the
+ * lightbox can surface it, and renders as a `<figcaption>` under the image.
  */
 export function renderCarousel(gallery, resolveImage) {
-  const ids = Array.isArray(gallery) ? gallery : [];
-  if (!ids.length) return '';
+  const items = normalizeGallery(gallery);
+  if (!items.length) return '';
 
-  const slides = ids
-    .map((id) => {
+  const slides = items
+    .map(({ id, caption }) => {
       const url = resolveImage ? resolveImage(id) : null;
+      const cap = caption ? ` data-caption="${escapeHtml(caption)}"` : '';
+      const figcaption = caption ? `<figcaption class="carousel-caption">${escapeHtml(caption)}</figcaption>` : '';
       return url
-        ? `<div class="carousel-slide"><img src="${url}" alt="" loading="lazy"></div>`
-        : `<div class="carousel-slide carousel-missing">${notFoundImage('image-missing-slide')}</div>`;
+        ? `<div class="carousel-slide"${cap}><img src="${url}" alt="${escapeHtml(caption)}" loading="lazy">${figcaption}</div>`
+        : `<div class="carousel-slide carousel-missing"${cap}>${notFoundImage('image-missing-slide')}${figcaption}</div>`;
     })
     .join('');
 
   return `
-    <div class="carousel" data-count="${ids.length}">
+    <div class="carousel" data-count="${items.length}">
       <h2>Inspiration</h2>
       <div class="carousel-viewport">
         <button type="button" class="carousel-arrow carousel-prev" aria-label="Previous" title="Previous">‹</button>

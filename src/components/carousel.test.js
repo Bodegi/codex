@@ -21,6 +21,22 @@ test('renderCarousel: an unresolved id degrades to the not-found frame, not a br
   assert.doesNotMatch(html, /<img/);
 });
 
+test('renderCarousel: a captioned image carries data-caption + a figcaption, escaped', () => {
+  const html = renderCarousel([{ id: 'a', caption: 'Dawn <harbor>' }, { id: 'b', caption: '' }], (id) => `/i/${id}`);
+  assert.match(html, /data-caption="Dawn &lt;harbor&gt;"/);
+  assert.match(html, /<figcaption class="carousel-caption">Dawn &lt;harbor&gt;<\/figcaption>/);
+  // The uncaptioned second slide gets neither.
+  assert.equal((html.match(/figcaption/g) || []).length, 2); // open+close of the one caption only
+  assert.match(html, /alt="Dawn &lt;harbor&gt;"/); // caption doubles as alt text
+});
+
+test('renderCarousel: accepts the legacy bare-id array unchanged (count + slides)', () => {
+  const html = renderCarousel(['a', 'b', 'c'], (id) => `/i/${id}`);
+  assert.match(html, /data-count="3"/);
+  assert.equal((html.match(/carousel-slide/g) || []).length, 3);
+  assert.doesNotMatch(html, /figcaption/); // no captions in the legacy shape
+});
+
 test('carouselOffset: centers the chosen slide in the viewport', () => {
   // slideWidth 300, stride 320 (16px gap), viewport 800 → viewport center 400.
   // slide 0 center is 150 → offset 250; each further slide shifts left by one stride.

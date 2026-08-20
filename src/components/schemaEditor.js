@@ -20,6 +20,7 @@
 import { escapeHtml } from '../schema/inlineText.js';
 import { fieldKinds, emblemKinds } from '../schema/fieldKinds.js';
 import { isBadgeField, isRowField } from '../utils/summaryCard.js';
+import { isAllowedInnerKind } from '../schema/groupModel.js';
 import { newId } from '../utils/id.js';
 
 /** Kinds that take a free-text placeholder (media/reference/select/date/boolean don't). */
@@ -297,6 +298,46 @@ export function moveSubField(schema, fi, si, delta) {
   return next;
 }
 
+/**
+ * Move a top-level field INTO a group's sub-schema (the field vanishes from the top level and becomes
+ * a repeated component). Only an allowed inner kind can move in; the key is kept unless it collides
+ * within the group, and the `provisional` marker is dropped (its top-level data, if any, is orphaned —
+ * inherent to restructuring, same as delete/re-add). A no-op for a bad index or a non-group target.
+ */
+export function moveFieldIntoGroup(schema, fromFi, groupFi) {
+  const fields = schema.fields || [];
+  const field = fields[fromFi];
+  const group = fields[groupFi];
+  if (!field || !group || group.kind !== 'group' || fromFi === groupFi) return schema;
+  if (!isAllowedInnerKind(field.kind)) return schema; // this kind can't be nested
+  const next = clone(schema);
+  const [moved] = next.fields.splice(fromFi, 1);
+  const gIdx = fromFi < groupFi ? groupFi - 1 : groupFi; // the splice shifted the group if it was after
+  const g = next.fields[gIdx];
+  g.fields = Array.isArray(g.fields) ? g.fields : [];
+  const groupKeys = g.fields.map((f) => f.key);
+  if (groupKeys.includes(moved.key)) moved.key = deriveKey(moved.label || moved.key, groupKeys);
+  delete moved.provisional;
+  g.fields.push(moved);
+  return next;
+}
+
+/**
+ * Move a sub-field OUT of a group to the top level, inserted just after the group. The key is kept
+ * unless it collides at the top level; `provisional` is dropped. No-op for a bad index.
+ */
+export function moveSubFieldOut(schema, groupFi, si) {
+  const group = schema.fields?.[groupFi];
+  if (!group || !Array.isArray(group.fields) || !group.fields[si]) return schema;
+  const next = clone(schema);
+  const [moved] = next.fields[groupFi].fields.splice(si, 1);
+  const topKeys = next.fields.map((f) => f.key);
+  if (topKeys.includes(moved.key)) moved.key = deriveKey(moved.label || moved.key, topKeys);
+  delete moved.provisional;
+  next.fields.splice(groupFi + 1, 0, moved);
+  return next;
+}
+
 // --- DOM: editor markup -----------------------------------------------------
 
 /**
@@ -460,6 +501,7 @@ function subFieldRow(field, fi, sub, si, subCount, types) {
         <code class="se-key" title="storage key (fixed)">${escapeHtml(sub.key)}</code>
         <button type="button" class="se-nudge" data-se="sub-up" ${at}${si === 0 ? ' disabled' : ''} title="Move up" aria-label="Move up">▲</button>
         <button type="button" class="se-nudge" data-se="sub-down" ${at}${si === subCount - 1 ? ' disabled' : ''} title="Move down" aria-label="Move down">▼</button>
+        <button type="button" class="se-nudge" data-se="sub-out" ${at} title="Move out to top level" aria-label="Move out of group">⤴</button>
         <button type="button" class="se-nudge se-danger" data-se="sub-remove" ${at} title="Remove field" aria-label="Remove field">×</button>
       </div>
       <div class="se-subfield-extras">${extras.join('')}</div>
@@ -484,7 +526,26 @@ function groupSubSchemaBlock(field, fi, types) {
     </div>`;
 }
 
-function fieldRow(field, fi, types, expanded) {
+/**
+ * The "Move into group" control for a top-level field: a select of the schema's groups. Shown only for
+ * a field that can actually be nested — an allowed inner kind, not the title field (its value titles
+ * the entry), when at least one group exists. `groups` is [{ fi, label }].
+ */
+function moveIntoControl(field, fi, groups, titleField) {
+  if (!groups.length || !isAllowedInnerKind(field.kind) || field.key === titleField) return '';
+  const id = `se-${escapeHtml(field.key)}-into`;
+  const opts = ['<option value="">— move into group —</option>']
+    .concat(groups.map((g) => `<option value="${g.fi}">${escapeHtml(g.label)}</option>`))
+    .join('');
+  return subField(
+    id,
+    'Move into group',
+    `<select id="${id}" aria-describedby="${id}-help" class="se-input se-sub" data-se="field-into-group" data-fi="${fi}">${opts}</select>`,
+    'Nest this component inside a group so it repeats per item. Its current entry data is left behind.'
+  );
+}
+
+function fieldRow(field, fi, types, expanded, groups = [], titleField = '') {
   const at = `data-fi="${fi}"`;
   const id = (control) => `se-${escapeHtml(field.key)}-${control}`;
   // Second line holds only the controls relevant to this field's kind — each labelled + described.
@@ -554,6 +615,8 @@ function fieldRow(field, fi, types, expanded) {
       );
     }
   }
+
+  extras.push(moveIntoControl(field, fi, groups, titleField));
 
   // A heading stores no entry data, so its storage key is meaningless to show; every other
   // component surfaces its fixed key. The label input doubles as the heading's rendered text.
@@ -727,7 +790,14 @@ export function renderSchemaEditor(
   const errorBlock = errors.length
     ? `<div class="se-errors">${errors.map((e) => `<div>${escapeHtml(e)}</div>`).join('')}</div>`
     : '';
-  const fieldRows = flatFields(schema).map((f, fi) => fieldRow(f, fi, types, expanded.has(f.key))).join('');
+  // Groups a top-level field can be moved into (their index + display label).
+  const groups = flatFields(schema)
+    .map((f, fi) => ({ fi, f }))
+    .filter((x) => x.f.kind === 'group')
+    .map((x) => ({ fi: x.fi, label: x.f.label || x.f.key }));
+  const fieldRows = flatFields(schema)
+    .map((f, fi) => fieldRow(f, fi, types, expanded.has(f.key), groups, schema.titleField))
+    .join('');
 
   // Revert/Archive act on a saved schema (a persisted base to fall back to, a status to flip). A
   // brand-new draft has neither — it's discarded by leaving — so the overflow menu holds only the
@@ -800,6 +870,7 @@ const CLICK_INTENTS = {
   'sub-remove': (d) => ({ action: 'remove-subfield', fi: +d.fi, si: +d.si }),
   'sub-up': (d) => ({ action: 'move-subfield', fi: +d.fi, si: +d.si, delta: -1 }),
   'sub-down': (d) => ({ action: 'move-subfield', fi: +d.fi, si: +d.si, delta: 1 }),
+  'sub-out': (d) => ({ action: 'move-subfield-out', fi: +d.fi, si: +d.si }),
 };
 
 /**
@@ -949,6 +1020,9 @@ export function attachSchemaEditor(root, onIntent) {
         return onIntent({ action: 'edit-subfield', fi: +d.fi, si: +d.si, patch: { display: el.value } });
       case 'group-itemlabel':
         return onIntent({ action: 'edit-field', fi: +d.fi, patch: { itemLabel: el.value } });
+      case 'field-into-group':
+        // The select resets to its placeholder after; a rebuild follows anyway.
+        return el.value === '' ? undefined : onIntent({ action: 'move-field-into-group', fi: +d.fi, groupFi: +el.value });
       default:
         return undefined;
     }

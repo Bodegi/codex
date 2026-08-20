@@ -42,6 +42,8 @@ export function openLightbox(images, start = 0) {
   let idx = typeof images === 'string' ? 0 : Math.max(0, Math.min(start, items.length - 1));
   const many = items.length > 1;
 
+  const caption = (it) => it.caption || '';
+
   const overlay = document.createElement('div');
   overlay.className = 'lightbox-overlay';
   overlay.innerHTML = `
@@ -49,14 +51,19 @@ export function openLightbox(images, start = 0) {
     <div class="lightbox-body" role="dialog" aria-modal="true" aria-label="${escapeAttr(items[idx].alt) || 'Image'}">
       <button type="button" class="lightbox-close" aria-label="Close" title="Close">×</button>
       <img class="lightbox-img" src="${escapeAttr(items[idx].src)}" alt="${escapeAttr(items[idx].alt)}">
+      <figcaption class="lightbox-caption"${caption(items[idx]) ? '' : ' hidden'}>${escapeAttr(caption(items[idx]))}</figcaption>
     </div>
     ${many ? `<button type="button" class="lightbox-arrow lightbox-next" aria-label="Next image" title="Next">›</button>` : ''}`;
 
   const imgEl = overlay.querySelector('.lightbox-img');
+  const capEl = overlay.querySelector('.lightbox-caption');
   const show = (i) => {
     idx = (i + items.length) % items.length; // wrap both ways
     imgEl.src = items[idx].src;
     imgEl.alt = items[idx].alt || '';
+    const cap = caption(items[idx]);
+    capEl.textContent = cap;
+    capEl.hidden = !cap;
   };
 
   const close = () => {
@@ -86,7 +93,10 @@ export function openLightbox(images, start = 0) {
 // maps back to the matching real slide by src.
 function carouselGallery(carousel, clicked) {
   const imgs = [...carousel.querySelectorAll('.carousel-slide:not(.carousel-clone) img')];
-  const items = imgs.map((im) => ({ src: im.currentSrc || im.src, alt: im.alt }));
+  const items = imgs.map((im) => {
+    const cap = im.closest('.carousel-slide')?.dataset.caption || '';
+    return { src: im.currentSrc || im.src, alt: im.alt, caption: cap };
+  });
   let start = imgs.indexOf(clicked);
   if (start === -1) {
     const src = clicked.currentSrc || clicked.src;

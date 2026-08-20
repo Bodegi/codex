@@ -117,6 +117,10 @@ export function designerHtml(banner, field, editing) {
           <div class="banner-layers">${cards || '<p class="muted">No layers yet.</p>'}</div>
           <button type="button" class="btn btn-secondary btn-sm banner-add" data-act="add"${atCap ? ' disabled' : ''}>＋ Add layer</button>
         </div>
+        <div class="banner-section">
+          <div class="banner-section-head">Caption <span class="muted">(optional)</span></div>
+          <input type="text" class="form-control banner-caption-input" data-banner-caption value="${escapeHtml(banner.caption || '')}" placeholder="Describe this heraldry">
+        </div>
       </div>
     </div>`;
 }
@@ -126,7 +130,11 @@ export function renderBannerInput(field, value, _ctx) {
   return `<div class="banner-designer" data-field-key="${escapeHtml(field.key)}">${designerHtml(normalizeBanner(value), field, -1)}</div>`;
 }
 
-/** Read view: the composed banner + a collapsed build recipe (loom order). Empty value → nothing. */
+/**
+ * Read view: the composed banner (click → build-recipe modal) plus its optional caption. The recipe
+ * markup rides along in a hidden node so the modal (attachBannerRecipe, wired once on the reader) can
+ * lift it out without recomputing — no inline expander cluttering the page. Empty value → nothing.
+ */
 export function renderBannerRead(field, value, _ctx) {
   if (value == null || typeof value !== 'object') return '';
   const banner = normalizeBanner(value);
@@ -135,13 +143,59 @@ export function renderBannerRead(field, value, _ctx) {
   const layerItems = recipe.layers
     .map((l) => `<li>${dot(l.colorHex)} ${escapeHtml(l.patternName)} — ${escapeHtml(l.colorName)}</li>`)
     .join('');
-  const recipeBlock = `
-    <details class="banner-recipe">
-      <summary>Build recipe</summary>
-      <div class="banner-recipe-base">${dot(recipe.base.hex)} Base: ${escapeHtml(recipe.base.name)}</div>
-      ${layerItems ? `<ol class="banner-recipe-layers">${layerItems}</ol>` : ''}
-    </details>`;
-  return `<div class="banner-read"><div class="banner-figure">${bannerToSvg(banner)}</div>${recipeBlock}</div>`;
+  const recipeContent = `<div class="banner-recipe-base">${dot(recipe.base.hex)} Base: ${escapeHtml(recipe.base.name)}</div>${
+    layerItems ? `<ol class="banner-recipe-layers">${layerItems}</ol>` : ''
+  }`;
+  const caption = banner.caption
+    ? `<figcaption class="banner-caption">${escapeHtml(banner.caption)}</figcaption>`
+    : '';
+  return `<figure class="banner-read" data-banner-recipe tabindex="0" role="button" aria-label="Show build recipe">
+      <div class="banner-figure">${bannerToSvg(banner)}</div>
+      ${caption}
+      <div class="banner-recipe-content" hidden>${recipeContent}</div>
+    </figure>`;
+}
+
+/** The build-recipe modal, opened by clicking a read-view banner (attachBannerRecipe). */
+function openBannerRecipeModal(innerHtml) {
+  const overlay = document.createElement('div');
+  overlay.className = 'banner-recipe-overlay';
+  overlay.innerHTML = `
+    <div class="banner-recipe-modal" role="dialog" aria-modal="true" aria-label="Build recipe">
+      <div class="banner-recipe-modal-head"><strong>Build recipe</strong><button type="button" class="banner-recipe-close" aria-label="Close" title="Close">×</button></div>
+      <div class="banner-recipe-modal-body">${innerHtml}</div>
+    </div>`;
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay || e.target.closest('.banner-recipe-close')) close();
+  });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(overlay);
+}
+
+/**
+ * Delegate clicks/keys within `root` so a read-view banner opens its build-recipe modal. Attach ONCE
+ * per reader container (like attachLightbox) — delegation survives the innerHTML re-renders the reader
+ * does. The recipe HTML is lifted from the banner's hidden `.banner-recipe-content` node.
+ */
+export function attachBannerRecipe(root) {
+  const open = (fig) => {
+    const content = fig.querySelector('.banner-recipe-content')?.innerHTML;
+    if (content) openBannerRecipeModal(content);
+  };
+  root.addEventListener('click', (e) => {
+    const fig = e.target.closest('[data-banner-recipe]');
+    if (fig) open(fig);
+  });
+  root.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const fig = e.target.closest('[data-banner-recipe]');
+    if (fig) { e.preventDefault(); open(fig); }
+  });
 }
 
 /**
@@ -160,8 +214,17 @@ export function mountBanner(el, { field, value, onChange }) {
   const firstPattern = patternList()[0]?.id;
   let editing = -1; // the one expanded layer, or -1. Ephemeral — never persisted.
   const paint = () => { el.innerHTML = designerHtml(banner, field, editing); };
-  const persist = () => onChange({ base: banner.base, layers: banner.layers.map((l) => ({ ...l })) });
+  const persist = () => onChange({ base: banner.base, layers: banner.layers.map((l) => ({ ...l })), caption: banner.caption || '' });
   const commit = () => { persist(); paint(); };
+
+  // The caption edits through a delegated `input` on the root (survives every repaint) and does NOT
+  // repaint — repainting would drop focus mid-type. selfRender means the persist only refreshes the
+  // read preview, not the whole form.
+  el.addEventListener('input', (e) => {
+    if (!e.target.matches('[data-banner-caption]')) return;
+    banner.caption = e.target.value;
+    persist();
+  });
 
   el.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-act]');

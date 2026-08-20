@@ -13,15 +13,30 @@ test('renderBannerRead is empty for an unset value', () => {
   assert.equal(renderBannerRead(field, undefined), '');
 });
 
-test('renderBannerRead composes the banner svg + a loom-order recipe', () => {
+test('renderBannerRead composes the banner svg + a click-to-open recipe (no inline expander)', () => {
   const html = renderBannerRead(field, {
     base: 'blue',
     layers: [{ pattern: 'creeper', color: 'green' }, { pattern: 'border', color: 'white' }],
   });
   assert.match(html, /<svg /);
-  assert.match(html, /<details class="banner-recipe">/);
+  assert.match(html, /<figure class="banner-read" data-banner-recipe/); // clickable, opens the modal
+  assert.match(html, /class="banner-recipe-content" hidden/); // recipe rides along hidden, lifted by the modal
+  assert.doesNotMatch(html, /<details/); // the inline expander is gone
   assert.ok(html.indexOf('Base: Blue') < html.indexOf('Creeper Charge'), 'base before layers');
   assert.ok(html.indexOf('Creeper Charge') < html.indexOf('Border'), 'layers in loom order');
+});
+
+test('renderBannerRead shows a caption as a figcaption when set, and omits it when blank', () => {
+  const withCap = renderBannerRead(field, { base: 'red', layers: [{ pattern: 'border', color: 'white' }], caption: 'War banner <b>' });
+  assert.match(withCap, /<figcaption class="banner-caption">War banner &lt;b&gt;<\/figcaption>/);
+  const noCap = renderBannerRead(field, { base: 'red', layers: [{ pattern: 'border', color: 'white' }] });
+  assert.doesNotMatch(noCap, /banner-caption/);
+});
+
+test('designerHtml renders a caption input carrying the current caption', () => {
+  const html = designerHtml({ base: 'red', layers: [], caption: 'House guard' }, field, -1);
+  assert.match(html, /data-banner-caption/);
+  assert.match(html, /value="House guard"/);
 });
 
 test('designerHtml hides the pattern grid until a layer is edited', () => {

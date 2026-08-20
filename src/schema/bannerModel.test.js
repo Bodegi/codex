@@ -49,8 +49,13 @@ test('patternList mirrors PATTERNS in registry order', () => {
 
 // --- normalize --------------------------------------------------------------
 
-test('emptyBanner is a white base with no layers', () => {
-  assert.deepEqual(emptyBanner(), { base: 'white', layers: [] });
+test('emptyBanner is a white base with no layers and no caption', () => {
+  assert.deepEqual(emptyBanner(), { base: 'white', layers: [], caption: '' });
+});
+
+test('normalizeBanner carries a string caption and coerces a non-string one to empty', () => {
+  assert.equal(normalizeBanner({ base: 'red', layers: [], caption: 'A crest' }).caption, 'A crest');
+  assert.equal(normalizeBanner({ base: 'red', layers: [], caption: 42 }).caption, '');
 });
 
 test('normalizeBanner coerces junk to an empty banner', () => {
