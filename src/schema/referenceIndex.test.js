@@ -76,6 +76,44 @@ test('a type with no schema is skipped, not thrown', () => {
   assert.deepEqual(referencesTo(orphaned, getSchema, 'place', 'rivertown'), []);
 });
 
+test('finds a reference nested one level inside a group, naming the group in the warning', () => {
+  // A `person` whose "crests" group has a reference sub-field pointing at a place. The flat walk
+  // can't see it; the group descent must, or archiving the place breaks the link silently.
+  const schemas = {
+    ...SCHEMAS,
+    person: {
+      type: 'person',
+      titleField: 'name',
+      fields: [
+        { key: 'name', kind: 'text' },
+        {
+          key: 'crests',
+          kind: 'group',
+          label: 'Crests',
+          fields: [
+            { key: 'caption', kind: 'text' },
+            { key: 'origin', kind: 'reference', targetType: 'place', label: 'Origin' },
+          ],
+        },
+      ],
+    },
+  };
+  const entries = indexEntries([
+    { type: 'place', id: 'rivertown', status: 'active', title: 'Rivertown', neighbors: [] },
+    {
+      type: 'person',
+      id: 'dev',
+      status: 'active',
+      name: 'Dev',
+      crests: [{ caption: 'Guard', origin: 'rivertown' }, { caption: 'Scholars', origin: 'rivertown' }],
+    },
+  ]);
+  const refs = referencesTo(entries, (t) => schemas[t] || null, 'place', 'rivertown');
+  const dev = refs.find((r) => r.id === 'dev');
+  assert.ok(dev, 'the nested reference should be found');
+  assert.deepEqual(dev.fields, ['Crests']); // names the group once, not each record's sub-field
+});
+
 test('dependentsWarning is empty when nothing references the entry', () => {
   assert.equal(dependentsWarning([]), '');
 });

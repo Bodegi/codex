@@ -14,12 +14,30 @@
  */
 
 import { toList } from './fieldKinds.js';
+import { normalizeGroup } from './groupModel.js';
 
-/** Every reference field in a schema whose target is `targetType`. */
+/** Every top-level reference field in a schema whose target is `targetType`. */
 function schemaRefFields(schema, targetType) {
   return (schema.fields || []).filter(
     (field) => field.kind === 'reference' && (field.targetType || '') === targetType
   );
+}
+
+/**
+ * Reference sub-fields nested one level inside a group whose target is `targetType`, each paired with
+ * the group it lives in. A group's records each carry the sub-field's value, so a nested link is
+ * invisible to the flat `schemaRefFields` walk — surfacing them here is what keeps an archive warning
+ * honest about links buried in a group (the reason `reference` is an allowed inner kind, issue #52).
+ */
+function schemaGroupRefFields(schema, targetType) {
+  const out = [];
+  for (const field of schema.fields || []) {
+    if (field.kind !== 'group') continue;
+    for (const sub of field.fields || []) {
+      if (sub.kind === 'reference' && (sub.targetType || '') === targetType) out.push({ group: field, sub });
+    }
+  }
+  return out;
 }
 
 /** Does a reference field's stored value point at `targetId`? (multi = any element). */
@@ -52,12 +70,20 @@ export function referencesTo(byType, getSchema, targetType, targetId) {
     const schema = getSchema(type);
     if (!schema) continue;
     const fields = schemaRefFields(schema, targetType);
-    if (!fields.length) continue;
+    const groupFields = schemaGroupRefFields(schema, targetType);
+    if (!fields.length && !groupFields.length) continue;
     for (const entry of byType[type] || []) {
       if (!entry || entry.status === 'archived') continue;
       if (type === targetType && entry.id === targetId) continue; // an entry linking to itself isn't breakage
-      const hits = fields.filter((f) => fieldRefsId(f, entry[f.key], targetId));
-      if (hits.length) refs.push({ type, id: entry.id, title: entryTitle(schema, entry), fields: hits.map((f) => f.label || f.key) });
+      const labels = fields.filter((f) => fieldRefsId(f, entry[f.key], targetId)).map((f) => f.label || f.key);
+      // A group hit names the group (not the buried sub-field) so the warning stays legible; a group
+      // is listed once even if several of its records or sub-fields point here.
+      for (const { group, sub } of groupFields) {
+        const label = group.label || group.key;
+        if (labels.includes(label)) continue;
+        if (normalizeGroup(entry[group.key]).some((rec) => fieldRefsId(sub, rec[sub.key], targetId))) labels.push(label);
+      }
+      if (labels.length) refs.push({ type, id: entry.id, title: entryTitle(schema, entry), fields: labels });
     }
   }
   return refs;
