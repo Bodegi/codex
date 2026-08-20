@@ -3662,3 +3662,84 @@ mark.search-hit {
 .banner-recipe-layers { margin: 0; padding-left: 20px; }
 .banner-recipe-layers li { margin: 2px 0; }
 .banner-dot { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border-dim); vertical-align: middle; margin-right: 4px; }
+
+/* ── Group field (a one-level repeatable record-array) ─────────────────────────
+   Read view: a stack of item cards, each headed by its record label, with the inner
+   components' own read views beneath. */
+.group-read { display: flex; flex-direction: column; gap: 12px; }
+.group-item {
+  border: 1px solid var(--border-dim);
+  border-left: 3px solid var(--border-glow);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.15);
+  padding: 12px 14px;
+}
+.group-item-head {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--accent-gold);
+  margin-bottom: 8px;
+}
+.group-item .group-sub { margin: 6px 0; }
+.group-item .group-sub-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+/* Entry editor: the repeat editor the group mount paints. */
+.group-field { display: flex; flex-direction: column; gap: 10px; }
+.group-designer-label { font-weight: 600; color: var(--text-main); }
+.group-records { display: flex; flex-direction: column; gap: 10px; }
+.group-record {
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  padding: 10px 12px;
+}
+.group-record-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.group-record-title { flex: 1; font-weight: 600; color: var(--text-main); }
+.group-record-actions { display: inline-flex; gap: 4px; }
+.group-record-actions button {
+  background: transparent;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+}
+.group-record-actions button:hover:not(:disabled) { border-color: var(--border-glow); color: var(--text-main); }
+.group-record-actions button:disabled { opacity: 0.4; cursor: default; }
+.group-record-body { display: flex; flex-direction: column; gap: 10px; }
+.group-record-body .group-sub-label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 3px; }
+.group-empty { color: var(--text-muted); font-style: italic; }
+.group-add { align-self: flex-start; }
+
+/* Structure editor: a group's nested sub-schema editor, inset to signal the one level of nesting. */
+.se-subschema {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-dim);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.15);
+}
+.se-subschema-head { font-size: 13px; font-weight: 600; color: var(--text-main); margin-bottom: 8px; }
+.se-subfields { display: flex; flex-direction: column; gap: 8px; }
+.se-subfield {
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  padding: 8px 10px;
+}
+.se-subfield-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.se-subfield-head .se-sub-label-input { flex: 1; min-width: 120px; }
+.se-subfield-extras { margin-top: 8px; }
+.se-subfield-extras:empty { display: none; }
+.se-sub-add { margin-top: 8px; }

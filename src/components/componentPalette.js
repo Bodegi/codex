@@ -37,11 +37,17 @@ function cardHtml({ kind, title, description, icon }, current) {
     </button>`;
 }
 
-/** Open the palette; resolve to the chosen kind, or null if cancelled. */
-export function openComponentPalette({ current = '' } = {}) {
+/**
+ * Open the palette; resolve to the chosen kind, or null if cancelled. `allow` (an array/set of kind
+ * keys) restricts the offered components — a group's sub-schema picker passes the inner allow-list so
+ * `group` (no nesting) and the media/canvas kinds never appear one level down.
+ */
+export function openComponentPalette({ current = '', allow = null } = {}) {
   return new Promise((resolve) => {
     const heading = current ? 'Change component' : 'Add a component';
-    const cards = paletteComponents().map((c) => cardHtml(c, current)).join('');
+    const allowSet = allow ? new Set(allow) : null;
+    const components = paletteComponents().filter((c) => !allowSet || allowSet.has(c.kind));
+    const cards = components.map((c) => cardHtml(c, current)).join('');
 
     const overlay = document.createElement('div');
     overlay.className = 'palette-overlay';

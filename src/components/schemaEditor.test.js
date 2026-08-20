@@ -17,6 +17,11 @@ import {
   moveField,
   moveFieldTo,
   newTypeSchema,
+  addSubField,
+  removeSubField,
+  updateSubField,
+  updateSubFieldLabel,
+  moveSubField,
 } from './schemaEditor.js';
 import { validateSchema } from '../schema/schemaValidate.js';
 
@@ -231,6 +236,85 @@ test('moveFieldTo ignores an out-of-range source', () => {
 });
 
 // --- newTypeSchema ----------------------------------------------------------
+
+// --- group sub-schema transforms ---
+
+/** A schema whose field 1 is a group with a two-field sub-schema. */
+function groupSchema() {
+  const s = schema();
+  s.fields.splice(1, 0, {
+    key: 'crests',
+    label: 'Crests',
+    kind: 'group',
+    fields: [
+      { key: 'crest', label: 'Crest', kind: 'banner' },
+      { key: 'caption', label: 'Caption', kind: 'text' },
+    ],
+  });
+  return s; // fields: [id, crests(group), name, notes]
+}
+
+test('addSubField appends to a group sub-schema without mutating the input', () => {
+  const base = groupSchema();
+  const after = addSubField(base, 1, { key: 'year', label: 'Year', kind: 'number' });
+  assert.equal(after.fields[1].fields.length, 3);
+  assert.equal(after.fields[1].fields[2].key, 'year');
+  assert.equal(base.fields[1].fields.length, 2); // input untouched
+});
+
+test('addSubField seeds a group.fields array when the group had none', () => {
+  const s = schema();
+  s.fields.push({ key: 'g', label: 'G', kind: 'group' });
+  const after = addSubField(s, 3, { key: 'x', label: 'X', kind: 'text' });
+  assert.deepEqual(after.fields[3].fields.map((f) => f.key), ['x']);
+});
+
+test('removeSubField drops one sub-field', () => {
+  const after = removeSubField(groupSchema(), 1, 0);
+  assert.deepEqual(after.fields[1].fields.map((f) => f.key), ['caption']);
+});
+
+test('updateSubField merges a patch but never changes the sub-key', () => {
+  const after = updateSubField(groupSchema(), 1, 1, { key: 'hacked', placeholder: 'e.g. War banner' });
+  assert.equal(after.fields[1].fields[1].key, 'caption'); // key immutable
+  assert.equal(after.fields[1].fields[1].placeholder, 'e.g. War banner');
+});
+
+test('updateSubFieldLabel re-derives a provisional sub-key, unique within the group', () => {
+  const base = groupSchema();
+  base.fields[1].fields.push({ key: 'newField', label: 'New Field', kind: 'text', provisional: true });
+  const after = updateSubFieldLabel(base, 1, 2, 'Caption'); // collides with existing 'caption'
+  assert.equal(after.fields[1].fields[2].key, 'caption2');
+});
+
+test('updateSubFieldLabel leaves a saved sub-field key immutable', () => {
+  const after = updateSubFieldLabel(groupSchema(), 1, 1, 'Motto'); // 'caption', not provisional
+  assert.equal(after.fields[1].fields[1].key, 'caption');
+  assert.equal(after.fields[1].fields[1].label, 'Motto');
+});
+
+test('moveSubField reorders within the group and clamps at the ends', () => {
+  const after = moveSubField(groupSchema(), 1, 0, 1);
+  assert.deepEqual(after.fields[1].fields.map((f) => f.key), ['caption', 'crest']);
+  assert.equal(moveSubField(groupSchema(), 1, 0, -1).fields[1].fields[0].key, 'crest'); // clamp: no-op
+});
+
+test('stripProvisional strips markers from group sub-fields too', () => {
+  const base = groupSchema();
+  base.fields[1].fields[0].provisional = true;
+  base.fields[1].provisional = true;
+  const clean = stripProvisional(base);
+  assert.ok(!('provisional' in clean.fields[1]));
+  assert.ok(!('provisional' in clean.fields[1].fields[0]));
+});
+
+test('a group built through the sub-field transforms passes validateSchema', () => {
+  let s = schema();
+  s.fields.push({ key: 'crests', label: 'Crests', kind: 'group', fields: [] });
+  s = addSubField(s, 3, { key: 'crest', label: 'Crest', kind: 'banner' });
+  s = addSubField(s, 3, { key: 'caption', label: 'Caption', kind: 'text' });
+  assert.equal(validateSchema(s).ok, true);
+});
 
 test('newTypeSchema mints an opaque type id', () => {
   const a = newTypeSchema('Trade Route');

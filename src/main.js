@@ -74,8 +74,14 @@ import {
   moveField,
   moveFieldTo,
   newTypeSchema,
+  addSubField,
+  removeSubField,
+  updateSubField,
+  updateSubFieldLabel,
+  moveSubField,
 } from './components/schemaEditor.js';
 import { openComponentPalette } from './components/componentPalette.js';
+import { ALLOWED_INNER_KINDS } from './schema/groupModel.js';
 import { cloneStarterSchemas } from './schema/starterTypes.js';
 import { renderAuthGateway } from './components/authGateway.js';
 import { renderAwaitingAccess, renderInviteRequired } from './components/awaitingAccess.js';
@@ -2681,6 +2687,29 @@ function handleSchemaIntent(intent) {
       // Summary-card picks don't restructure the editor DOM — refresh the preview only (keeps focus).
       state.workingSchema = updateSummaryCard(s, intent.patch);
       return refreshWorkingPreview();
+    // --- a group's sub-schema (one level down) ---
+    case 'add-subfield':
+      return addSubFieldFromPalette(intent.fi);
+    case 'pick-subfield-kind':
+      return changeSubFieldKind(intent.fi, intent.si);
+    case 'remove-subfield':
+      state.workingSchema = removeSubField(s, intent.fi, intent.si);
+      return renderTypesEditor();
+    case 'move-subfield':
+      state.workingSchema = moveSubField(s, intent.fi, intent.si, intent.delta);
+      return renderTypesEditor();
+    case 'edit-subfield':
+      state.workingSchema = updateSubField(s, intent.fi, intent.si, intent.patch);
+      return refreshWorkingPreview();
+    case 'edit-subfield-structural':
+      // A multi toggle adds/removes the dependent "Display as" control — rebuild the editor DOM.
+      state.workingSchema = updateSubField(s, intent.fi, intent.si, intent.patch);
+      return renderTypesEditor();
+    case 'edit-subfield-label':
+      // A provisional sub-field's key tracks its label (updateSubFieldLabel). Non-structural, but the
+      // key chip is cosmetic and refreshes on the next rebuild — refresh the preview only, keep focus.
+      state.workingSchema = updateSubFieldLabel(s, intent.fi, intent.si, intent.label);
+      return refreshWorkingPreview();
     default:
       return undefined;
   }
@@ -2714,6 +2743,34 @@ async function changeFieldKind(fi) {
   const patch = { kind };
   if (kind === 'select' && !Array.isArray(current.options)) patch.options = [];
   state.workingSchema = updateField(state.workingSchema, fi, patch);
+  renderTypesEditor();
+}
+
+// Add a sub-field to a group's sub-schema. The palette is restricted to the inner allow-list, so
+// `group` (no nesting) and the media/canvas kinds never appear one level down.
+async function addSubFieldFromPalette(fi) {
+  const kind = await openComponentPalette({ allow: [...ALLOWED_INNER_KINDS] });
+  if (!kind) return;
+  const group = state.workingSchema.fields?.[fi];
+  if (!group) return;
+  const label = 'New Field';
+  // Provisional: the sub-key tracks the label until the next save (updateSubFieldLabel). Stripped on
+  // save with every other provisional marker (stripProvisional walks group sub-fields too).
+  const sub = { key: deriveKey(label, (group.fields || []).map((f) => f.key)), label, kind, provisional: true };
+  if (kind === 'select') sub.options = [];
+  state.workingSchema = addSubField(state.workingSchema, fi, sub);
+  renderTypesEditor();
+}
+
+// Change a group sub-field's component via the (restricted) palette. No-op on cancel or re-pick.
+async function changeSubFieldKind(fi, si) {
+  const current = state.workingSchema.fields?.[fi]?.fields?.[si];
+  if (!current) return;
+  const kind = await openComponentPalette({ current: current.kind, allow: [...ALLOWED_INNER_KINDS] });
+  if (!kind || kind === current.kind) return;
+  const patch = { kind };
+  if (kind === 'select' && !Array.isArray(current.options)) patch.options = [];
+  state.workingSchema = updateSubField(state.workingSchema, fi, si, patch);
   renderTypesEditor();
 }
 

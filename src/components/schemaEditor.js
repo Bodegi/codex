@@ -178,7 +178,12 @@ function migrateSummaryKey(card, oldKey, newKey) {
  */
 export function stripProvisional(schema) {
   const next = clone(schema);
-  for (const f of next.fields || []) delete f.provisional;
+  for (const f of next.fields || []) {
+    delete f.provisional;
+    // A group's sub-fields carry the same in-editor-only marker — strip them too, or a provisional
+    // sub-key would land in stored data and keep tracking its label after save.
+    if (f.kind === 'group' && Array.isArray(f.fields)) for (const sub of f.fields) delete sub.provisional;
+  }
   return next;
 }
 
@@ -233,16 +238,75 @@ export function moveFieldTo(schema, fromFi, toFi) {
   return next;
 }
 
+// --- Sub-field transforms (a group's one-level sub-schema) -------------------
+// A group field carries its sub-schema on `field.fields`. These mirror the top-level field
+// transforms, scoped to one group by its field index (`fi`) — new copies, never mutating the input.
+
+/** The sub-fields of the group at `fi`, or [] when it has none / isn't a group. */
+function subFieldsOf(schema, fi) {
+  return schema.fields?.[fi]?.fields || [];
+}
+
+/** Append a sub-field to a group's sub-schema. `subField` must already carry a unique sub-key. */
+export function addSubField(schema, fi, subField) {
+  const next = clone(schema);
+  const group = next.fields[fi];
+  group.fields = Array.isArray(group.fields) ? group.fields : [];
+  group.fields.push(subField);
+  return next;
+}
+
+/** Remove a sub-field from a group's sub-schema. */
+export function removeSubField(schema, fi, si) {
+  const next = clone(schema);
+  next.fields[fi].fields.splice(si, 1);
+  return next;
+}
+
+/** Shallow-merge a patch into a sub-field. The sub-key is never changed here (it is immutable). */
+export function updateSubField(schema, fi, si, patch) {
+  const next = clone(schema);
+  const sub = next.fields[fi].fields[si];
+  const { key: _ignoredKey, ...safe } = patch;
+  Object.assign(sub, safe);
+  return next;
+}
+
+/**
+ * Set a sub-field's label. A `provisional` sub-field (freshly added, never saved) also re-derives its
+ * key from the label — unique within the group — mirroring `updateFieldLabel` at the top level.
+ */
+export function updateSubFieldLabel(schema, fi, si, label) {
+  const next = clone(schema);
+  const sub = next.fields[fi].fields[si];
+  sub.label = label;
+  if (sub.provisional) {
+    const others = next.fields[fi].fields.filter((_, i) => i !== si).map((f) => f.key);
+    sub.key = deriveKey(label, others);
+  }
+  return next;
+}
+
+/** Move a sub-field up (delta -1) or down (delta +1) within its group's sub-schema. */
+export function moveSubField(schema, fi, si, delta) {
+  const subs = subFieldsOf(schema, fi);
+  const target = si + delta;
+  if (target < 0 || target >= subs.length) return schema; // clamp at the ends
+  const next = clone(schema);
+  swap(next.fields[fi].fields, si, target);
+  return next;
+}
+
 // --- DOM: editor markup -----------------------------------------------------
 
 /**
  * A field's kind control: a chip showing the current component's icon + human name, opening the
  * palette on click (see components/componentPalette.js) rather than exposing the raw kind key.
  */
-function kindChip(field, at) {
+function kindChip(field, at, se = 'field-kind') {
   const def = fieldKinds[field.kind] || {};
   const title = def.title || field.kind;
-  return `<button type="button" class="se-input se-kind se-kind-chip" data-se="field-kind" ${at} title="Change component">
+  return `<button type="button" class="se-input se-kind se-kind-chip" data-se="${se}" ${at} title="Change component">
       <span class="se-kind-icon" aria-hidden="true">${def.icon || ''}</span><span class="se-kind-name">${escapeHtml(title)}</span>
     </button>`;
 }
@@ -285,12 +349,13 @@ function subField(id, labelText, controlHtml, helpText) {
     </div>`;
 }
 
-// The "Allow multiple" toggle — shared by select and reference. Checking it re-renders the row
-// (field-multi is structural) so the dependent "Display as" control appears/disappears.
-function multiCheckbox(field, id, at, helpText) {
+// The "Allow multiple" toggle — shared by select and reference (top-level and group sub-fields).
+// Checking it re-renders the row (multi is structural) so the dependent "Display as" control
+// appears/disappears. `se` names the intent tag: 'field-multi' top-level, 'sub-multi' inside a group.
+function multiCheckbox(field, id, at, helpText, se = 'field-multi') {
   return `
     <div class="se-sub-field se-sub-field-check">
-      <label class="se-meta"><input type="checkbox" id="${id('multi')}" aria-describedby="${id('multi')}-help" data-se="field-multi" ${at}${field.multi ? ' checked' : ''}> Allow multiple</label>
+      <label class="se-meta"><input type="checkbox" id="${id('multi')}" aria-describedby="${id('multi')}-help" data-se="${se}" ${at}${field.multi ? ' checked' : ''}> Allow multiple</label>
       <span class="se-sub-help" id="${id('multi')}-help">${escapeHtml(helpText)}</span>
     </div>`;
 }
@@ -302,7 +367,7 @@ const DISPLAY_MODES = [
   ['tags', 'Tags'],
   ['inline', 'Inline text'],
 ];
-function displayControl(field, id, at) {
+function displayControl(field, id, at, se = 'field-display') {
   const mode = ['list', 'tags', 'inline'].includes(field.display) ? field.display : 'list';
   const opts = DISPLAY_MODES.map(
     ([v, label]) => `<option value="${v}"${v === mode ? ' selected' : ''}>${label}</option>`
@@ -310,9 +375,113 @@ function displayControl(field, id, at) {
   return subField(
     id('display'),
     'Display as',
-    `<select id="${id('display')}" aria-describedby="${id('display')}-help" class="se-input se-sub" data-se="field-display" ${at}>${opts}</select>`,
+    `<select id="${id('display')}" aria-describedby="${id('display')}-help" class="se-input se-sub" data-se="${se}" ${at}>${opts}</select>`,
     'How several values read in the entry: a bulleted list, pills, or inline text.'
   );
+}
+
+// Sub-field kinds simple enough to head a group record (a scalar the record label can stringify).
+// Banner/prose/reference/boolean don't read as a clean title, so they aren't offered for `itemLabel`.
+const ITEM_LABEL_KINDS = new Set(['text', 'select', 'number', 'date']);
+
+/** The "Item label" picker: which sub-field titles each record card, or a positional "Item N". */
+function itemLabelControl(field, fi) {
+  const subs = Array.isArray(field.fields) ? field.fields : [];
+  const titleable = subs.filter((f) => ITEM_LABEL_KINDS.has(f.kind));
+  if (!titleable.length) return '';
+  const id = `se-${escapeHtml(field.key)}-itemlabel`;
+  const opts = [`<option value="">— item number —</option>`]
+    .concat(
+      titleable.map(
+        (f) => `<option value="${escapeHtml(f.key)}"${f.key === field.itemLabel ? ' selected' : ''}>${escapeHtml(f.label || f.key)}</option>`
+      )
+    )
+    .join('');
+  return subField(
+    id,
+    'Item label',
+    `<select id="${id}" aria-describedby="${id}-help" class="se-input se-sub" data-se="group-itemlabel" data-fi="${fi}">${opts}</select>`,
+    'Which sub-field titles each item — otherwise items are numbered.'
+  );
+}
+
+/**
+ * One sub-field row inside a group's sub-schema editor: a compact analog of `fieldRow` (kind chip +
+ * label + key + the kind's own config controls + reorder/remove), scoped to the group `fi` and the
+ * sub-index `si`. Reorder is Up/Down only — no drag — to keep the nested editor simple.
+ */
+function subFieldRow(field, fi, sub, si, subCount, types) {
+  const at = `data-fi="${fi}" data-si="${si}"`;
+  const id = (control) => `se-${escapeHtml(field.key)}-sub-${si}-${escapeHtml(control)}`;
+  const extras = [];
+  if (PLACEHOLDER_KINDS.has(sub.kind)) {
+    extras.push(
+      subField(
+        id('placeholder'),
+        'Placeholder',
+        `<input id="${id('placeholder')}" aria-describedby="${id('placeholder')}-help" class="se-input se-sub" data-se="sub-placeholder" ${at} placeholder="e.g. War banner" value="${escapeHtml(sub.placeholder || '')}">`,
+        'Faint example text shown while the input is empty.'
+      )
+    );
+  }
+  if (sub.kind === 'select') {
+    const optionsText = escapeHtml((Array.isArray(sub.options) ? sub.options : []).join('\n'));
+    extras.push(
+      subField(
+        id('options'),
+        'Options',
+        `<textarea id="${id('options')}" aria-describedby="${id('options')}-help" class="se-input se-sub se-options" data-se="sub-options" ${at} rows="3" placeholder="One option per line">${optionsText}</textarea>`,
+        'The fixed choices an author picks from — one per line.'
+      )
+    );
+    extras.push(multiCheckbox(sub, id, at, 'Let an author pick several options instead of just one.', 'sub-multi'));
+    if (sub.multi) extras.push(displayControl(sub, id, at, 'sub-display'));
+  }
+  if (sub.kind === 'list') {
+    extras.push(displayControl(sub, id, at, 'sub-display'));
+  }
+  if (sub.kind === 'reference') {
+    extras.push(
+      subField(
+        id('target'),
+        'Links to',
+        `<select id="${id('target')}" aria-describedby="${id('target')}-help" class="se-input se-sub" data-se="sub-target" ${at}>${targetOptions(types, sub.targetType)}</select>`,
+        'The type whose entries this field can point to.'
+      )
+    );
+    extras.push(multiCheckbox(sub, id, at, 'Let one entry link to several targets instead of just one.', 'sub-multi'));
+    if (sub.multi) extras.push(displayControl(sub, id, at, 'sub-display'));
+  }
+  return `
+    <div class="se-subfield" ${at} data-key="${escapeHtml(sub.key)}">
+      <div class="se-subfield-head">
+        ${kindChip(sub, at, 'sub-kind')}
+        <input class="se-input se-label se-sub-label-input" data-se="sub-label" ${at} value="${escapeHtml(sub.label || '')}" placeholder="Field label">
+        <code class="se-key" title="storage key (fixed)">${escapeHtml(sub.key)}</code>
+        <button type="button" class="se-nudge" data-se="sub-up" ${at}${si === 0 ? ' disabled' : ''} title="Move up" aria-label="Move up">▲</button>
+        <button type="button" class="se-nudge" data-se="sub-down" ${at}${si === subCount - 1 ? ' disabled' : ''} title="Move down" aria-label="Move down">▼</button>
+        <button type="button" class="se-nudge se-danger" data-se="sub-remove" ${at} title="Remove field" aria-label="Remove field">×</button>
+      </div>
+      <div class="se-subfield-extras">${extras.join('')}</div>
+    </div>`;
+}
+
+/**
+ * A group field's sub-schema editor: the ordered sub-field list, an "add component" button (which
+ * opens the palette restricted to the inner allow-list), and the item-label picker. Rendered inside
+ * the group's own field-row extras.
+ */
+function groupSubSchemaBlock(field, fi, types) {
+  const subs = Array.isArray(field.fields) ? field.fields : [];
+  const rows = subs.map((sub, si) => subFieldRow(field, fi, sub, si, subs.length, types)).join('');
+  const body = rows || '<p class="se-summary-none">No components yet — add one below.</p>';
+  return `
+    <div class="se-subschema">
+      <div class="se-subschema-head">Repeated components <span class="muted">(each item is one of these)</span></div>
+      <div class="se-subfields">${body}</div>
+      <button type="button" class="se-btn se-add se-sub-add" data-se="sub-add" data-fi="${fi}">+ add component</button>
+      ${itemLabelControl(field, fi)}
+    </div>`;
 }
 
 function fieldRow(field, fi, types, expanded) {
@@ -357,6 +526,9 @@ function fieldRow(field, fi, types, expanded) {
     );
     extras.push(multiCheckbox(field, id, at, 'Let one entry link to several targets instead of just one.'));
     if (field.multi) extras.push(displayControl(field, id, at));
+  }
+  if (field.kind === 'group') {
+    extras.push(groupSubSchemaBlock(field, fi, types));
   }
   if (field.kind === 'map') {
     // Per-field association config: how a marker links to an entry. The
@@ -621,6 +793,13 @@ const CLICK_INTENTS = {
   'field-remove': (d) => ({ action: 'remove-field', fi: +d.fi }),
   'field-up': (d) => ({ action: 'move-field', fi: +d.fi, delta: -1 }),
   'field-down': (d) => ({ action: 'move-field', fi: +d.fi, delta: 1 }),
+  // A group's sub-schema: add/change opens the palette (restricted to the inner allow-list); the
+  // rest mirror the field-level intents, scoped to the group `fi` + the sub-index `si`.
+  'sub-add': (d) => ({ action: 'add-subfield', fi: +d.fi }),
+  'sub-kind': (d) => ({ action: 'pick-subfield-kind', fi: +d.fi, si: +d.si }),
+  'sub-remove': (d) => ({ action: 'remove-subfield', fi: +d.fi, si: +d.si }),
+  'sub-up': (d) => ({ action: 'move-subfield', fi: +d.fi, si: +d.si, delta: -1 }),
+  'sub-down': (d) => ({ action: 'move-subfield', fi: +d.fi, si: +d.si, delta: 1 }),
 };
 
 /**
@@ -711,6 +890,18 @@ export function attachSchemaEditor(root, onIntent) {
           fi: +d.fi,
           patch: { options: el.value.split('\n').map((s) => s.trim()).filter(Boolean) },
         });
+      // A group's sub-fields — the same edits, scoped to the group `fi` + the sub-index `si`.
+      case 'sub-label':
+        return onIntent({ action: 'edit-subfield-label', fi: +d.fi, si: +d.si, label: el.value });
+      case 'sub-placeholder':
+        return onIntent({ action: 'edit-subfield', fi: +d.fi, si: +d.si, patch: { placeholder: el.value } });
+      case 'sub-options':
+        return onIntent({
+          action: 'edit-subfield',
+          fi: +d.fi,
+          si: +d.si,
+          patch: { options: el.value.split('\n').map((s) => s.trim()).filter(Boolean) },
+        });
       default:
         return undefined;
     }
@@ -748,6 +939,16 @@ export function attachSchemaEditor(root, onIntent) {
         // Membership toggle: recompute the whole ordered array from the checked rows in DOM order —
         // the same read a drag-reorder uses, so order and membership stay one source of truth.
         return onIntent({ action: 'edit-summary', patch: summarySelectionPatch(root, d.se) });
+      // A group's sub-fields — target/multi/display mirror the field-level structural/non-structural
+      // split; itemLabel is a plain patch on the group field.
+      case 'sub-target':
+        return onIntent({ action: 'edit-subfield', fi: +d.fi, si: +d.si, patch: { targetType: el.value } });
+      case 'sub-multi':
+        return onIntent({ action: 'edit-subfield-structural', fi: +d.fi, si: +d.si, patch: { multi: el.checked } });
+      case 'sub-display':
+        return onIntent({ action: 'edit-subfield', fi: +d.fi, si: +d.si, patch: { display: el.value } });
+      case 'group-itemlabel':
+        return onIntent({ action: 'edit-field', fi: +d.fi, patch: { itemLabel: el.value } });
       default:
         return undefined;
     }
