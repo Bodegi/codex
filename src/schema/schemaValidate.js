@@ -11,6 +11,7 @@
  */
 
 import { fieldKinds, toList } from './fieldKinds.js';
+import { groupSchemaErrors } from './groupModel.js';
 
 /** Every kind the app can render — the one registry now holds media alongside the pure kinds. */
 const KNOWN_KINDS = new Set(Object.keys(fieldKinds));
@@ -63,12 +64,16 @@ export function validateSchema(schema) {
     if (f.kind === 'heading' && (!f.label || String(f.label).trim() === '')) {
       errors.push(`Heading "${f.key}" must have a label.`);
     }
+    // A group's sub-schema is validated by its own model (allow-list, one-level bound, unique
+    // sub-keys, per-kind bar) — the errors read as "… in group X".
+    if (f.kind === 'group') errors.push(...groupSchemaErrors(f));
   });
 
   // titleField is required and names a real field key. idField is optional — an entry's identity
   // is its opaque `entry.id` doc key, not a schema field — but when present (e.g. the demo
   // fixture's readable id field) it must still name a real field.
   const headingKeys = new Set(allFields.filter((f) => f && f.kind === 'heading').map((f) => f.key));
+  const groupKeys = new Set(allFields.filter((f) => f && f.kind === 'group').map((f) => f.key));
   const title = schema.titleField;
   if (!title || String(title).trim() === '') {
     errors.push('Schema must define titleField.');
@@ -76,6 +81,8 @@ export function validateSchema(schema) {
     errors.push(`titleField "${title}" does not match any field key.`);
   } else if (headingKeys.has(title)) {
     errors.push(`titleField "${title}" is a heading, which holds no entry data.`);
+  } else if (groupKeys.has(title)) {
+    errors.push(`titleField "${title}" is a group, whose value is a list, not a title.`);
   }
   const idField = schema.idField;
   if (idField != null && String(idField).trim() !== '' && !keys.has(idField)) {

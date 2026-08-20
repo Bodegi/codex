@@ -17,6 +17,7 @@ const schema = {
     { key: 'sec_media', label: 'Media', kind: 'heading' },
     { key: 'gallery', kind: 'gallery' },
     { key: 'heroImage', kind: 'hero' },
+    { key: 'crests', kind: 'group', fields: [{ key: 'crest', kind: 'banner' }] },
   ],
 };
 
@@ -35,6 +36,7 @@ test('blankEntry initializes list and gallery fields to arrays, others to empty 
   assert.deepEqual(e.tags, []);
   assert.deepEqual(e.gallery, []);
   assert.deepEqual(e.factions, []); // multi-value reference starts as an array
+  assert.deepEqual(e.crests, []); // a group starts as an empty record-array
   assert.equal(e.name, '');
   assert.equal(e.bio, '');
   assert.equal(e.favoriteNote, ''); // single-value reference stays an empty string

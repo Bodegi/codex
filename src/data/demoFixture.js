@@ -68,6 +68,16 @@ export const demoSchemas = [
       { key: 'heroImage', label: 'Hero Image', kind: 'hero' },
       { key: 'sec_heraldry', label: 'Heraldry', kind: 'heading' },
       { key: 'sigil', label: 'Sigil', kind: 'banner' },
+      {
+        key: 'crests',
+        label: 'Additional Crests',
+        kind: 'group',
+        itemLabel: 'caption',
+        fields: [
+          { key: 'crest', label: 'Crest', kind: 'banner' },
+          { key: 'caption', label: 'Caption', kind: 'text', placeholder: 'e.g. War banner' },
+        ],
+      },
     ],
   },
 ];
@@ -111,6 +121,10 @@ export const demoEntriesByType = {
       active: true,
       heroImage: '',
       sigil: { base: 'white', layers: [{ pattern: 'creeper', color: 'green' }, { pattern: 'border', color: 'green' }] },
+      crests: [
+        { crest: { base: 'red', layers: [{ pattern: 'border', color: 'white' }] }, caption: 'House guard' },
+        { crest: { base: 'blue', layers: [{ pattern: 'creeper', color: 'lime' }] }, caption: 'Scholars' },
+      ],
     },
   ],
 };

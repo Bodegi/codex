@@ -2856,8 +2856,18 @@ function readFieldValue(el) {
 // reference), which carry data-field-kind. Break components (hero/gallery) carry data-field-key on
 // their root but no data-field-kind — they report through their mount's onChange, not this scrape
 // (see wireComponentMounts).
+// A control the top-level form harvest owns — i.e. NOT nested inside a group's subtree. A `group`
+// mount (groupComponent.js) renders + wires its own inner controls and reports the whole record-array
+// through its onChange; the top-level scrape/mount must leave those nested controls alone or it would
+// double-write them (or mount an inner banner twice). The group root itself has no group ancestor, so
+// it stays top-level and is mounted normally.
+function notNested(el) {
+  return !el.parentElement || !el.parentElement.closest('[data-field-group]');
+}
+
 function attachFormInputListeners() {
   formContainer.querySelectorAll('[data-field-kind]').forEach((input) => {
+    if (!notNested(input)) return;
     const sync = (e) => {
       const el = e.target;
       const key = el.dataset.fieldKey;
@@ -2877,6 +2887,7 @@ function attachFormInputListeners() {
   // the scrape above — its root has data-field-key but no data-field-kind. Fresh nodes each render,
   // so attaching here (like the scrape) never stacks listeners.
   formContainer.querySelectorAll('.toggle-select').forEach((ctrl) => {
+    if (!notNested(ctrl)) return;
     ctrl.addEventListener('click', (e) => {
       const opt = e.target.closest('.toggle-option');
       if (!opt || !ctrl.contains(opt)) return;
@@ -2919,6 +2930,7 @@ function wireComponentMounts() {
   for (const field of schema.fields || []) byKey.set(field.key, field);
   const ctx = mountCtx();
   formContainer.querySelectorAll('[data-field-key]').forEach((el) => {
+    if (!notNested(el)) return; // a group's inner components are mounted by the group, not here
     const field = byKey.get(el.dataset.fieldKey);
     if (!field) return;
     const component = getKind(field.kind);

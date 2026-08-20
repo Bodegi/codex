@@ -34,6 +34,10 @@ function valueSummary(field, value, ctx) {
       return value && typeof value === 'object' && (value.base || (value.layers || []).length) ? 'Banner set' : '';
     case 'map':
       return value && typeof value === 'object' && value.mapImageId ? 'Map set' : '';
+    case 'group': {
+      const n = Array.isArray(value) ? value.length : 0;
+      return n ? `${n} item${n === 1 ? '' : 's'}` : '';
+    }
     default: {
       const s = displayValue(field, value, ctx);
       return s == null ? '' : String(s);

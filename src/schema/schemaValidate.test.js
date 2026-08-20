@@ -44,6 +44,39 @@ test('a heading component is accepted as a known kind', () => {
   assert.equal(validateSchema(schema).ok, true);
 });
 
+test('a well-formed group field is accepted', () => {
+  const schema = validSchema();
+  schema.fields.push({
+    key: 'crests',
+    label: 'Crests',
+    kind: 'group',
+    fields: [
+      { key: 'crest', kind: 'banner', label: 'Crest' },
+      { key: 'caption', kind: 'text', label: 'Caption' },
+    ],
+  });
+  assert.equal(validateSchema(schema).ok, true);
+});
+
+test('a group with a malformed sub-schema surfaces its errors through validateSchema', () => {
+  const schema = validSchema();
+  schema.fields.push({ key: 'empty', kind: 'group', fields: [] });
+  schema.fields.push({ key: 'nested', kind: 'group', fields: [{ key: 'inner', kind: 'group', fields: [] }] });
+  const { ok, errors } = validateSchema(schema);
+  assert.equal(ok, false);
+  assert.match(errors.join(' '), /at least one component/);
+  assert.match(errors.join(' '), /may not contain another group/);
+});
+
+test('titleField may not point at a group, whose value is a list', () => {
+  const schema = validSchema();
+  schema.fields.push({ key: 'crests', kind: 'group', fields: [{ key: 'crest', kind: 'banner' }] });
+  schema.titleField = 'crests';
+  const { ok, errors } = validateSchema(schema);
+  assert.equal(ok, false);
+  assert.match(errors.join(' '), /titleField "crests" is a group/);
+});
+
 test('rejects a non-object schema', () => {
   assert.equal(validateSchema(null).ok, false);
   assert.equal(validateSchema('nope').ok, false);

@@ -498,6 +498,66 @@ test('map renderRead: empty → nothing, populated → a .map-read canvas carryi
   assert.match(html, /src="\/i\/m.png"/);
 });
 
+// --- group (break, self-render record-array) ---
+
+const groupField = () => ({
+  key: 'crests',
+  kind: 'group',
+  label: 'Crests',
+  itemLabel: 'caption',
+  fields: [
+    { key: 'crest', kind: 'banner', label: 'Crest' },
+    { key: 'caption', kind: 'text', label: 'Caption' },
+  ],
+});
+
+test('group is a break, self-render component the registry resolves', () => {
+  assert.equal(getKind('group'), fieldKinds.group);
+  assert.equal(getLayout('group'), 'break');
+  assert.equal(fieldKinds.group.selfRender, true);
+});
+
+test('group renderInput is an empty container carrying data-field-group (filled + wired by the mount)', () => {
+  const html = fieldKinds.group.renderInput(groupField(), []);
+  assert.match(html, /data-field-key="crests"/);
+  assert.match(html, /data-field-group/);
+  assert.doesNotMatch(html, /data-field-kind=/); // the top-level scrape must not see it as a scalar control
+});
+
+test('group displayValue is empty — a record-array is not text', () => {
+  assert.equal(displayValue({ kind: 'group' }, [{ caption: 'x' }]), '');
+});
+
+test('group renderRead: empty → nothing; records → a card per record with each sub-field read inline', () => {
+  assert.equal(fieldKinds.group.renderRead(groupField(), []), '');
+  assert.equal(fieldKinds.group.renderRead(groupField(), undefined), '');
+  const value = [
+    { crest: { base: 'red', layers: [{ pattern: 'border', color: 'white' }] }, caption: 'House guard' },
+    { crest: { base: 'blue', layers: [] }, caption: 'Scholars' },
+  ];
+  const html = fieldKinds.group.renderRead(groupField(), value);
+  assert.match(html, /class="group-read"/);
+  // Two record cards, each headed by its itemLabel value.
+  assert.equal(html.match(/class="group-item"/g).length, 2);
+  assert.match(html, /group-item-head">House guard</);
+  assert.match(html, /group-item-head">Scholars</);
+  // The nested text sub-field reads through the text kind (escaped <p>), the banner as an <svg>.
+  assert.match(html, /House guard<\/p>|<p>House guard/);
+  assert.match(html, /<svg/);
+});
+
+test('group renderRead falls back to a positional Item N when the record has no itemLabel value', () => {
+  const html = fieldKinds.group.renderRead(groupField(), [{ crest: { base: 'red', layers: [] } }]);
+  assert.match(html, /group-item-head">Item 1</);
+});
+
+test('group sampleValue is a one-record array filled with each sub-field sample', () => {
+  const sample = sampleValue(groupField());
+  assert.ok(Array.isArray(sample) && sample.length === 1);
+  assert.equal(sample[0].caption, 'Caption'); // text sample → the sub-field label
+  assert.ok(sample[0].crest && typeof sample[0].crest === 'object'); // banner sample → a filled object
+});
+
 // --- preview sample (filled Structure-editor previews) ---
 
 test('sampleValue: text/list/reference → the field label', () => {

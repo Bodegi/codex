@@ -46,10 +46,12 @@
 
 import { escapeHtml, formatInline } from './inlineText.js';
 import { notFoundImage } from './notFoundImage.js';
+import { normalizeGroup, groupSubFields, recordLabel } from './groupModel.js';
 import { openImagePicker } from '../components/imagePicker.js';
 import { renderCarousel } from '../components/carousel.js';
 import { renderMapInput, renderMapRead, mountMap } from '../components/mapComponent.js';
 import { renderBannerInput, renderBannerRead, renderBannerEmblem, mountBanner } from '../components/bannerComponent.js';
+import { mountGroup } from '../components/groupComponent.js';
 
 const MUTED_EMPTY = '<p class="muted">Not specified.</p>';
 
@@ -76,6 +78,7 @@ const ICONS = {
   gallery: glyph('<path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/>'),
   map: glyph('<path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/>'),
   banner: glyph('<path d="M6 2h12v16l-6-3-6 3z"/>'),
+  group: glyph('<path d="M3 5h13v2H3V5zm0 4h13v2H3V9zm0 4h13v2H3v-2zm15-8h3v12h-3V5z"/>'),
 };
 
 /** Normalize a list value: array as-is, comma-string split, blank -> []. */
@@ -467,6 +470,54 @@ export const fieldKinds = {
     // A filled sample banner so the Structure-editor layout preview shows real heraldry, not a blank.
     sampleValue: () => ({ base: 'red', layers: [{ pattern: 'border', color: 'white' }, { pattern: 'creeper', color: 'lime' }] }),
   },
+
+  // A one-level repeatable record-array: N records, each an instance of the group's sub-schema
+  // (`field.fields`). The pure model (schema/groupModel.js) owns normalize/validate/label; the
+  // interactive repeat editor lives in components/groupComponent.js (mountGroup, browser-only). The
+  // read view is a pure walk over each record × sub-field, delegating to each inner kind's renderRead
+  // — so it stays Node-testable here. `selfRender` keeps the repeat editor (and any inner banner
+  // designer) from being torn down on every commit. `data-field-group` on the root is what lets the
+  // top-level form harvest skip the nested controls the mount owns (see main.js).
+  group: {
+    title: 'Group',
+    description: 'A repeatable set of components — e.g. several banners, each with its own caption.',
+    icon: ICONS.group,
+    layout: 'break',
+    selfRender: true,
+    renderInput(field, _value, _ctx) {
+      return `<div class="group-field" data-field-key="${escapeHtml(field.key)}" data-field-group></div>`;
+    },
+    renderRead(field, value, ctx) {
+      const records = normalizeGroup(value);
+      if (records.length === 0) return '';
+      const subs = groupSubFields(field);
+      const items = records
+        .map((rec, i) => {
+          const body = subs
+            .map((sub) => {
+              const kind = fieldKinds[sub.kind];
+              if (!kind || sub.kind === 'heading') return '';
+              const inner = kind.renderRead(sub, rec[sub.key], ctx);
+              if (!inner) return '';
+              // A break kind (banner) stands alone; grid/full sub-fields get a light label.
+              return (kind.layout || 'grid') === 'break'
+                ? inner
+                : `<div class="group-sub"><span class="group-sub-label">${escapeHtml(sub.label || '')}</span>${inner}</div>`;
+            })
+            .join('');
+          return `<div class="group-item"><div class="group-item-head">${escapeHtml(recordLabel(field, rec, i))}</div>${body}</div>`;
+        })
+        .join('');
+      return `<div class="group-read">${items}</div>`;
+    },
+    mount(el, args) {
+      // getKind is in scope here, so the browser component (which must not import the registry) is
+      // handed the seam it needs to render + wire arbitrary inner components.
+      return mountGroup(el, args, { getKind });
+    },
+    // One filled sample record so the Structure-editor layout preview shows a real item, not a blank.
+    sampleValue: (field) => [Object.fromEntries(groupSubFields(field).map((sub) => [sub.key, sampleValue(sub)]))],
+  },
 };
 
 /**
@@ -598,6 +649,7 @@ export function getLayout(kind) {
 export function displayValue(field, value, ctx) {
   if (field.kind === 'heading') return ''; // schema chrome, no per-entry value
   if (field.kind === 'banner') return ''; // structured heraldry, not text (like map — never String(value))
+  if (field.kind === 'group') return ''; // a record-array, not text (nested values read through their own kinds)
   if (field.kind === 'boolean') return value === true || value === 'true' ? 'Yes' : 'No';
   if (field.kind === 'list') return toList(value).join(', ');
   if (field.kind === 'select' && field.multi) return toList(value).join(', ');

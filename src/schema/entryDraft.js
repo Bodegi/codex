@@ -7,7 +7,7 @@
  * one is minted on save (see `newId`).
  */
 
-const ARRAY_KINDS = new Set(['list', 'gallery']);
+const ARRAY_KINDS = new Set(['list', 'gallery', 'group']);
 const MULTI_KINDS = new Set(['reference', 'select']);
 
 /** Whether a field's empty value is an array (list/gallery, or a multi-value reference/select). */
