@@ -45,7 +45,9 @@ import {
   entryHistoryCollectionPath,
   entryHistoryDocPath,
   schemasCollectionPath,
-  schemaDocPath
+  schemaDocPath,
+  schemaHistoryCollectionPath,
+  schemaHistoryDocPath
 } from './codexPaths.js';
 import { buildUserDoc } from './userDoc.js';
 import { makeInvite, resolveSignInAction } from '../schema/inviteModel.js';
@@ -524,7 +526,7 @@ export class CodexScope {
     if (!this.db) return () => {};
     const col = collection(this.db, ...schemasCollectionPath(this.codexId));
     return onSnapshot(col, (snapshot) => {
-      callback(snapshot.docs.map((d) => d.data()));
+      callback(snapshot.docs.map((d) => stripSchemaMeta(d.data())));
     }, onError);
   }
 
@@ -532,26 +534,67 @@ export class CodexScope {
   async getSchemas() {
     if (!this.db) return [];
     const snap = await getDocs(collection(this.db, ...schemasCollectionPath(this.codexId)));
-    return snap.docs.map((d) => d.data());
+    return snap.docs.map((d) => stripSchemaMeta(d.data()));
   }
 
   /**
-   * Save a type schema (the write side of subscribeSchemas). Doc id is the type, so a save
-   * replaces that type's overlay for every client. No-op when unconfigured.
+   * Save a type schema (the write side of subscribeSchemas). Doc id is the type, so a save replaces
+   * that type's overlay for every client. Transactional like saveEntry: read the live version, write
+   * version+1, and snapshot the written schema into the `history/{version}` ring — atomic, so every
+   * saved version is recoverable (structure history, issue #54). `version`/`updatedAt` live only on the
+   * stored doc + snapshots (stripped on read), never in the app's schema model. No-op when unconfigured.
    */
   async saveSchema(type, schema) {
     if (!this.db) return;
-    await setDoc(doc(this.db, ...schemaDocPath(this.codexId, type)), {
-      ...schema,
-      type,
-      updatedAt: now()
+    const ref = doc(this.db, ...schemaDocPath(this.codexId, type));
+    let snapshotVersion = null;
+    await runTransaction(this.db, async (tx) => {
+      const snap = await tx.get(ref);
+      const nextVersion = (snap.exists() ? (snap.data().version ?? 0) : 0) + 1;
+      const written = { ...stripSchemaMeta(schema), type, version: nextVersion, updatedAt: now() };
+      tx.set(ref, written);
+      tx.set(doc(this.db, ...schemaHistoryDocPath(this.codexId, type, nextVersion)), written);
+      snapshotVersion = nextVersion;
     });
+    this._pruneSchemaHistory(type, snapshotVersion);
   }
 
-  /** Delete a type's schema overlay, so it falls back to the bundled seed. No-op when unconfigured. */
+  /** Best-effort trim of a type's structure-history ring to the last N — mirrors _pruneHistory. */
+  _pruneSchemaHistory(type, snapshotVersion) {
+    if (snapshotVersion == null) return;
+    const drop = pruneTarget(snapshotVersion);
+    if (drop == null) return;
+    deleteDoc(doc(this.db, ...schemaHistoryDocPath(this.codexId, type, drop))).catch(() => {});
+  }
+
+  /**
+   * One-shot read of a type's structure-history ring — retained schema versions, newest first (each a
+   * full snapshot carrying its `version`/`updatedAt`). `[]` when unconfigured; sorted client-side.
+   */
+  async getSchemaHistory(type) {
+    if (!this.db) return [];
+    const snap = await getDocs(collection(this.db, ...schemaHistoryCollectionPath(this.codexId, type)));
+    return snap.docs.map((d) => d.data()).sort((a, b) => (b.version ?? 0) - (a.version ?? 0));
+  }
+
+  /**
+   * Delete a type's schema overlay, so it falls back to the bundled seed. Firestore has no cascade, so
+   * the structure-history ring is deleted first (else those docs orphan), then the live doc. No-op when
+   * unconfigured.
+   */
   async deleteSchema(type) {
     if (!this.db) return;
+    const ring = await getDocs(collection(this.db, ...schemaHistoryCollectionPath(this.codexId, type)));
+    await Promise.all(ring.docs.map((d) => deleteDoc(d.ref)));
     await deleteDoc(doc(this.db, ...schemaDocPath(this.codexId, type)));
   }
 
+}
+
+/** Strip the storage-only meta (`version`/`updatedAt`) a schema doc carries, keeping the app's schema
+ *  model clean — the transaction reads version straight from Firestore, so nothing in-app needs it. */
+function stripSchemaMeta(schema) {
+  if (!schema || typeof schema !== 'object') return schema;
+  const { version, updatedAt, ...rest } = schema;
+  return rest;
 }

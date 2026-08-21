@@ -64,3 +64,8 @@ export const entryHistoryDocPath = (codexId, type, id, version) => [...entryHist
 
 export const schemasCollectionPath = (codexId) => ['codices', codexId, 'schemas'];
 export const schemaDocPath = (codexId, type) => ['codices', codexId, 'schemas', type];
+
+// Per-type structure-history ring: prior schema versions live under the type, keyed by version (the
+// doc id) — the schema analogue of the entry ring above (issue #54).
+export const schemaHistoryCollectionPath = (codexId, type) => [...schemaDocPath(codexId, type), 'history'];
+export const schemaHistoryDocPath = (codexId, type, version) => [...schemaHistoryCollectionPath(codexId, type), String(version)];

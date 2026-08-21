@@ -787,7 +787,7 @@ export function summaryCardBlock(schema) {
  */
 export function renderSchemaEditor(
   schema,
-  { types, editingType, errors = [], isNewDraft = false, expanded = new Set(), previewMode = null }
+  { types, editingType, errors = [], isNewDraft = false, expanded = new Set(), previewMode = null, canHistory = false }
 ) {
   const errorBlock = errors.length
     ? `<div class="se-errors">${errors.map((e) => `<div>${escapeHtml(e)}</div>`).join('')}</div>`
@@ -804,6 +804,11 @@ export function renderSchemaEditor(
   // Revert/Archive act on a saved schema (a persisted base to fall back to, a status to flip). A
   // brand-new draft has neither — it's discarded by leaving — so the overflow menu holds only the
   // JSON hatch for it.
+  // Structure history is a cloud-only recovery surface (like entry history) and needs a saved type to
+  // have a ring — so it's absent for a brand-new draft and in local-only mode.
+  const historyItem = !isNewDraft && canHistory
+    ? `<button type="button" class="se-menu-item" role="menuitem" data-se="history">Structure history</button>`
+    : '';
   const savedMenuItems = isNewDraft
     ? ''
     : `<button type="button" class="se-menu-item" role="menuitem" data-se="reset">Revert changes</button>
@@ -826,6 +831,7 @@ export function renderSchemaEditor(
             <button type="button" class="btn btn-secondary btn-sm se-menu-trigger" data-se-menu="trigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯<span class="se-label-wide"> More</span></button>
             <div class="se-menu-list hidden" data-se-menu="list" role="menu" aria-label="More type actions">
               <button type="button" class="se-menu-item se-menu-mono" role="menuitem" data-se="edit-json">&lt;/&gt; Edit JSON</button>
+              ${historyItem}
               ${savedMenuItems}
             </div>
           </div>
@@ -856,6 +862,7 @@ const CLICK_INTENTS = {
   save: () => ({ action: 'save' }),
   reset: () => ({ action: 'reset' }),
   archive: () => ({ action: 'archive' }),
+  history: () => ({ action: 'history' }),
   back: () => ({ action: 'back' }),
   preview: () => ({ action: 'preview' }),
   'edit-json': () => ({ action: 'edit-json' }),

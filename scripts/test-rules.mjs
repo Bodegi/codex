@@ -86,6 +86,7 @@ const permMocks = (uid, codexId, { role = 'editor', exists = true } = {}) => {
 
 const ENTRY_PATH = `${DB}/codices/cx1/entries/type_ent`;
 const HISTORY_PATH = `${DB}/codices/cx1/entries/type_ent/history/5`;
+const SCHEMA_HISTORY_PATH = `${DB}/codices/cx1/schemas/type_person/history/3`;
 
 // Each case: a human label, expectation, and the simulated request (+ optional resource / mocks).
 const CASES = [
@@ -202,6 +203,31 @@ const CASES = [
     label: 'outsider (no permission) reads history → history get DENY',
     expectation: 'DENY',
     request: { auth: { uid: 'u1', token: { email: 'u1@x.com' } }, method: 'get', path: HISTORY_PATH, time: NOW },
+    functionMocks: permMocks('u1', 'cx1', { exists: false }),
+  },
+  // Structure-history ring (codices/{cx}/schemas/{type}/history/{version}) — read like a schema,
+  // write admin-only like Types editing.
+  {
+    label: 'admin snapshots a schema version → schema history create ALLOW',
+    expectation: 'ALLOW',
+    request: { auth: { uid: 'admin1', token: { email: ADMIN_EMAIL } }, method: 'create', path: SCHEMA_HISTORY_PATH, time: NOW, resource: { data: { version: 3 } } },
+  },
+  {
+    label: 'editor tries to write schema history → schema history create DENY',
+    expectation: 'DENY',
+    request: { auth: { uid: 'u1', token: { email: 'u1@x.com' } }, method: 'create', path: SCHEMA_HISTORY_PATH, time: NOW, resource: { data: { version: 3 } } },
+    functionMocks: permMocks('u1', 'cx1', { role: 'editor' }),
+  },
+  {
+    label: 'viewer reads a schema history snapshot → schema history get ALLOW',
+    expectation: 'ALLOW',
+    request: { auth: { uid: 'u1', token: { email: 'u1@x.com' } }, method: 'get', path: SCHEMA_HISTORY_PATH, time: NOW },
+    functionMocks: permMocks('u1', 'cx1', { role: 'viewer' }),
+  },
+  {
+    label: 'outsider (no permission) reads schema history → schema history get DENY',
+    expectation: 'DENY',
+    request: { auth: { uid: 'u1', token: { email: 'u1@x.com' } }, method: 'get', path: SCHEMA_HISTORY_PATH, time: NOW },
     functionMocks: permMocks('u1', 'cx1', { exists: false }),
   },
 ];

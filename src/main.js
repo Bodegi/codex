@@ -2553,6 +2553,7 @@ function renderTypesEditor() {
     isNewDraft: state.editingType === state.newTypeDraft,
     expanded: state.expandedFields,
     previewMode: state.structurePreview,
+    canHistory: !!codexScope()?.isConfigured(), // structure history is cloud-only, like entry history
   });
   attachSchemaEditor(mount.querySelector('.schema-editor'), handleSchemaIntent);
   refreshWorkingPreview();
@@ -2703,6 +2704,8 @@ function handleSchemaIntent(intent) {
       return state.structurePreview === 'rendered' ? hideStructurePreview() : showStructurePreview('rendered');
     case 'edit-json':
       return state.structurePreview === 'raw' ? hideStructurePreview() : showStructurePreview('raw');
+    case 'history':
+      return openStructureHistory();
     case 'toggle-field': {
       // The card already flipped its own DOM (see attachSchemaEditor); just record the state so it
       // survives the next wholesale rebuild. No re-render.
@@ -3339,6 +3342,41 @@ async function openEntryHistory() {
   state.dirty = true;
   renderFormWithoutResubscribe();
   showToast(`Loaded version ${version} — Save to keep it`);
+}
+
+// The Structure editor's version history (cloud-only, admin) — the schema analogue of
+// openEntryHistory. Lists earlier saved schema versions with a per-version summary of what changed,
+// and loads a chosen one into the editor as unsaved edits; the overwrite waits for the next Save
+// (which runs the pre-save guard). lastSavedSchema is left as the live saved schema, so that Save's
+// guard honestly diffs the restored structure against what entries are currently keyed to.
+async function openStructureHistory() {
+  const scope = codexScope();
+  if (!(scope && scope.isConfigured())) return;
+  const type = state.editingType;
+  let hist;
+  try {
+    hist = await scope.getSchemaHistory(type);
+  } catch (err) {
+    showToast('Couldn’t load structure history: ' + err.message);
+    return;
+  }
+  // Each snapshot is a full schema at that version; its summary is what changed from the prior one.
+  const rows = hist
+    .map((snap, i) => {
+      const older = hist[i + 1];
+      const changes = older ? summarizeSchemaChange(older, snap) : null;
+      const summary = older
+        ? (changes.length ? changes.map(changePhrase).join('; ') : undefined) // undefined → row shows version + time only
+        : 'initial version';
+      return { version: snap.version ?? 0, when: formatWhen(snap.updatedAt), summary, data: snap };
+    })
+    .slice(1); // drop the current (newest) version — restoring it is a no-op; Revert already discards edits
+  const chosen = await openHistoryModal({ rows });
+  if (!chosen) return;
+  const { version, updatedAt, ...schema } = chosen; // drop storage meta; the schema body keeps its `type`
+  state.workingSchema = schema;
+  renderTypesEditor();
+  showToast(`Loaded structure version ${version} — Save to keep it`);
 }
 
 function updateRawJson(jsonText) {

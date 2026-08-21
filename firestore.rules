@@ -127,6 +127,15 @@ service cloud.firestore {
       match /schemas/{type} {
         allow read:  if isAdmin() || hasPerm(codexId);
         allow write: if isAdmin();                                // Types editing is admin-only
+
+        // Per-type structure-history ring (issue #54), the schema analogue of the entry ring above.
+        // Each save copies the schema version it writes here (doc id == that version), atomic with the
+        // live write; snapshots are immutable (create only). Read follows schema read; write/prune is
+        // admin, matching Types editing.
+        match /history/{version} {
+          allow read:           if isAdmin() || hasPerm(codexId);
+          allow create, delete: if isAdmin();
+        }
       }
     }
 
