@@ -301,8 +301,10 @@ export function moveSubField(schema, fi, si, delta) {
 /**
  * Move a top-level field INTO a group's sub-schema (the field vanishes from the top level and becomes
  * a repeated component). Only an allowed inner kind can move in; the key is kept unless it collides
- * within the group, and the `provisional` marker is dropped (its top-level data, if any, is orphaned —
- * inherent to restructuring, same as delete/re-add). A no-op for a bad index or a non-group target.
+ * within the group. `provisional` is preserved: it means "never saved, so the key still tracks the
+ * label" — a fact moving doesn't change, and dropping it here froze a still-placeholder key (e.g. a
+ * just-added banner's `newField`) so it stopped following renames. A no-op for a bad index or a
+ * non-group target.
  */
 export function moveFieldIntoGroup(schema, fromFi, groupFi) {
   const fields = schema.fields || [];
@@ -317,14 +319,15 @@ export function moveFieldIntoGroup(schema, fromFi, groupFi) {
   g.fields = Array.isArray(g.fields) ? g.fields : [];
   const groupKeys = g.fields.map((f) => f.key);
   if (groupKeys.includes(moved.key)) moved.key = deriveKey(moved.label || moved.key, groupKeys);
-  delete moved.provisional;
   g.fields.push(moved);
   return next;
 }
 
 /**
  * Move a sub-field OUT of a group to the top level, inserted just after the group. The key is kept
- * unless it collides at the top level; `provisional` is dropped. No-op for a bad index.
+ * unless it collides at the top level; `provisional` is preserved (same reasoning as
+ * moveFieldIntoGroup — a never-saved key keeps tracking its label across the move). No-op for a bad
+ * index.
  */
 export function moveSubFieldOut(schema, groupFi, si) {
   const group = schema.fields?.[groupFi];
@@ -333,7 +336,6 @@ export function moveSubFieldOut(schema, groupFi, si) {
   const [moved] = next.fields[groupFi].fields.splice(si, 1);
   const topKeys = next.fields.map((f) => f.key);
   if (topKeys.includes(moved.key)) moved.key = deriveKey(moved.label || moved.key, topKeys);
-  delete moved.provisional;
   next.fields.splice(groupFi + 1, 0, moved);
   return next;
 }

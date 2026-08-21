@@ -335,6 +335,14 @@ test('moveFieldIntoGroup renames on a key collision within the group, and refuse
   assert.equal(moveFieldIntoGroup(s2, 4, 1), s2);
 });
 
+test('moveFieldIntoGroup preserves the provisional marker so the key keeps tracking the label', () => {
+  const s = groupSchema();
+  s.fields.push({ key: 'newField', label: 'New Field', kind: 'banner', provisional: true });
+  const moved = moveFieldIntoGroup(s, 4, 1).fields[1].fields.at(-1);
+  assert.equal(moved.key, 'newField');
+  assert.equal(moved.provisional, true); // still provisional → a later rename still re-derives the key
+});
+
 test('moveSubFieldOut lifts a sub-field to the top level, just after the group', () => {
   const after = moveSubFieldOut(groupSchema(), 1, 1); // 'caption' out of the group
   assert.deepEqual(after.fields.map((f) => f.key), ['id', 'crests', 'caption', 'name', 'notes']);
@@ -347,6 +355,14 @@ test('moveSubFieldOut renames on a top-level key collision', () => {
   s.titleField = 'caption';
   const after = moveSubFieldOut(s, 1, 1);
   assert.equal(after.fields[2].key, 'caption2'); // the lifted sub-field is renamed
+});
+
+test('moveSubFieldOut preserves the provisional marker on the lifted sub-field', () => {
+  const s = groupSchema();
+  s.fields[1].fields.push({ key: 'newField', label: 'New Field', kind: 'text', provisional: true });
+  const moved = moveSubFieldOut(s, 1, 2).fields[2]; // lifted in just after the group
+  assert.equal(moved.key, 'newField');
+  assert.equal(moved.provisional, true);
 });
 
 test('a group built through the sub-field transforms passes validateSchema', () => {
