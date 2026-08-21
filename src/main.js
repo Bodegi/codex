@@ -2613,14 +2613,26 @@ function handleSchemaIntent(intent) {
       return refreshWorkingPreview();
     case 'edit-field-label': {
       // A provisional field's key tracks its label. The edit is non-structural (no rebuild, to keep
-      // input focus), so when the key changes we patch the visible key chip in place and migrate the
-      // expansion set — both keyed off the old key that the rebuild would otherwise carry stale.
+      // input focus), so any label-derived DOM elsewhere must be patched in place or it goes stale
+      // until the next rebuild (the "New Field" ghost — issue #38's class).
       const prevKey = s.fields[intent.fi]?.key;
       state.workingSchema = updateFieldLabel(s, intent.fi, intent.label);
-      const newKey = state.workingSchema.fields[intent.fi]?.key;
+      const field = state.workingSchema.fields[intent.fi];
+      const newKey = field?.key;
+      const mount = typesMountEl();
+      // The field's own card-title preview isn't rebuilt on a label edit — keep it live (textContent,
+      // so it's escaped and the separate focused label input is untouched).
+      const titleEl = mount.querySelector(`.se-field[data-fi="${intent.fi}"] .se-card-title`);
+      if (titleEl) titleEl.textContent = field.label || (field.kind === 'heading' ? '(unnamed heading)' : '(unnamed field)');
+      // A renamed group also names an <option> in every other field's "Move into group" picker; those
+      // rows aren't rebuilt here, so refresh the option text (keyed by the group's field index).
+      if (field?.kind === 'group') {
+        const label = field.label || field.key;
+        mount.querySelectorAll(`[data-se="field-into-group"] option[value="${intent.fi}"]`).forEach((opt) => { opt.textContent = label; });
+      }
       if (newKey && newKey !== prevKey) {
         if (state.expandedFields.delete(prevKey)) state.expandedFields.add(newKey);
-        const card = typesMountEl().querySelector(`.se-field[data-fi="${intent.fi}"]`);
+        const card = mount.querySelector(`.se-field[data-fi="${intent.fi}"]`);
         if (card) {
           card.dataset.key = newKey; // keeps the collapse toggle's key in sync before any rebuild
           const chip = card.querySelector('.se-key');
@@ -2630,7 +2642,7 @@ function handleSchemaIntent(intent) {
         // so a rename leaves them stale until a rebuild. Re-render just that block in place (its
         // handlers are delegated off the editor root, and the focused label input lives elsewhere,
         // so neither breaks) — the pointer migration in updateFieldLabel keeps the picks intact.
-        const summary = typesMountEl().querySelector('.se-summary');
+        const summary = mount.querySelector('.se-summary');
         if (summary) summary.outerHTML = summaryCardBlock(state.workingSchema);
       }
       return refreshWorkingPreview();
