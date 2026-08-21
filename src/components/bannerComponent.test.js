@@ -26,6 +26,15 @@ test('renderBannerRead composes the banner svg + a click-to-open recipe (no inli
   assert.ok(html.indexOf('Creeper Charge') < html.indexOf('Border'), 'layers in loom order');
 });
 
+test('renderBannerRead recipe carries the composed banner figure and a shape mask per layer', () => {
+  const html = renderBannerRead(field, {
+    base: 'blue',
+    layers: [{ pattern: 'creeper', color: 'green' }, { pattern: 'border', color: 'white' }],
+  });
+  assert.match(html, /banner-recipe-figure/); // composed banner rides beside the bullets in the modal
+  assert.equal((html.match(/banner-recipe-thumb/g) || []).length, 2); // one white-on-black shape mask per layer
+});
+
 test('renderBannerRead shows a caption as a figcaption when set, and omits it when blank', () => {
   const withCap = renderBannerRead(field, { base: 'red', layers: [{ pattern: 'border', color: 'white' }], caption: 'War banner <b>' });
   assert.match(withCap, /<figcaption class="banner-caption">War banner &lt;b&gt;<\/figcaption>/);

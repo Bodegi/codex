@@ -140,12 +140,23 @@ export function renderBannerRead(field, value, _ctx) {
   const banner = normalizeBanner(value);
   const recipe = bannerToRecipe(banner);
   const dot = (hex) => `<span class="banner-dot" style="background:${hex}"></span>`;
+  // Each layer shows its shape mask (the white-on-black build-mode thumbnail) between the dye dot and
+  // the pattern name, so the recipe reads as color · shape · name — the same visual key the builder uses.
   const layerItems = recipe.layers
-    .map((l) => `<li>${dot(l.colorHex)} ${escapeHtml(l.patternName)} — ${escapeHtml(l.colorName)}</li>`)
+    .map(
+      (l) =>
+        `<li>${dot(l.colorHex)}<span class="banner-recipe-thumb">${patternThumb(l.pattern)}</span> ${escapeHtml(l.patternName)} — ${escapeHtml(l.colorName)}</li>`
+    )
     .join('');
-  const recipeContent = `<div class="banner-recipe-base">${dot(recipe.base.hex)} Base: ${escapeHtml(recipe.base.name)}</div>${
-    layerItems ? `<ol class="banner-recipe-layers">${layerItems}</ol>` : ''
-  }`;
+  // The composed banner rides to the left of the bullets (in the modal) for at-a-glance context.
+  const recipeContent = `<div class="banner-recipe-layout">
+      <div class="banner-recipe-figure">${bannerToSvg(banner)}</div>
+      <div class="banner-recipe-detail">
+        <div class="banner-recipe-base">${dot(recipe.base.hex)} Base: ${escapeHtml(recipe.base.name)}</div>${
+          layerItems ? `<ol class="banner-recipe-layers">${layerItems}</ol>` : ''
+        }
+      </div>
+    </div>`;
   const caption = banner.caption
     ? `<figcaption class="banner-caption">${escapeHtml(banner.caption)}</figcaption>`
     : '';

@@ -3806,7 +3806,7 @@ mark.search-hit {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-glass);
   min-width: 240px;
-  max-width: 360px;
+  max-width: 460px;
   width: 100%;
 }
 .banner-recipe-modal-head {
@@ -3828,3 +3828,12 @@ mark.search-hit {
 }
 .banner-recipe-close:hover { color: var(--text-main); }
 .banner-recipe-modal-body { padding: 14px; color: var(--text-main); font-size: 14px; }
+/* Modal recipe: composed banner on the left, base + per-layer bullets on the right. */
+.banner-recipe-layout { display: flex; gap: 16px; align-items: flex-start; }
+.banner-recipe-figure { flex: 0 0 auto; }
+.banner-recipe-figure svg { width: 72px; height: 144px; display: block; border: 1px solid var(--border-dim); border-radius: 4px; }
+.banner-recipe-detail { flex: 1 1 auto; min-width: 0; }
+/* The white-on-black shape mask sits inline (keeping the ol's loom-order number) between dye dot and
+   name, so each row reads as color · shape · name — the same visual key the builder uses. */
+.banner-recipe-thumb { display: inline-block; vertical-align: middle; margin: 0 5px; padding: 1px; background: #000; border: 1px solid var(--border-dim); border-radius: 3px; }
+.banner-recipe-thumb svg { width: 12px; height: 24px; display: block; }
