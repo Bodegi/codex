@@ -68,7 +68,6 @@ import {
   stripProvisional,
   updateFieldAssociation,
   updateSummaryCard,
-  summaryCardBlock,
   setTitleField,
   repointTitleField,
   moveField,
@@ -2555,6 +2554,64 @@ function renderTypesEditor() {
   refreshWorkingPreview();
 }
 
+// A live label edit changes the schema and every surface derived from that label. Rather than patch
+// each one (the unbounded "stale-label" class — issue #53), re-derive the whole editor through the
+// SSOT renderer, then restore the small set of ephemeral UI state a wholesale rebuild would drop:
+// the focused control's focus + caret, and the mount's scroll (innerHTML replacement resets it). The
+// snapshotted locator (data-se + data-fi + data-si) is deterministic and the control always still
+// exists after a label edit, so it re-focuses reliably.
+function renderTypesEditorPreservingFocus() {
+  const mount = typesMountEl();
+  const active = document.activeElement;
+  let snap = null;
+  if (active && mount.contains(active)) {
+    const { se, fi, si } = active.dataset;
+    if (se) snap = { se, fi, si, start: active.selectionStart, end: active.selectionEnd };
+  }
+  const scrollTop = mount.scrollTop;
+  renderTypesEditor();
+  if (snap) {
+    const sel =
+      `[data-se="${snap.se}"]` +
+      (snap.fi !== undefined ? `[data-fi="${snap.fi}"]` : '') +
+      (snap.si !== undefined ? `[data-si="${snap.si}"]` : '');
+    const el = mount.querySelector(sel);
+    if (el) {
+      el.focus();
+      // Best-effort caret restore — only text inputs/textareas expose setSelectionRange.
+      if (snap.start != null && el.setSelectionRange) {
+        try { el.setSelectionRange(snap.start, snap.end); } catch { /* non-text input */ }
+      }
+    }
+  }
+  mount.scrollTop = scrollTop;
+}
+
+// The commit path shared by the three live label edits (type name, field label, sub-field label).
+// IME caveat: rebuilding per keystroke replaces the focused <input>, which tears down an in-flight
+// composition (CJK etc.). While composing, skip the rebuild and just refresh the preview; one
+// deferred rebuild fires on compositionend (see the listeners below).
+function rebuildAfterLabelEdit() {
+  if (imeComposing) {
+    imeRebuildPending = true;
+    return refreshWorkingPreview();
+  }
+  return renderTypesEditorPreservingFocus();
+}
+
+// IME composition guard for the label edits (issue #53). Composition events bubble, so one pair of
+// listeners on the persistent mount covers every label input a rebuild would otherwise interrupt.
+let imeComposing = false;
+let imeRebuildPending = false;
+formContainer.addEventListener('compositionstart', () => { imeComposing = true; });
+formContainer.addEventListener('compositionend', () => {
+  imeComposing = false;
+  if (imeRebuildPending) {
+    imeRebuildPending = false;
+    renderTypesEditorPreservingFocus();
+  }
+});
+
 // Push the working schema into the overlay and refresh both preview panes. Does NOT
 // rebuild the editor DOM — safe to call from text-input handlers without losing focus.
 function refreshWorkingPreview() {
@@ -2610,42 +2667,19 @@ function handleSchemaIntent(intent) {
       return pickEditingType(intent.type);
     case 'edit-label':
       state.workingSchema = { ...s, label: intent.label };
-      return refreshWorkingPreview();
+      return rebuildAfterLabelEdit();
     case 'edit-field-label': {
-      // A provisional field's key tracks its label. The edit is non-structural (no rebuild, to keep
-      // input focus), so any label-derived DOM elsewhere must be patched in place or it goes stale
-      // until the next rebuild (the "New Field" ghost — issue #38's class).
+      // A provisional field's key tracks its label. Route through a focus-preserving rebuild so every
+      // label-derived surface (key chip, card title, summary-card pickers, other fields' "Move into
+      // group" options) re-derives from the schema — no per-surface patching (issue #53).
       const prevKey = s.fields[intent.fi]?.key;
       state.workingSchema = updateFieldLabel(s, intent.fi, intent.label);
-      const field = state.workingSchema.fields[intent.fi];
-      const newKey = field?.key;
-      const mount = typesMountEl();
-      // The field's own card-title preview isn't rebuilt on a label edit — keep it live (textContent,
-      // so it's escaped and the separate focused label input is untouched).
-      const titleEl = mount.querySelector(`.se-field[data-fi="${intent.fi}"] .se-card-title`);
-      if (titleEl) titleEl.textContent = field.label || (field.kind === 'heading' ? '(unnamed heading)' : '(unnamed field)');
-      // A renamed group also names an <option> in every other field's "Move into group" picker; those
-      // rows aren't rebuilt here, so refresh the option text (keyed by the group's field index).
-      if (field?.kind === 'group') {
-        const label = field.label || field.key;
-        mount.querySelectorAll(`[data-se="field-into-group"] option[value="${intent.fi}"]`).forEach((opt) => { opt.textContent = label; });
+      const newKey = state.workingSchema.fields[intent.fi]?.key;
+      // Migrate the expand state so a card open under its provisional key stays open under the new key.
+      if (newKey && newKey !== prevKey && state.expandedFields.delete(prevKey)) {
+        state.expandedFields.add(newKey);
       }
-      if (newKey && newKey !== prevKey) {
-        if (state.expandedFields.delete(prevKey)) state.expandedFields.add(newKey);
-        const card = mount.querySelector(`.se-field[data-fi="${intent.fi}"]`);
-        if (card) {
-          card.dataset.key = newKey; // keeps the collapse toggle's key in sync before any rebuild
-          const chip = card.querySelector('.se-key');
-          if (chip) chip.textContent = newKey;
-        }
-        // The summary-card selectors label their options and carry their selections by field key,
-        // so a rename leaves them stale until a rebuild. Re-render just that block in place (its
-        // handlers are delegated off the editor root, and the focused label input lives elsewhere,
-        // so neither breaks) — the pointer migration in updateFieldLabel keeps the picks intact.
-        const summary = mount.querySelector('.se-summary');
-        if (summary) summary.outerHTML = summaryCardBlock(state.workingSchema);
-      }
-      return refreshWorkingPreview();
+      return rebuildAfterLabelEdit();
     }
     case 'set-title-field':
       // Repointing the title field doesn't restructure the editor — refresh the preview only.
@@ -2721,10 +2755,11 @@ function handleSchemaIntent(intent) {
       state.workingSchema = updateSubField(s, intent.fi, intent.si, intent.patch);
       return renderTypesEditor();
     case 'edit-subfield-label':
-      // A provisional sub-field's key tracks its label (updateSubFieldLabel). Non-structural, but the
-      // key chip is cosmetic and refreshes on the next rebuild — refresh the preview only, keep focus.
+      // A provisional sub-field's key tracks its label. Focus-preserving rebuild, same as the
+      // top-level label edit — refreshes the sub-field key chip and the group's "Item label" picker
+      // for free (issue #53).
       state.workingSchema = updateSubFieldLabel(s, intent.fi, intent.si, intent.label);
-      return refreshWorkingPreview();
+      return rebuildAfterLabelEdit();
     case 'move-field-into-group':
       // repointTitleField is defensive — the UI hides the control for the title field, but a moved
       // field could still leave titleField dangling in an edge case.
