@@ -29,6 +29,7 @@ import { buildTemplateSchemas } from './schema/codexTemplate.js';
 import { newId } from './utils/id.js';
 import { blankEntry } from './schema/entryDraft.js';
 import { validateSchema } from './schema/schemaValidate.js';
+import { summarizeSchemaChange, changePhrase } from './schema/schemaDiff.js';
 import { escapeHtml } from './schema/inlineText.js';
 import { getIcon, findIcon, activeIcons, setOverlayIcons, bundledIcons, validateIcon } from './schema/iconRegistry.js';
 import { sanitizeSvg } from './schema/sanitizeSvg.js';
@@ -2528,6 +2529,9 @@ function setEditingType(type) {
   state.editingType = type;
   state.editorErrors = [];
   state.workingSchema = structuredClone(getSchema(type));
+  // The committed baseline the pre-save guard diffs against — captured at open and after each save,
+  // never from the live overlay (which mid-edit already holds the working schema). See saveWorkingSchema.
+  state.lastSavedSchema = structuredClone(getSchema(type));
   renderTypesEditor();
 }
 
@@ -2832,7 +2836,7 @@ async function changeSubFieldKind(fi, si) {
   renderTypesEditor();
 }
 
-function saveWorkingSchema() {
+async function saveWorkingSchema() {
   const result = validateSchema(state.workingSchema);
   if (!result.ok) {
     state.editorErrors = result.errors;
@@ -2840,6 +2844,26 @@ function saveWorkingSchema() {
     return;
   }
   state.editorErrors = [];
+  // Structural changes (moving a field in/out of a group, deletions) re-key where entry data is
+  // read from, orphaning what's already stored — the "wiped banner" footgun (issue #54). Warn before
+  // committing one, but only when there are entries to actually orphan (a new draft or empty type has
+  // none). Diff against lastSavedSchema, not the live overlay, which mid-edit already holds the working
+  // schema.
+  const entryCount = (state.entryIndex[state.editingType] || []).length;
+  if (!state.newTypeDraft && state.lastSavedSchema && entryCount > 0) {
+    const changes = summarizeSchemaChange(state.lastSavedSchema, state.workingSchema);
+    if (changes.length) {
+      const items = changes.map((c) => `<li>${escapeHtml(changePhrase(c))}</li>`).join('');
+      const noun = entryCount === 1 ? 'entry' : 'entries';
+      const ok = await openConfirm({
+        title: 'Change this structure?',
+        messageHtml: `<p>Saving changes how existing entries are read:</p><ul class="confirm-list">${items}</ul><p>${entryCount} ${noun} of this type will stop displaying the data above. It isn’t deleted — moving the structure back restores it.</p>`,
+        confirmLabel: 'Save anyway',
+        cancelLabel: 'Keep editing',
+      });
+      if (!ok) return;
+    }
+  }
   // Save commits every provisional key: drop the markers so those keys stop tracking their labels
   // (they now hold entry data) and never land in stored data.
   state.workingSchema = stripProvisional(state.workingSchema);
@@ -2847,6 +2871,7 @@ function saveWorkingSchema() {
   // being treated as unsaved (and now shows in the nav like any other type).
   state.newTypeDraft = null;
   state.typeDraftDirty = false;
+  state.lastSavedSchema = structuredClone(state.workingSchema); // new baseline for the next save's guard
   saveSchemaLocal(state.editingType, state.workingSchema); // overlay + localStorage
   const scope = codexScope();
   if (scope && scope.isConfigured()) {

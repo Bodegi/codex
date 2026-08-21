@@ -2898,6 +2898,9 @@ mark.search-hit {
   font-size: 13px;
   line-height: 1.5;
 }
+/* The structure-change guard's list of what a Save will do to existing entry data (issue #54). */
+.confirm-list { margin: 8px 0; padding-left: 20px; }
+.confirm-list li { margin: 3px 0; color: var(--text-main); }
 .confirm-actions {
   display: flex;
   justify-content: flex-end;

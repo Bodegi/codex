@@ -21,17 +21,20 @@ function escapeHtml(text) {
 
 /**
  * Open a confirm dialog. Resolves true if the user confirms, false otherwise.
- *   { title, message, confirmLabel?, cancelLabel?, danger? }
- * `danger` styles the confirm button as destructive (the default for delete/archive).
+ *   { title, message, messageHtml?, confirmLabel?, cancelLabel?, danger? }
+ * `message` is escaped; `messageHtml` (used when a plain sentence isn't enough, e.g. a change list)
+ * is inserted raw, so the caller MUST sanitize any dynamic text it contains. `danger` styles the
+ * confirm button as destructive (the default for delete/archive).
  */
-export function openConfirm({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = true } = {}) {
+export function openConfirm({ title, message, messageHtml, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = true } = {}) {
+  const body = messageHtml ?? (message ? escapeHtml(message) : '');
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
       <div class="confirm-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(title || 'Confirm')}">
         <div class="confirm-header"><strong>${escapeHtml(title || 'Are you sure?')}</strong></div>
-        ${message ? `<div class="confirm-body">${escapeHtml(message)}</div>` : ''}
+        ${body ? `<div class="confirm-body">${body}</div>` : ''}
         <div class="confirm-actions">
           <button type="button" class="btn btn-secondary btn-sm" data-confirm-cancel>${escapeHtml(cancelLabel)}</button>
           <button type="button" class="btn btn-sm ${danger ? 'btn-danger' : 'btn-primary'}" data-confirm-ok>${escapeHtml(confirmLabel)}</button>
