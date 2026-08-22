@@ -340,6 +340,24 @@ export function moveSubFieldOut(schema, groupFi, si) {
   return next;
 }
 
+/**
+ * Move several top-level fields into a group at once, by key (the create-time "consume existing fields"
+ * flow, issue #55). Composes `moveFieldIntoGroup` per key, re-resolving indices each step so shifting
+ * positions don't misfire. A field that can't move (missing, not an allowed inner kind) is skipped.
+ * Keys are preserved (a brand-new group is empty, so nothing collides), which is what lets the Save
+ * migration match each entry's stored value to its new sub-field.
+ */
+export function consumeFieldsIntoGroup(schema, groupKey, keys) {
+  let next = schema;
+  for (const key of keys || []) {
+    const groupFi = (next.fields || []).findIndex((f) => f.key === groupKey);
+    const fromFi = (next.fields || []).findIndex((f) => f.key === key);
+    if (groupFi < 0 || fromFi < 0) continue;
+    next = moveFieldIntoGroup(next, fromFi, groupFi);
+  }
+  return next;
+}
+
 // --- DOM: editor markup -----------------------------------------------------
 
 /**

@@ -24,6 +24,7 @@ import {
   moveSubField,
   moveFieldIntoGroup,
   moveSubFieldOut,
+  consumeFieldsIntoGroup,
 } from './schemaEditor.js';
 import { validateSchema } from '../schema/schemaValidate.js';
 
@@ -363,6 +364,21 @@ test('moveSubFieldOut preserves the provisional marker on the lifted sub-field',
   const moved = moveSubFieldOut(s, 1, 2).fields[2]; // lifted in just after the group
   assert.equal(moved.key, 'newField');
   assert.equal(moved.provisional, true);
+});
+
+test('consumeFieldsIntoGroup moves several fields into a new group, by key', () => {
+  // A fresh empty group at the end absorbs 'name' + 'notes' from the top level.
+  const s = { ...schema(), fields: [...schema().fields, { key: 'meta', label: 'Meta', kind: 'group', fields: [] }] };
+  const after = consumeFieldsIntoGroup(s, 'meta', ['name', 'notes']);
+  assert.deepEqual(after.fields.map((f) => f.key), ['id', 'meta']); // both left the top level
+  assert.deepEqual(after.fields[1].fields.map((f) => f.key), ['name', 'notes']); // in, keys preserved
+});
+
+test('consumeFieldsIntoGroup skips keys that cannot move (missing / un-nestable)', () => {
+  const s = { ...schema(), fields: [...schema().fields, { key: 'pics', label: 'Pics', kind: 'gallery' }, { key: 'meta', label: 'Meta', kind: 'group', fields: [] }] };
+  const after = consumeFieldsIntoGroup(s, 'meta', ['name', 'pics', 'ghost']);
+  assert.deepEqual(after.fields[after.fields.length - 1].fields.map((f) => f.key), ['name']); // only name moved
+  assert.ok(after.fields.some((f) => f.key === 'pics')); // gallery can't nest — stays put
 });
 
 test('a group built through the sub-field transforms passes validateSchema', () => {

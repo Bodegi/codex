@@ -2908,6 +2908,33 @@ mark.search-hit {
   margin-top: 18px;
 }
 
+/* Consume-fields picker (issue #55): a checklist of existing fields a new group can absorb. */
+.consume-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.consume-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-main);
+}
+.consume-item:hover { background: var(--bg-elevated, rgba(255, 255, 255, 0.04)); }
+.consume-item input { margin: 0; }
+.consume-item-label { flex: 1; font-size: 13px; }
+.consume-item-kind {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-heading);
+}
+
 /* Entry version-history modal — a scrollable list of retained prior versions. */
 .history-modal {
   width: min(520px, 100%);

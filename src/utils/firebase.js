@@ -54,6 +54,7 @@ import { makeInvite, resolveSignInAction } from '../schema/inviteModel.js';
 import { resolveSave } from '../schema/saveResolve.js';
 import { checkEntrySize } from '../schema/entrySize.js';
 import { pruneTarget } from '../schema/entryHistory.js';
+import { consumeEntry } from '../schema/groupConsume.js';
 
 const now = () => new Date().toISOString();
 
@@ -430,6 +431,43 @@ export class CodexScope {
     });
     this._pruneHistory(type, id, snapshotVersion);
     return nextVersion;
+  }
+
+  /**
+   * Migrate a type's entries when a brand-new group consumes existing top-level fields (issue #55):
+   * wrap each entry's consumed top-level values into a single group record, dropping the originals.
+   * Runs one transaction per entry (mirroring saveEntry — read the live doc, apply the pure
+   * `consumeEntry`, write version+1 + snapshot history) rather than one big batch, so:
+   *   - each rewrite is based on the *live* doc, never clobbering a concurrent edit to other fields;
+   *   - it is idempotent (an already-migrated entry produces no change → no write); and
+   *   - a partial failure is resumable — the entries already migrated stay committed, and re-running
+   *     skips them, so the caller can just Save again to finish.
+   * `ids` is the set of entry ids to sweep. Returns `{ migrated, skipped }` counts. A per-entry
+   * failure rejects the whole call (surfacing the error) but leaves earlier commits intact.
+   */
+  async consumeEntriesIntoGroup(type, groupKey, consumedKeys, ids) {
+    if (!this.db) throw new Error('Firebase DB is not initialized');
+    let migrated = 0;
+    let skipped = 0;
+    for (const id of ids) {
+      const ref = doc(this.db, ...entryDocPath(this.codexId, type, id));
+      let snapshotVersion = null;
+      await runTransaction(this.db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) return; // deleted out from under us — nothing to migrate
+        const current = snap.data();
+        const { changed, entry } = consumeEntry(current, groupKey, consumedKeys);
+        if (!changed) return; // already in the new shape / no consumed data
+        const nextVersion = (current.version ?? 0) + 1;
+        const written = { ...entry, type, id, version: nextVersion, updatedAt: now() };
+        tx.set(ref, written);
+        snapshotVersion = this._snapshotVersion(tx, type, id, written);
+      });
+      if (snapshotVersion == null) skipped += 1;
+      else migrated += 1;
+      this._pruneHistory(type, id, snapshotVersion);
+    }
+    return { migrated, skipped };
   }
 
   /**

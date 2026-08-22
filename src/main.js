@@ -81,9 +81,12 @@ import {
   moveSubField,
   moveFieldIntoGroup,
   moveSubFieldOut,
+  consumeFieldsIntoGroup,
 } from './components/schemaEditor.js';
 import { openComponentPalette } from './components/componentPalette.js';
-import { ALLOWED_INNER_KINDS } from './schema/groupModel.js';
+import { openConsumePicker } from './components/consumePicker.js';
+import { planConsume, consumeEntry } from './schema/groupConsume.js';
+import { ALLOWED_INNER_KINDS, isAllowedInnerKind } from './schema/groupModel.js';
 import { cloneStarterSchemas } from './schema/starterTypes.js';
 import { renderAuthGateway } from './components/authGateway.js';
 import { renderAwaitingAccess, renderInviteRequired } from './components/awaitingAccess.js';
@@ -2795,6 +2798,29 @@ async function addFieldFromPalette() {
   if (kind === 'select') field.options = [];
   state.workingSchema = addField(s, field);
   state.expandedFields.add(field.key); // open the new card so its label/kind are ready to edit
+  // A brand-new group can absorb existing top-level fields data-preservingly (issue #55) — the group
+  // is empty, so wrapping each entry's value into it is unambiguous. Offer that only when there's
+  // something to absorb.
+  if (kind === 'group') {
+    await offerConsumeIntoNewGroup(field.key);
+    return; // offerConsumeIntoNewGroup re-renders
+  }
+  renderTypesEditor();
+}
+
+// After a new group is added, offer to absorb existing top-level fields into it (issue #55). Eligible =
+// top-level fields whose kind can be nested, excluding the title field (its value titles the entry) and
+// the group itself. Purely local: the moves reshape the working schema; the per-entry data migration
+// runs on Save (planConsume derives it from the last-saved vs working diff). No eligible fields → skip.
+async function offerConsumeIntoNewGroup(groupKey) {
+  const s = state.workingSchema;
+  const eligible = (s.fields || [])
+    .filter((f) => f.key !== groupKey && isAllowedInnerKind(f.kind) && f.key !== s.titleField)
+    .map((f) => ({ key: f.key, label: f.label || f.key, kindTitle: getKind(f.kind)?.title || f.kind }));
+  if (eligible.length === 0) return renderTypesEditor();
+  const groupLabel = s.fields.find((f) => f.key === groupKey)?.label || groupKey;
+  const keys = await openConsumePicker(groupLabel, eligible);
+  if (keys.length) state.workingSchema = consumeFieldsIntoGroup(state.workingSchema, groupKey, keys);
   renderTypesEditor();
 }
 
@@ -2847,14 +2873,29 @@ async function saveWorkingSchema() {
     return;
   }
   state.editorErrors = [];
-  // Structural changes (moving a field in/out of a group, deletions) re-key where entry data is
-  // read from, orphaning what's already stored — the "wiped banner" footgun (issue #54). Warn before
-  // committing one, but only when there are entries to actually orphan (a new draft or empty type has
-  // none). Diff against lastSavedSchema, not the live overlay, which mid-edit already holds the working
-  // schema.
-  const entryCount = (state.entryIndex[state.editingType] || []).length;
+
+  const savedType = state.editingType;
+  const entriesForType = state.entryIndex[savedType] || [];
+  const entryCount = entriesForType.length;
+
+  // A brand-new group that absorbs existing top-level fields migrates their entry data into the group
+  // instead of orphaning it (issue #55) — the unambiguous consume case (an empty group has exactly one
+  // correct wrap target). Derived from the last-saved vs working diff, so it also covers a field dragged
+  // into a still-new group via "Move into group", not just the create-time picker.
+  const plans = !state.newTypeDraft && state.lastSavedSchema
+    ? planConsume(state.lastSavedSchema, state.workingSchema)
+    : [];
+  const consumedKeys = new Set(plans.flatMap((p) => p.consumedKeys));
+
+  // Structural changes (moving a field in/out of a group, deletions) re-key where entry data is read
+  // from, orphaning what's stored — the "wiped banner" footgun (issue #54). Warn before committing one,
+  // but skip the moves a consume migration covers (those preserve the data), and only when there are
+  // entries to actually orphan. Diff against lastSavedSchema, not the live overlay, which mid-edit
+  // already holds the working schema.
   if (!state.newTypeDraft && state.lastSavedSchema && entryCount > 0) {
-    const changes = summarizeSchemaChange(state.lastSavedSchema, state.workingSchema);
+    const changes = summarizeSchemaChange(state.lastSavedSchema, state.workingSchema).filter(
+      (c) => !(c.kind === 'moved-into-group' && consumedKeys.has(c.key))
+    );
     if (changes.length) {
       const items = changes.map((c) => `<li>${escapeHtml(changePhrase(c))}</li>`).join('');
       const noun = entryCount === 1 ? 'entry' : 'entries';
@@ -2870,25 +2911,60 @@ async function saveWorkingSchema() {
   // Save commits every provisional key: drop the markers so those keys stop tracking their labels
   // (they now hold entry data) and never land in stored data.
   state.workingSchema = stripProvisional(state.workingSchema);
-  // This save is what persists a new-type draft for the first time; clear the marker so it stops
-  // being treated as unsaved (and now shows in the nav like any other type).
-  state.newTypeDraft = null;
-  state.typeDraftDirty = false;
-  state.lastSavedSchema = structuredClone(state.workingSchema); // new baseline for the next save's guard
-  saveSchemaLocal(state.editingType, state.workingSchema); // overlay + localStorage
+  const savedSchema = state.workingSchema;
+  saveSchemaLocal(savedType, savedSchema); // overlay + localStorage
   const scope = codexScope();
-  if (scope && scope.isConfigured()) {
-    const savedType = state.editingType;
+  const isCloud = !!(scope && scope.isConfigured());
+  if (isCloud) {
     scope
-      .saveSchema(savedType, state.workingSchema)
+      .saveSchema(savedType, savedSchema)
       // Server-acked: retire the draft so base is authoritative again (issue #27). The optimistic
       // onSnapshot has already refreshed base, so there's nothing to flicker back to.
       .then(() => markSchemaSynced(savedType))
       .catch((err) => showToast('Firebase save error: ' + err.message));
   }
+
+  // Migrate entry data for each consume. Local-only rewrites the in-memory index (threading all plans
+  // through each entry); cloud writes each entry transactionally — version bump + history snapshot,
+  // idempotent + resumable (see consumeEntriesIntoGroup). A cloud failure leaves the guard baseline
+  // un-advanced so a re-Save resumes the un-migrated entries.
+  let migratedTotal = 0;
+  let migrationOk = true;
+  if (plans.length && entryCount > 0) {
+    if (isCloud) {
+      const ids = entriesForType.map((e) => e.id);
+      try {
+        for (const p of plans) {
+          const res = await scope.consumeEntriesIntoGroup(savedType, p.groupKey, p.consumedKeys, ids);
+          migratedTotal += res.migrated;
+        }
+      } catch (err) {
+        migrationOk = false;
+        showToast('Entry migration error — Save again to finish: ' + err.message);
+      }
+    } else {
+      for (const original of entriesForType) {
+        let e = original;
+        let changed = false;
+        for (const p of plans) {
+          const r = consumeEntry(e, p.groupKey, p.consumedKeys);
+          if (r.changed) { e = r.entry; changed = true; }
+        }
+        if (changed) { upsertLocalEntry(e); migratedTotal += 1; }
+      }
+    }
+  }
+
+  // Advance the guard baseline + retire the new-type draft only once the save (and any migration) stuck.
+  if (migrationOk) {
+    state.newTypeDraft = null;
+    state.typeDraftDirty = false;
+    state.lastSavedSchema = structuredClone(savedSchema); // new baseline for the next save's guard
+  }
   renderTypesEditor();
   renderTypeNav(); // reflect a rename / icon change in the sidebar
-  showToast(`Saved “${state.workingSchema.label}” type`);
+  const suffix = migratedTotal ? ` — moved ${migratedTotal} ${migratedTotal === 1 ? 'entry' : 'entries'} in` : '';
+  showToast(`Saved “${savedSchema.label}” type${suffix}`);
 }
 
 // Revert is destructive and irreversible — it discards working edits AND deletes the saved
