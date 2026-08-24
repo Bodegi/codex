@@ -22,7 +22,7 @@ service cloud.firestore {
     }
     function isAdmin() {
       return isSignedIn()
-        && request.auth.token.email in ['bodegigaming@gmail.com', 'aspensquare.chuck@gmail.com'];
+        && request.auth.token.email in ['bodegigaming@gmail.com', 'aspensquare.chuck@gmail.com', 'tomchalm@gmail.com'];
     }
     function permId(codexId) {
       return request.auth.uid + '_' + codexId;

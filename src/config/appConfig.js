@@ -23,7 +23,7 @@ export const appConfig = {
   // (isAdmin()). Everyone else's access comes from their per-codex `permissions` doc (editor/viewer),
   // resolved by capabilities.js and enforced by the rules — no baked allowlist.
   auth: {
-    adminEmail: ['bodegigaming@gmail.com', 'aspensquare.chuck@gmail.com'],
+    adminEmail: ['bodegigaming@gmail.com', 'aspensquare.chuck@gmail.com', 'tomchalm@gmail.com'],
   },
   // Supabase Storage hosts uploaded image bytes (Firestore keeps the metadata). Like the Firebase
   // config these are public locators, not secrets — the publishable key is safe to ship because Storage

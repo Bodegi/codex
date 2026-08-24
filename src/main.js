@@ -572,6 +572,13 @@ function onAuthChanged() {
     state.inviteBlocked = null;
   }
   watchOwnPermission();  // resets permission state; its callback re-renders once the doc arrives
+  // Bootstrap the codex registry the moment we're authed — NOT lazily from showWorkspace. A fresh
+  // non-admin has no persisted codex id, so watchOwnPermission above finds nothing to watch and their
+  // access never resolves: reconcileCurrentCodex (which adopts their first codex, or resolves the
+  // no-grants case) only ran from inside showWorkspace, but showWorkspace needs canRead — a deadlock
+  // that stranded them on "Checking access…". Listing one's own permissions is a signed-in user's
+  // rules-allowed read, so it's safe before canRead; codex *content* stays deferred (switchCodex).
+  if (user) subscribeCodexRegistry();
   recomputeCaps();
   renderAppState();
 }
@@ -928,7 +935,15 @@ function subscribeCodexRegistry() {
     ownPermsUnsub = state.fbManager.subscribeOwnPermissions(uid, async (perms) => {
       state.ownPermissions = perms;
       const metas = await Promise.all(
-        perms.map((p) => state.fbManager.getCodexMeta(p.codexId).then((m) => (m ? { ...m, codexId: p.codexId } : null)))
+        // A single failed meta read (a denied/flaky getCodexMeta) must degrade to "that codex is
+        // hidden", never reject the whole batch — a rejection here would skip reconcileCurrentCodex
+        // below and re-strand the user on "Checking access…".
+        perms.map((p) =>
+          state.fbManager
+            .getCodexMeta(p.codexId)
+            .then((m) => (m ? { ...m, codexId: p.codexId } : null))
+            .catch(() => null)
+        )
       );
       state.codices = metas.filter(Boolean);
       reconcileCurrentCodex();
