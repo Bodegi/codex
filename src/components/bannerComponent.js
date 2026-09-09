@@ -169,23 +169,21 @@ export function renderBannerRead(field, value, _ctx) {
 
 /** The build-recipe modal, opened by clicking a read-view banner (attachBannerRecipe). */
 function openBannerRecipeModal(innerHtml) {
-  const overlay = document.createElement('div');
-  overlay.className = 'banner-recipe-overlay';
-  overlay.innerHTML = `
-    <div class="banner-recipe-modal" role="dialog" aria-modal="true" aria-label="Build recipe">
-      <div class="banner-recipe-modal-head"><strong>Build recipe</strong><button type="button" class="banner-recipe-close" aria-label="Close" title="Close">×</button></div>
-      <div class="banner-recipe-modal-body">${innerHtml}</div>
-    </div>`;
-  const close = () => {
-    overlay.remove();
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay || e.target.closest('.banner-recipe-close')) close();
+  const dialog = document.createElement('dialog');
+  dialog.className = 'ui-dialog';
+  dialog.setAttribute('aria-label', 'Build recipe');
+  dialog.innerHTML = `
+    <div class="ui-dialog-header">
+      <h2 class="ui-dialog-title">Build recipe</h2>
+      <button type="button" class="ui-btn" data-variant="ghost" data-size="icon-sm" data-recipe-close aria-label="Close" title="Close">×</button>
+    </div>
+    <div class="ui-dialog-body banner-recipe-modal-body">${innerHtml}</div>`;
+  dialog.addEventListener('close', () => dialog.remove(), { once: true });
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog || e.target.closest('[data-recipe-close]')) dialog.close(); // backdrop or ✕
   });
-  document.addEventListener('keydown', onKey);
-  document.body.appendChild(overlay);
+  document.body.appendChild(dialog);
+  dialog.showModal();
 }
 
 /**

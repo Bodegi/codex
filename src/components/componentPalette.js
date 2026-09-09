@@ -49,39 +49,32 @@ export function openComponentPalette({ current = '', allow = null } = {}) {
     const components = paletteComponents().filter((c) => !allowSet || allowSet.has(c.kind));
     const cards = components.map((c) => cardHtml(c, current)).join('');
 
-    const overlay = document.createElement('div');
-    overlay.className = 'palette-overlay';
-    overlay.innerHTML = `
-      <div class="palette-modal" role="dialog" aria-modal="true" aria-label="${escapeAttr(heading)}">
-        <div class="palette-header">
-          <strong>${heading}</strong>
-          <button type="button" class="palette-close" aria-label="Close" title="Close">×</button>
-        </div>
-        <div class="palette-grid">${cards}</div>
-      </div>`;
+    const dialog = document.createElement('dialog');
+    dialog.className = 'ui-dialog codex-picker';
+    dialog.setAttribute('aria-label', heading);
+    dialog.innerHTML = `
+      <div class="ui-dialog-header">
+        <h2 class="ui-dialog-title">${heading}</h2>
+        <button type="button" class="ui-btn" data-variant="ghost" data-size="icon-sm" data-palette-close aria-label="Close" title="Close">×</button>
+      </div>
+      <div class="ui-dialog-body"><div class="palette-grid">${cards}</div></div>`;
 
-    const close = (kind) => {
-      overlay.remove();
-      document.removeEventListener('keydown', onKey);
-      resolve(kind);
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') close(null);
-    };
-
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) return close(null);
-      if (e.target.closest('.palette-close')) return close(null);
+    // Native <dialog>: showModal() gives the backdrop, focus trap and Esc; the pick is read on `close`.
+    let result = null;
+    const finish = (kind) => { result = kind; dialog.close(); };
+    dialog.addEventListener('close', () => { dialog.remove(); resolve(result); });
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog || e.target.closest('[data-palette-close]')) return finish(null); // backdrop or ✕
       const card = e.target.closest('[data-kind]');
       if (card) {
         const kind = card.dataset.kind;
         // Re-picking the current component is a no-op cancel, so the caller never rebuilds needlessly.
-        close(kind === current ? null : kind);
+        finish(kind === current ? null : kind);
       }
     });
 
-    document.addEventListener('keydown', onKey);
-    document.body.appendChild(overlay);
-    overlay.querySelector('.palette-card')?.focus();
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    dialog.querySelector('.palette-card')?.focus();
   });
 }
