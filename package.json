@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",
+    "design-kit": "github:Bodegi/design-kit#v1.2.0",
     "firebase": "^12.17.0"
   }
 }
