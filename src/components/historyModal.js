@@ -6,8 +6,8 @@
  * chosen snapshot's data and the caller loads it into the editor as unsaved edits — the actual
  * overwrite only happens on the next Save. Resolves the picked snapshot's `data`, or `null` on close.
  *
- * Same overlay idiom as confirmModal.js / conflictModal.js (reuses `confirm-overlay` / `confirm-modal`
- * CSS); it renders a scrollable list, so it carries a few `history-*` classes of its own.
+ * Built on the design-kit's native `<dialog class="ui-dialog">`, like confirmModal.js / conflictModal.js;
+ * it renders a scrollable list, so it carries a few `history-*` classes of its own.
  */
 
 function escapeHtml(text) {
@@ -25,8 +25,9 @@ function escapeHtml(text) {
  */
 export function openHistoryModal({ rows = [] } = {}) {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'confirm-overlay';
+    const dialog = document.createElement('dialog');
+    dialog.className = 'ui-dialog';
+    dialog.setAttribute('aria-label', 'Version history');
 
     const list = rows.length
       ? `<ul class="history-list">${rows.map((r, i) => `
@@ -40,35 +41,28 @@ export function openHistoryModal({ rows = [] } = {}) {
           </li>`).join('')}</ul>`
       : `<div class="history-empty">No earlier versions saved yet. History starts building the next time this entry is saved.</div>`;
 
-    overlay.innerHTML = `
-      <div class="confirm-modal history-modal" role="dialog" aria-modal="true" aria-label="Version history">
-        <div class="confirm-header"><strong>Version history</strong></div>
-        <div class="confirm-body">Restoring loads that version into the editor as unsaved edits — review it, then Save to keep it as the new current version. Nothing is overwritten until you save.</div>
+    dialog.innerHTML = `
+      <div class="ui-dialog-header"><h2 class="ui-dialog-title">Version history</h2></div>
+      <div class="ui-dialog-body">
+        <p>Restoring loads that version into the editor as unsaved edits — review it, then Save to keep it as the new current version. Nothing is overwritten until you save.</p>
         ${list}
-        <div class="confirm-actions">
-          <button type="button" class="ui-btn" data-size="sm" data-history-close>Close</button>
-        </div>
+      </div>
+      <div class="ui-dialog-footer">
+        <button type="button" class="ui-btn" data-size="sm" data-history-close>Close</button>
       </div>`;
 
-    const previouslyFocused = document.activeElement;
-    const done = (result) => {
-      overlay.remove();
-      document.removeEventListener('keydown', onKey);
-      previouslyFocused?.focus?.();
-      resolve(result);
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') done(null);
-    };
-
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay || e.target.closest('[data-history-close]')) return done(null);
+    // Esc / backdrop / Close dismisses (null); native showModal handles focus + Esc.
+    let result = null;
+    const finish = (value) => { result = value; dialog.close(); };
+    dialog.addEventListener('close', () => { dialog.remove(); resolve(result); });
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog || e.target.closest('[data-history-close]')) return finish(null); // backdrop or Close
       const restore = e.target.closest('[data-history-restore]');
-      if (restore) return done(rows[Number(restore.dataset.historyRestore)]?.data ?? null);
+      if (restore) return finish(rows[Number(restore.dataset.historyRestore)]?.data ?? null);
     });
 
-    document.addEventListener('keydown', onKey);
-    document.body.appendChild(overlay);
-    overlay.querySelector('[data-history-close]')?.focus();
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    dialog.querySelector('[data-history-close]')?.focus();
   });
 }

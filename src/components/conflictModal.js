@@ -7,11 +7,9 @@
  *   'reload'    — discard mine and load their latest
  *   null        — dismiss (Esc / click outside): stay in edit with the unsaved edits intact
  *
- * Reuses the `confirm-overlay` / `confirm-modal` idiom (and CSS) of confirmModal.js; it needs three
- * outcomes, which the boolean openConfirm can't express, so it's its own small component.
- *
- * It guards an unsaved-edits decision, so — like confirmModal — it keeps focus inside the dialog
- * while open (Tab cycles the two buttons) and returns focus to the triggering control on close.
+ * Built on the design-kit's native `<dialog class="ui-dialog">`, like confirmModal.js; it needs
+ * three outcomes, which the boolean openConfirm can't express, so it's its own small component.
+ * showModal() gives the focus trap, Esc handling and focus restore natively.
  */
 
 function escapeHtml(text) {
@@ -30,52 +28,29 @@ export function openConflictModal({
   reloadLabel = 'Discard mine & reload theirs',
 } = {}) {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'confirm-overlay';
-    overlay.innerHTML = `
-      <div class="confirm-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
-        <div class="confirm-header"><strong>${escapeHtml(title)}</strong></div>
-        <div class="confirm-body">${escapeHtml(message)}</div>
-        <div class="confirm-actions">
-          <button type="button" class="ui-btn" data-size="sm" data-conflict-reload>${escapeHtml(reloadLabel)}</button>
-          <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-conflict-overwrite>${escapeHtml(overwriteLabel)}</button>
-        </div>
+    const dialog = document.createElement('dialog');
+    dialog.className = 'ui-dialog';
+    dialog.setAttribute('aria-label', title);
+    dialog.innerHTML = `
+      <div class="ui-dialog-header"><h2 class="ui-dialog-title">${escapeHtml(title)}</h2></div>
+      <div class="ui-dialog-body">${escapeHtml(message)}</div>
+      <div class="ui-dialog-footer">
+        <button type="button" class="ui-btn" data-size="sm" data-conflict-reload>${escapeHtml(reloadLabel)}</button>
+        <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-conflict-overwrite>${escapeHtml(overwriteLabel)}</button>
       </div>`;
 
-    const previouslyFocused = document.activeElement;
-    const done = (result) => {
-      overlay.remove();
-      document.removeEventListener('keydown', onKey);
-      previouslyFocused?.focus?.(); // return focus to whatever opened the dialog
-      resolve(result);
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') return done(null);
-      if (e.key === 'Tab') {
-        // Trap Tab within the dialog's two buttons so focus can't wander to the page behind.
-        const focusables = [...overlay.querySelectorAll('button')];
-        if (!focusables.length) return;
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        const active = document.activeElement;
-        if (e.shiftKey && (active === first || !overlay.contains(active))) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && (active === last || !overlay.contains(active))) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) return done(null);
-      if (e.target.closest('[data-conflict-reload]')) return done('reload');
-      if (e.target.closest('[data-conflict-overwrite]')) return done('overwrite');
+    // Esc / backdrop leaves the decision unmade (null) — the caller keeps the unsaved edits.
+    let result = null;
+    const finish = (value) => { result = value; dialog.close(); };
+    dialog.addEventListener('close', () => { dialog.remove(); resolve(result); });
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) return finish(null); // backdrop
+      if (e.target.closest('[data-conflict-reload]')) return finish('reload');
+      if (e.target.closest('[data-conflict-overwrite]')) return finish('overwrite');
     });
 
-    document.addEventListener('keydown', onKey);
-    document.body.appendChild(overlay);
-    overlay.querySelector('[data-conflict-overwrite]')?.focus();
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    dialog.querySelector('[data-conflict-overwrite]')?.focus();
   });
 }

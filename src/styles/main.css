@@ -2777,45 +2777,11 @@ mark.search-hit {
 .lightbox-prev { left: 16px; }
 .lightbox-next { right: 16px; }
 
-/* Confirm modal — replaces native confirm() for destructive actions. */
-.confirm-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1200;
-  padding: 24px;
-}
-.confirm-modal {
-  background: var(--color-bg-surface);
-  border: 1px solid var(--border-glow);
-  border-radius: var(--radius-control);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  width: min(420px, 100%);
-  padding: 20px;
-}
-.confirm-header strong {
-  font-family: var(--font-sans);
-  color: var(--color-primary);
-  font-size: 16px;
-}
-.confirm-body {
-  margin-top: 10px;
-  color: var(--color-text-muted);
-  font-size: 13px;
-  line-height: 1.5;
-}
+/* Confirm/conflict/consume/history modals are the design-kit's native `<dialog class="ui-dialog">`
+   (header/body/footer anatomy). Only their content lists carry app CSS below. */
 /* The structure-change guard's list of what a Save will do to existing entry data (issue #54). */
 .confirm-list { margin: 8px 0; padding-left: 20px; }
 .confirm-list li { margin: 3px 0; color: var(--color-text-main); }
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 18px;
-}
 
 /* Consume-fields picker (issue #55): a checklist of existing fields a new group can absorb. */
 .consume-list {
@@ -2845,9 +2811,6 @@ mark.search-hit {
 }
 
 /* Entry version-history modal — a scrollable list of retained prior versions. */
-.history-modal {
-  width: min(520px, 100%);
-}
 .history-list {
   list-style: none;
   margin: 14px 0 0;

@@ -6,8 +6,8 @@
  * entry's value into it is unambiguous, so absorbing is data-preserving — the migration runs on Save.
  * Picking none (Skip / Esc / backdrop) just leaves an empty new group.
  *
- * Resolves to the array of chosen field keys (`[]` when nothing is absorbed). Browser-only DOM, reusing
- * the confirm-modal overlay shell (confirmModal.js) — the eligibility decision (which fields qualify)
+ * Resolves to the array of chosen field keys (`[]` when nothing is absorbed). Browser-only DOM, built on
+ * the design-kit's native `<dialog class="ui-dialog">` — the eligibility decision (which fields qualify)
  * lives with the caller, not here.
  */
 
@@ -37,46 +37,38 @@ export function openConsumePicker(groupLabel, fields = []) {
       )
       .join('');
 
-    const overlay = document.createElement('div');
-    overlay.className = 'confirm-overlay';
-    overlay.innerHTML = `
-      <div class="confirm-modal" role="dialog" aria-modal="true" aria-label="Absorb existing fields">
-        <div class="confirm-header"><strong>Absorb existing fields?</strong></div>
-        <div class="confirm-body">
-          <p>The new group <strong>${escapeHtml(groupLabel)}</strong> can take over existing fields. Each entry’s value moves into the group when you Save — its data comes along, not left behind.</p>
-          <div class="consume-list">${rows}</div>
-        </div>
-        <div class="confirm-actions">
-          <button type="button" class="ui-btn" data-size="sm" data-consume-skip>Skip</button>
-          <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-consume-ok disabled>Absorb selected</button>
-        </div>
+    const dialog = document.createElement('dialog');
+    dialog.className = 'ui-dialog';
+    dialog.setAttribute('aria-label', 'Absorb existing fields');
+    dialog.innerHTML = `
+      <div class="ui-dialog-header"><h2 class="ui-dialog-title">Absorb existing fields?</h2></div>
+      <div class="ui-dialog-body">
+        <p>The new group <strong>${escapeHtml(groupLabel)}</strong> can take over existing fields. Each entry’s value moves into the group when you Save — its data comes along, not left behind.</p>
+        <div class="consume-list">${rows}</div>
+      </div>
+      <div class="ui-dialog-footer">
+        <button type="button" class="ui-btn" data-size="sm" data-consume-skip>Skip</button>
+        <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-consume-ok disabled>Absorb selected</button>
       </div>`;
 
-    const okBtn = overlay.querySelector('[data-consume-ok]');
+    const okBtn = dialog.querySelector('[data-consume-ok]');
     const selectedKeys = () =>
-      [...overlay.querySelectorAll('[data-consume-key]')].filter((c) => c.checked).map((c) => c.dataset.consumeKey);
+      [...dialog.querySelectorAll('[data-consume-key]')].filter((c) => c.checked).map((c) => c.dataset.consumeKey);
 
-    const previouslyFocused = document.activeElement;
-    const done = (keys) => {
-      overlay.remove();
-      document.removeEventListener('keydown', onKey);
-      previouslyFocused?.focus?.();
-      resolve(keys);
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') done([]);
-    };
-
-    overlay.addEventListener('change', (e) => {
+    // Esc / backdrop / Skip absorbs nothing (`[]`); native showModal handles focus + Esc.
+    let result = [];
+    const finish = (keys) => { result = keys; dialog.close(); };
+    dialog.addEventListener('close', () => { dialog.remove(); resolve(result); });
+    dialog.addEventListener('change', (e) => {
       if (e.target.matches('[data-consume-key]')) okBtn.disabled = selectedKeys().length === 0;
     });
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay || e.target.closest('[data-consume-skip]')) return done([]);
-      if (e.target.closest('[data-consume-ok]')) return done(selectedKeys());
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog || e.target.closest('[data-consume-skip]')) return finish([]);
+      if (e.target.closest('[data-consume-ok]')) return finish(selectedKeys());
     });
 
-    document.addEventListener('keydown', onKey);
-    document.body.appendChild(overlay);
-    overlay.querySelector('[data-consume-skip]')?.focus();
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    dialog.querySelector('[data-consume-skip]')?.focus();
   });
 }

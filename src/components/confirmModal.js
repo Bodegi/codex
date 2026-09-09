@@ -1,14 +1,12 @@
 /**
  * Codex — Confirm modal.
  *
- * A small reusable "are you sure?" overlay that resolves to a boolean. Exists because
+ * A small reusable "are you sure?" dialog that resolves to a boolean. Exists because
  * native `confirm()` freezes the Chrome test extension (it blocks the event loop the
  * automation drives), so every destructive in-app action routes through this instead.
- * Same overlay idiom as `imagePicker.js` / `lightbox.js`: dimmed backdrop, Esc or a
- * click on Cancel / outside resolves false, the confirm button resolves true.
- *
- * It guards destructive actions, so it keeps focus inside the dialog while open (Tab
- * cycles the two buttons) and returns focus to the triggering control on close.
+ * Built on the design-kit's native `<dialog class="ui-dialog">`: `showModal()` gives the
+ * backdrop, focus trap and Esc handling for free — Esc or a click on Cancel / the backdrop
+ * resolves false, the confirm button resolves true. Focus returns to the invoker natively.
  */
 
 function escapeHtml(text) {
@@ -29,52 +27,30 @@ function escapeHtml(text) {
 export function openConfirm({ title, message, messageHtml, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = true } = {}) {
   const body = messageHtml ?? (message ? escapeHtml(message) : '');
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'confirm-overlay';
-    overlay.innerHTML = `
-      <div class="confirm-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(title || 'Confirm')}">
-        <div class="confirm-header"><strong>${escapeHtml(title || 'Are you sure?')}</strong></div>
-        ${body ? `<div class="confirm-body">${body}</div>` : ''}
-        <div class="confirm-actions">
-          <button type="button" class="ui-btn" data-size="sm" data-confirm-cancel>${escapeHtml(cancelLabel)}</button>
-          <button type="button" class="ui-btn" data-size="sm" data-intent="${danger ? 'danger' : 'primary'}" data-confirm-ok>${escapeHtml(confirmLabel)}</button>
-        </div>
+    const dialog = document.createElement('dialog');
+    dialog.className = 'ui-dialog';
+    dialog.setAttribute('aria-label', title || 'Confirm');
+    dialog.innerHTML = `
+      <div class="ui-dialog-header"><h2 class="ui-dialog-title">${escapeHtml(title || 'Are you sure?')}</h2></div>
+      ${body ? `<div class="ui-dialog-body">${body}</div>` : ''}
+      <div class="ui-dialog-footer">
+        <button type="button" class="ui-btn" data-size="sm" data-confirm-cancel>${escapeHtml(cancelLabel)}</button>
+        <button type="button" class="ui-btn" data-size="sm" data-intent="${danger ? 'danger' : 'primary'}" data-confirm-ok>${escapeHtml(confirmLabel)}</button>
       </div>`;
 
-    const previouslyFocused = document.activeElement;
-    const done = (result) => {
-      overlay.remove();
-      document.removeEventListener('keydown', onKey);
-      previouslyFocused?.focus?.(); // return focus to whatever opened the dialog
-      resolve(result);
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') return done(false);
-      if (e.key === 'Enter') return done(true);
-      if (e.key === 'Tab') {
-        // Trap Tab within the dialog's two buttons so focus can't wander to the page behind.
-        const focusables = [...overlay.querySelectorAll('button')];
-        if (!focusables.length) return;
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        const active = document.activeElement;
-        if (e.shiftKey && (active === first || !overlay.contains(active))) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && (active === last || !overlay.contains(active))) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay || e.target.closest('[data-confirm-cancel]')) return done(false);
-      if (e.target.closest('[data-confirm-ok]')) return done(true);
+    // Native <dialog>: showModal() traps focus and handles Esc (the `cancel` event); the outcome
+    // is stashed then read when the dialog `close`s, which also restores focus to the invoker.
+    let result = false;
+    const finish = (value) => { result = value; dialog.close(); };
+    dialog.addEventListener('close', () => { dialog.remove(); resolve(result); });
+    dialog.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } });
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog || e.target.closest('[data-confirm-cancel]')) return finish(false); // backdrop or Cancel
+      if (e.target.closest('[data-confirm-ok]')) return finish(true);
     });
 
-    document.addEventListener('keydown', onKey);
-    document.body.appendChild(overlay);
-    overlay.querySelector('[data-confirm-ok]')?.focus();
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    dialog.querySelector('[data-confirm-ok]')?.focus();
   });
 }
