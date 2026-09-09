@@ -713,7 +713,8 @@ function showConnectionBanner(message) {
     const msg = document.createElement('span');
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'btn btn-sm';
+    btn.className = 'ui-btn';
+    btn.dataset.size = 'sm';
     btn.textContent = 'Reload';
     btn.addEventListener('click', () => location.reload());
     connectionBanner.append(msg, btn);

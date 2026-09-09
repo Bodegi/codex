@@ -133,7 +133,7 @@ function galleryInner(field, items, ctx) {
     .join('');
   return `<label>${escapeHtml(field.label)}</label>
     <div class="media-gallery-row">${rows || '<span class="media-empty">No carousel images</span>'}</div>
-    <button type="button" class="btn btn-secondary btn-sm" data-media="gallery-add">＋ Add Image</button>`;
+    <button type="button" class="ui-btn" data-size="sm" data-media="gallery-add">＋ Add Image</button>`;
 }
 
 /** A resolved image thumb, or the not-found placeholder when the id can't resolve. */
@@ -194,7 +194,8 @@ export const fieldKinds = {
     mount(el, { ctx }) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'btn btn-secondary btn-sm prose-insert-image';
+      btn.className = 'ui-btn prose-insert-image';
+      btn.dataset.size = 'sm';
       btn.textContent = '＋ Insert image';
       el.insertAdjacentElement('afterend', btn);
       btn.addEventListener('click', async () => {
@@ -372,12 +373,12 @@ export const fieldKinds = {
     renderInput(field, value, ctx) {
       const hero = value || '';
       const block = hero
-        ? `${thumb(hero, ctx?.resolveImage)}<button type="button" class="btn btn-secondary btn-sm" data-media="hero-clear">Remove</button>`
+        ? `${thumb(hero, ctx?.resolveImage)}<button type="button" class="ui-btn" data-size="sm" data-media="hero-clear">Remove</button>`
         : `<span class="media-empty">No hero image</span>`;
       return `<div class="form-group form-media" data-field-key="${escapeHtml(field.key)}">
         <label>${escapeHtml(field.label)}</label>
         <div class="media-hero-row">
-          <button type="button" class="btn btn-primary btn-sm" data-media="hero-pick">Pick Hero</button>
+          <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-media="hero-pick">Pick Hero</button>
           ${block}
         </div>
       </div>`;
