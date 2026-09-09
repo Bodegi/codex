@@ -1150,14 +1150,14 @@ function renderNav() {
 function renderAdminNav() {
   const panel = state.view.panel;
   const item = (key, label) =>
-    `<button class="nav-item nav-admin-item${panel === key ? ' is-active' : ''}" data-admin-nav="${key}">${label}</button>`;
+    `<button class="ui-nav-item nav-admin-item"${panel === key ? ' aria-current="page"' : ''} data-admin-nav="${key}">${label}</button>`;
   // Redemption alert: count of non-admin users still awaiting a role (see inviteModel.countPendingGrants).
   const pending = state.fbManager?.isConfigured() ? countPendingGrants(buildRosterRows()) : 0;
   const accessLabel = pending > 0
     ? `Users &amp; Access <span class="nav-badge">${pending}</span>`
     : 'Users &amp; Access';
   typeNav.innerHTML = `
-    <button class="nav-item nav-admin-back" data-admin-back>‹ Back to codex</button>
+    <button class="ui-nav-item nav-admin-back" data-admin-back>‹ Back to codex</button>
     <div class="nav-admin-group">
       <span class="nav-section-label">Admin</span>
       ${item('access', accessLabel)}
@@ -1199,21 +1199,21 @@ function renderTypeNav() {
     .map(
       (node) => `
     <div class="nav-type" data-type="${escapeHtml(node.type)}">
-      <button class="nav-item nav-type-header" data-type-header="${escapeHtml(node.type)}">
-        <span class="nav-icon">${getIcon(node.icon)}</span>
-        <span class="nav-label">${escapeHtml(node.label)}</span>
-        <span class="nav-caret" aria-hidden="true"></span>
+      <button class="ui-nav-item nav-type-header" data-type-header="${escapeHtml(node.type)}">
+        <span class="ui-nav-icon nav-icon">${getIcon(node.icon)}</span>
+        <span class="ui-nav-label">${escapeHtml(node.label)}</span>
+        <span class="ui-nav-trail nav-caret" aria-hidden="true"></span>
       </button>
       <div class="nav-entries">
         ${node.entries
           .map(
             (e) =>
-              `<button class="nav-item nav-entry" data-type="${escapeHtml(node.type)}" data-id="${escapeHtml(
+              `<button class="ui-nav-item nav-entry" data-type="${escapeHtml(node.type)}" data-id="${escapeHtml(
                 e.id
               )}">${escapeHtml(e.title)}</button>`
           )
           .join('')}
-        ${canEdit ? `<button class="nav-item nav-new-entry" data-new-entry="${escapeHtml(node.type)}">＋ New entry</button>` : ''}
+        ${canEdit ? `<button class="ui-nav-item nav-new-entry" data-new-entry="${escapeHtml(node.type)}">＋ New entry</button>` : ''}
         ${canEdit ? renderArchivedEntries(node.type) : ''}
       </div>
     </div>`
@@ -1228,7 +1228,7 @@ function renderTypeNav() {
 function renderNewTypeRow() {
   return `
     <div class="nav-new-type">
-      <button class="nav-item nav-new-type-btn" id="new-type-btn">＋ New type</button>
+      <button class="ui-nav-item nav-new-type-btn" id="new-type-btn">＋ New type</button>
     </div>`;
 }
 
@@ -1350,7 +1350,7 @@ typeNav.addEventListener('click', (e) => {
 
 // Reflect expansion (from navExpanded) + the active type/entry (or Admin) in the nav.
 function highlightNav() {
-  typeNav.querySelectorAll('.nav-item').forEach((el) => el.classList.remove('is-active'));
+  typeNav.querySelectorAll('.ui-nav-item').forEach((el) => el.removeAttribute('aria-current'));
   typeNav.querySelectorAll('.nav-type').forEach((el) => el.classList.remove('is-expanded'));
 
   // Expansion is independent of selection — an opened section stays open until toggled shut.
@@ -1358,11 +1358,11 @@ function highlightNav() {
     typeNav.querySelector(`.nav-type[data-type="${CSS.escape(type)}"]`)?.classList.add('is-expanded');
   });
 
-  // The blanket .nav-item strip above also clears the admin panel items, so re-mark the active one
+  // The blanket .ui-nav-item strip above also clears the admin panel items, so re-mark the active one
   // here — otherwise entering admin (or jumping straight to a panel) lands with no highlight until you
   // click a panel by hand.
   if (inGlobalAdmin()) {
-    typeNav.querySelector(`[data-admin-nav="${CSS.escape(state.view.panel)}"]`)?.classList.add('is-active');
+    typeNav.querySelector(`[data-admin-nav="${CSS.escape(state.view.panel)}"]`)?.setAttribute('aria-current', 'page');
     return;
   }
   const type = curType();
@@ -1376,10 +1376,10 @@ function highlightNav() {
   const atEntry = state.view.mode === 'read' || state.view.mode === 'edit';
   if (atEntry) {
     typeEl.querySelectorAll('.nav-entry').forEach((el) => {
-      if (el.dataset.id === String(state.formData.id)) el.classList.add('is-active');
+      if (el.dataset.id === String(state.formData.id)) el.setAttribute('aria-current', 'page');
     });
   } else {
-    typeEl.querySelector('.nav-type-header')?.classList.add('is-active');
+    typeEl.querySelector('.nav-type-header')?.setAttribute('aria-current', 'page');
   }
 }
 

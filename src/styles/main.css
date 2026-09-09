@@ -171,43 +171,14 @@ body {
   color: var(--color-text-muted);
 }
 
+/* The nav tree lives in the kit's `.ui-sidebar-body` (scroll/padding); this only sets the
+   between-rows rhythm. Rows are the kit's `.ui-nav-item` (`.ui-nav-icon`/`-label`/`-trail`),
+   with the current row keyed off `aria-current` — the app modifier classes below tune the
+   tree (indent, weight, caret). */
 .type-nav {
-  flex: 1;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-right: 4px;
-}
-
-/* Nav items (shared by type headers, entries, and Admin) */
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-nav);
-  color: var(--color-text-muted);
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  padding: 8px 10px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.nav-item:hover {
-  color: var(--color-text-main);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.nav-item.is-active {
-  color: #fff;
-  background: var(--color-bg-elevated);
-  box-shadow: inset 3px 0 0 var(--color-primary);
 }
 
 /* Admin sidebar: leave-admin link + the two admin panels. */
@@ -231,14 +202,8 @@ body {
 }
 .nav-admin-item { font-weight: 600; color: var(--color-text-main); }
 
-.nav-icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  color: var(--color-primary);
-}
+/* Icon/label come from the kit's `.ui-nav-icon` / `.ui-nav-label`; only the glyph size is ours. */
 .nav-icon .icon { width: 18px; height: 18px; display: block; }
-
-.nav-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .nav-type-header { font-weight: 600; color: var(--color-text-main); }
 
@@ -3369,7 +3334,7 @@ dialog.ui-dialog.glyph-dialog {
 
   /* Comfortable touch targets on the primary controls. */
   .ui-btn { min-height: 40px; }
-  .nav-item { min-height: 40px; }
+  .ui-nav-item { min-height: 40px; }
 }
 
 /* Phone: keep header action rows tight. Collapse the sync badge to its status dot (its tooltip
