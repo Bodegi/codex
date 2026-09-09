@@ -65,32 +65,37 @@ export function openImagePicker(images = [], { canManage = false, multiple = fal
         ? list.map((img) => itemHtml(img, canManage && !!onRemove, multiple)).join('')
         : `<p class="image-picker-empty">No images in this codex yet.</p>`;
 
-    const overlay = document.createElement('div');
-    overlay.className = 'image-picker-overlay';
-    overlay.innerHTML = `
-      <div class="image-picker-modal" role="dialog" aria-modal="true" aria-label="${multiple ? 'Select images' : 'Select an image'}">
-        <div class="image-picker-header">
-          <strong>${multiple ? 'Select images' : 'Select an image'}</strong>
-          ${canManage && onUpload ? `<button type="button" class="ui-btn image-picker-upload" data-intent="primary" data-size="sm" data-upload title="Upload images — pick several, or drag them onto this window">＋ Upload</button>` : ''}
-          <button type="button" class="image-picker-close" aria-label="Close" title="Close">×</button>
+    const heading = multiple ? 'Select images' : 'Select an image';
+    const dialog = document.createElement('dialog');
+    dialog.className = 'ui-dialog codex-picker image-picker';
+    dialog.setAttribute('aria-label', heading);
+    dialog.innerHTML = `
+      <div class="ui-dialog-header">
+        <h2 class="ui-dialog-title">${heading}</h2>
+        <div class="ui-dialog-header-actions">
+          ${canManage && onUpload ? `<button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-upload title="Upload images — pick several, or drag them onto this window">＋ Upload</button>` : ''}
+          <button type="button" class="ui-btn" data-variant="ghost" data-size="icon-sm" data-picker-close aria-label="Close" title="Close">×</button>
         </div>
+      </div>
+      <div class="ui-dialog-body">
         <div class="image-picker-status" data-status hidden></div>
         <div class="image-picker-grid">${gridHtml()}</div>
-        ${multiple ? `<div class="image-picker-footer"><button type="button" class="ui-btn image-picker-confirm" data-intent="primary" data-confirm disabled>Add images</button></div>` : ''}
-      </div>`;
+      </div>
+      ${multiple ? `<div class="ui-dialog-footer"><button type="button" class="ui-btn" data-intent="primary" data-confirm disabled>Add images</button></div>` : ''}`;
 
-    const grid = overlay.querySelector('.image-picker-grid');
-    const statusEl = overlay.querySelector('[data-status]');
+    const grid = dialog.querySelector('.image-picker-grid');
+    const statusEl = dialog.querySelector('[data-status]');
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*';
     fileInput.multiple = true;
     fileInput.hidden = true;
-    overlay.appendChild(fileInput);
+    dialog.appendChild(fileInput);
 
-    const modal = overlay.querySelector('.image-picker-modal');
-    const uploadBtn = overlay.querySelector('[data-upload]');
-    const confirmBtn = overlay.querySelector('[data-confirm]');
+    // The <dialog> is itself the card the drag-drop upload ring rides (the old inner modal div).
+    const modal = dialog;
+    const uploadBtn = dialog.querySelector('[data-upload]');
+    const confirmBtn = dialog.querySelector('[data-confirm]');
     const canUpload = canManage && !!onUpload;
 
     const setStatus = (msg, isError = false) => {
@@ -100,15 +105,11 @@ export function openImagePicker(images = [], { canManage = false, multiple = fal
     };
 
     // Cancelling yields the empty shape for the caller's mode: [] in multi, null in single.
+    // Native <dialog>: showModal() handles Esc + focus; the outcome is stashed then read on `close`.
     const cancelValue = () => (multiple ? [] : null);
-    const close = (value) => {
-      overlay.remove();
-      document.removeEventListener('keydown', onKey);
-      resolve(value);
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') close(cancelValue());
-    };
+    let result = cancelValue();
+    const close = (value) => { result = value; dialog.close(); };
+    dialog.addEventListener('close', () => { dialog.remove(); resolve(result); });
 
     // Toggle one thumb's picked state (multi mode); keep the confirm button in sync.
     const togglePick = (item) => {
@@ -123,9 +124,9 @@ export function openImagePicker(images = [], { canManage = false, multiple = fal
       confirmBtn.textContent = picked.length ? `Add ${picked.length} image${picked.length > 1 ? 's' : ''}` : 'Add images';
     };
 
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) return close(cancelValue());
-      if (e.target.closest('.image-picker-close')) return close(cancelValue());
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) return close(cancelValue()); // backdrop
+      if (e.target.closest('[data-picker-close]')) return close(cancelValue());
       if (e.target.closest('[data-upload]')) return fileInput.click();
       if (e.target.closest('[data-confirm]')) return close(picked.slice());
 
@@ -166,7 +167,7 @@ export function openImagePicker(images = [], { canManage = false, multiple = fal
 
     const setBusy = (busy) => {
       if (uploadBtn) uploadBtn.disabled = busy;
-      overlay.classList.toggle('is-uploading', busy);
+      dialog.classList.toggle('is-uploading', busy);
     };
 
     // Normalize onUpload's result: a bare id string, or a { id, label, url } descriptor.
@@ -255,7 +256,7 @@ export function openImagePicker(images = [], { canManage = false, multiple = fal
       });
     }
 
-    document.addEventListener('keydown', onKey);
-    document.body.appendChild(overlay);
+    document.body.appendChild(dialog);
+    dialog.showModal();
   });
 }
