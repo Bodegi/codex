@@ -8,20 +8,20 @@
   <link rel="stylesheet" href="/src/styles/main.css">
 </head>
 <body class="bg-dark text-light">
-  <div id="app" class="app-container">
+  <div id="app" class="ui-app-shell">
     <!-- Header — app identity + auth only -->
-    <header class="app-header">
+    <header class="ui-header">
       <button id="sidebar-toggle" class="sidebar-toggle" type="button"
         aria-label="Show navigation" aria-controls="sidebar" aria-expanded="false">
         <span class="hamburger" aria-hidden="true"></span>
       </button>
-      <div class="header-brand">
+      <div class="ui-header-brand">
         <button id="brand-home" class="brand-home" type="button" aria-label="Codex Studio — go to home" title="Home">
           <img class="brand-wordmark" src="/src/assets/logo-wordmark.svg" alt="">
         </button>
       </div>
 
-      <div class="header-actions">
+      <div class="ui-header-actions">
         <!-- App-wide run-mode / sync-health signal (cloud vs local). One holder, always visible —
              it's application state, not per-entry, so it lives here rather than in a view header. -->
         <div id="active-file-indicator" class="compliance-badge is-local" data-sync-badge>
@@ -37,27 +37,29 @@
     <div id="gateway-container" class="hidden"></div>
 
     <!-- App body: sidebar nav + content workspace (Shown when authenticated) -->
-    <div class="app-body">
+    <div class="ui-app-body">
       <!-- Left sidebar: codex switcher → types → entries. Admin lives in the header user menu. -->
-      <aside id="sidebar" class="app-sidebar">
-        <div class="codex-switcher-wrap">
-          <button id="codex-switcher" class="codex-switcher" disabled title="Switch codex">
-            <span id="codex-switcher-label" class="codex-switcher-label"></span>
-            <span class="caret" aria-hidden="true"></span>
-          </button>
+      <aside id="sidebar" class="ui-sidebar">
+        <!-- Pinned top: codex switcher, role signal, entry search (kit sidebar-header, stacked). -->
+        <div class="ui-sidebar-header codex-sidebar-top">
+          <div class="codex-switcher-wrap">
+            <button id="codex-switcher" class="codex-switcher" disabled title="Switch codex">
+              <span id="codex-switcher-label" class="codex-switcher-label"></span>
+              <span class="caret" aria-hidden="true"></span>
+            </button>
+          </div>
+
+          <!-- Role signal for non-admin users (#22): renders only for editors/viewers -->
+          <div id="role-badge" class="role-badge" hidden></div>
+
+          <div class="nav-search-wrap">
+            <input id="nav-search" class="nav-search" type="search" placeholder="Search entries…"
+              autocomplete="off" spellcheck="false" aria-label="Search entries">
+          </div>
         </div>
 
-        <!-- Role signal for non-admin users (#22): renders only for editors/viewers -->
-        <div id="role-badge" class="role-badge" hidden></div>
-
-        <div class="nav-search-wrap">
-          <input id="nav-search" class="nav-search" type="search" placeholder="Search entries…"
-            autocomplete="off" spellcheck="false" aria-label="Search entries">
-        </div>
-
-        <nav id="type-nav" class="type-nav" aria-label="Codex contents">
-          <!-- Data-driven: types (from listTypes) → entries -->
-        </nav>
+        <!-- Scrolling nav region: types (from listTypes) → entries, then Admin. -->
+        <nav id="type-nav" class="type-nav ui-sidebar-body" aria-label="Codex contents"></nav>
       </aside>
 
       <!-- Scrim behind the off-canvas sidebar drawer (small screens only, #8). -->

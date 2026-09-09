@@ -41,39 +41,12 @@ body {
   overflow-x: hidden;
 }
 
-/* App Structure */
-.app-container {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  padding: 16px 24px;
-  gap: 16px;
-}
+/* App shell, header and sidebar rail come from the design-kit: `.ui-app-shell`, `.ui-header`
+   (with `.ui-header-brand` / `.ui-header-actions`), `.ui-app-body`, and `.ui-sidebar`
+   (`.ui-sidebar-header` / `.ui-sidebar-body`). The kit lifted this floating-glass layout from
+   Codex, so the shell chrome now lives there; only the app-specific bits below remain. */
 
-/* Header */
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--color-bg-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-base);
-  padding: 12px 24px;
-  box-shadow: var(--shadow-glass);
-  /* backdrop-filter makes this a stacking context; lift it above the body's glass-card panels
-     (also stacking contexts, later in the DOM) so the header user-menu dropdown paints on top. */
-  position: relative;
-  z-index: 50;
-}
-
-.header-brand {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
+/* Brand button in the header — the kit has no brand-button component. */
 .brand-home {
   background: none;
   border: none;
@@ -93,29 +66,12 @@ body {
   display: block;
 }
 
-/* ── App body: sidebar + workspace ── */
-.app-body {
-  display: flex;
-  gap: 16px;
-  flex: 1;
-  min-height: 0;
-}
-
-/* ── Left sidebar: codex switcher → types → entries, then Admin ── */
-.app-sidebar {
-  width: 260px;
-  flex-shrink: 0;
-  display: flex;
+/* The sidebar's pinned top (kit `.ui-sidebar-header`) stacks the switcher, role signal and
+   entry search vertically, rather than the kit default's horizontal brand row. */
+.codex-sidebar-top {
   flex-direction: column;
+  align-items: stretch;
   gap: 12px;
-  padding: 14px;
-  background: var(--color-bg-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-base);
-  box-shadow: var(--shadow-glass);
-  overflow: hidden;
 }
 
 .codex-switcher {
@@ -3316,12 +3272,12 @@ dialog.ui-dialog.glyph-dialog {
 .sidebar-backdrop { display: none; }
 
 @media (max-width: 860px) {
-  .app-container { padding: 10px 12px; gap: 12px; }
-  .app-header { padding: 10px 14px; }
+  .ui-app-shell { padding: 10px 12px; gap: 12px; }
+  .ui-header { padding: 10px 14px; }
   .brand-wordmark { height: 40px; }
 
   /* Hamburger — only once authenticated (the sidebar has content to show). */
-  .app-container.is-authed .sidebar-toggle {
+  .ui-app-shell.is-authed .sidebar-toggle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -3352,7 +3308,7 @@ dialog.ui-dialog.glyph-dialog {
   .hamburger::after { top: 6px; }
 
   /* Sidebar → off-canvas drawer, above the header. */
-  .app-sidebar {
+  .ui-sidebar {
     position: fixed;
     top: 0;
     left: 0;
@@ -3364,7 +3320,7 @@ dialog.ui-dialog.glyph-dialog {
     transform: translateX(-100%);
     transition: transform 0.22s ease;
   }
-  .app-container.sidebar-open .app-sidebar { transform: translateX(0); }
+  .ui-app-shell.sidebar-open .ui-sidebar { transform: translateX(0); }
 
   .sidebar-backdrop {
     display: block;
@@ -3376,7 +3332,7 @@ dialog.ui-dialog.glyph-dialog {
     pointer-events: none;
     transition: opacity 0.22s ease;
   }
-  .app-container.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
+  .ui-app-shell.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 
   /* Collapse the two-column grids: entry form + admin schema editor stack. When a preview is
      revealed on a phone, the panels stack (single column) rather than cramping side by side. */

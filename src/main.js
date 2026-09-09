@@ -467,7 +467,7 @@ const toastContainer = document.getElementById('toast-container');
 const userProfileBadge = document.getElementById('user-profile-badge');
 const gatewayContainer = document.getElementById('gateway-container');
 const mainWorkspace = document.getElementById('main-workspace');
-const appBody = document.querySelector('.app-body');
+const appBody = document.querySelector('.ui-app-body');
 const appContainer = document.getElementById('app');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebarBackdrop = document.getElementById('sidebar-backdrop');
@@ -1322,7 +1322,7 @@ document.getElementById('brand-home')?.addEventListener('click', goHome);
 
 // ── Mobile sidebar drawer (#8) ──
 // On narrow screens the sidebar is off-canvas; the header hamburger toggles it. The
-// class lives on #app so both the drawer (in .app-body) and the header button see it.
+// class lives on #app so both the drawer (in .ui-app-body) and the header button see it.
 // No-ops on desktop, where CSS pins the sidebar and hides the toggle/scrim.
 function closeSidebar() {
   appContainer.classList.remove('sidebar-open');
