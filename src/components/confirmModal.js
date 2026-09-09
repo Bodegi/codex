@@ -36,8 +36,8 @@ export function openConfirm({ title, message, messageHtml, confirmLabel = 'Confi
         <div class="confirm-header"><strong>${escapeHtml(title || 'Are you sure?')}</strong></div>
         ${body ? `<div class="confirm-body">${body}</div>` : ''}
         <div class="confirm-actions">
-          <button type="button" class="btn btn-secondary btn-sm" data-confirm-cancel>${escapeHtml(cancelLabel)}</button>
-          <button type="button" class="btn btn-sm ${danger ? 'btn-danger' : 'btn-primary'}" data-confirm-ok>${escapeHtml(confirmLabel)}</button>
+          <button type="button" class="ui-btn" data-size="sm" data-confirm-cancel>${escapeHtml(cancelLabel)}</button>
+          <button type="button" class="ui-btn" data-size="sm" data-intent="${danger ? 'danger' : 'primary'}" data-confirm-ok>${escapeHtml(confirmLabel)}</button>
         </div>
       </div>`;
 

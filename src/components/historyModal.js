@@ -36,7 +36,7 @@ export function openHistoryModal({ rows = [] } = {}) {
               ${r.summary ? `<span class="history-summary">${escapeHtml(r.summary)}</span>` : ''}
               <span class="history-when">${escapeHtml(r.when)}</span>
             </div>
-            <button type="button" class="btn btn-secondary btn-sm" data-history-restore="${i}">Restore</button>
+            <button type="button" class="ui-btn" data-size="sm" data-history-restore="${i}">Restore</button>
           </li>`).join('')}</ul>`
       : `<div class="history-empty">No earlier versions saved yet. History starts building the next time this entry is saved.</div>`;
 
@@ -46,7 +46,7 @@ export function openHistoryModal({ rows = [] } = {}) {
         <div class="confirm-body">Restoring loads that version into the editor as unsaved edits — review it, then Save to keep it as the new current version. Nothing is overwritten until you save.</div>
         ${list}
         <div class="confirm-actions">
-          <button type="button" class="btn btn-secondary btn-sm" data-history-close>Close</button>
+          <button type="button" class="ui-btn" data-size="sm" data-history-close>Close</button>
         </div>
       </div>`;
 

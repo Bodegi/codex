@@ -47,8 +47,8 @@ export function openConsumePicker(groupLabel, fields = []) {
           <div class="consume-list">${rows}</div>
         </div>
         <div class="confirm-actions">
-          <button type="button" class="btn btn-secondary btn-sm" data-consume-skip>Skip</button>
-          <button type="button" class="btn btn-primary btn-sm" data-consume-ok disabled>Absorb selected</button>
+          <button type="button" class="ui-btn" data-size="sm" data-consume-skip>Skip</button>
+          <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-consume-ok disabled>Absorb selected</button>
         </div>
       </div>`;
 

@@ -28,7 +28,7 @@
           <span class="idle-dot"></span> <span class="sync-label">Local only</span>
         </div>
         <div id="user-profile-badge" class="user-badge-container">
-          <button id="btn-google-login" class="btn btn-secondary">Sign in with Google</button>
+          <button id="btn-google-login" class="ui-btn">Sign in with Google</button>
         </div>
       </div>
     </header>
@@ -72,20 +72,20 @@
                  the trailing cluster is Preview (on-demand live entry preview) · ⋯ More (History /
                  Archive / Delete) · primary Save. -->
             <div class="editor-toolbar-start">
-              <button id="btn-done-edit" class="btn btn-secondary btn-sm">Back</button>
+              <button id="btn-done-edit" class="ui-btn" data-size="sm">Back</button>
               <h2 id="editor-title" class="panel-title"></h2>
             </div>
             <div class="editor-actions">
-              <button id="btn-preview-entry" class="btn btn-secondary btn-sm" type="button" aria-pressed="false">Preview</button>
+              <button id="btn-preview-entry" class="ui-btn" data-size="sm" type="button" aria-pressed="false">Preview</button>
               <div class="ee-menu">
-                <button id="btn-entry-menu" class="btn btn-secondary btn-sm ee-menu-trigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯<span class="ee-label-wide"> More</span></button>
+                <button id="btn-entry-menu" class="ui-btn ee-menu-trigger" data-size="sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯<span class="ee-label-wide"> More</span></button>
                 <div id="entry-menu-list" class="ee-menu-list hidden" role="menu" aria-label="More entry actions">
                   <button id="btn-history-entry" class="ee-menu-item" role="menuitem" type="button" hidden>History</button>
                   <button id="btn-archive-entry" class="ee-menu-item" role="menuitem" type="button" hidden>Archive</button>
                   <button id="btn-delete-entry" class="ee-menu-item ee-danger" role="menuitem" type="button" hidden>Delete</button>
                 </div>
               </div>
-              <button id="btn-save-entry" class="btn btn-primary btn-sm">Save</button>
+              <button id="btn-save-entry" class="ui-btn" data-intent="primary" data-size="sm">Save</button>
             </div>
           </div>
           <div id="form-container" class="form-scrollable">
@@ -98,12 +98,12 @@
           <div class="reader-header">
             <h2 id="reader-title" class="panel-title"></h2>
             <div class="reader-actions">
-              <button id="btn-structure" class="btn btn-secondary btn-sm" hidden>Structure</button>
-              <button id="btn-edit-toggle" class="btn btn-primary btn-sm" hidden>Edit</button>
+              <button id="btn-structure" class="ui-btn" data-size="sm" hidden>Structure</button>
+              <button id="btn-edit-toggle" class="ui-btn" data-intent="primary" data-size="sm" hidden>Edit</button>
               <!-- Dismiss the on-demand live-preview column — shown for both the Structure editor and
                    the entry editor (whichever opened it). Opening it lives on each editor's Preview
                    toggle (Structure also reveals raw JSON via More ▸ Edit JSON). -->
-              <button id="btn-close-preview" class="btn btn-secondary btn-sm" type="button" hidden title="Hide the preview">✕ Close</button>
+              <button id="btn-close-preview" class="ui-btn" data-size="sm" type="button" hidden title="Hide the preview">✕ Close</button>
             </div>
           </div>
 

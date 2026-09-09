@@ -23,7 +23,7 @@ export function renderAwaitingAccess(currentUser) {
         Ask the admin to grant your account a role — you'll appear in their roster automatically.
       </p>
 
-      <button id="awaiting-logout-btn" class="btn btn-secondary btn-sm">
+      <button id="awaiting-logout-btn" class="ui-btn" data-size="sm">
         Sign Out
       </button>
 
@@ -48,7 +48,7 @@ export function renderInviteRequired(currentUser) {
         invitation only — ask an admin for an invite link, then open it while signed in.
       </p>
 
-      <button id="invite-required-logout-btn" class="btn btn-secondary btn-sm">
+      <button id="invite-required-logout-btn" class="ui-btn" data-size="sm">
         Sign Out
       </button>
 

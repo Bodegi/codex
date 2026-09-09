@@ -60,8 +60,8 @@ export function openGlyphDesigner({ palette = 'mono', lockPalette = false, initi
           <input class="admin-input gd-key" data-key placeholder="key (e.g. dragon-lair)" maxlength="32" aria-label="Glyph key">
           <input class="admin-input gd-label" data-label placeholder="label (optional)" aria-label="Glyph label">
           <div class="gd-header-actions">
-            <button type="button" class="btn btn-secondary btn-sm" data-cancel>Cancel</button>
-            <button type="button" class="btn btn-primary btn-sm" data-save>Save</button>
+            <button type="button" class="ui-btn" data-size="sm" data-cancel>Cancel</button>
+            <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-save>Save</button>
           </div>
         </div>
         <div class="gd-status" data-status hidden></div>
@@ -69,14 +69,14 @@ export function openGlyphDesigner({ palette = 'mono', lockPalette = false, initi
           <div class="gd-stage-col">
             <div class="gd-stage" data-stage></div>
             <div class="gd-stage-controls">
-              <button type="button" class="btn btn-secondary btn-sm" data-bg-toggle>Dark bg</button>
+              <button type="button" class="ui-btn" data-size="sm" data-bg-toggle>Dark bg</button>
               <span class="gd-hint" data-mode-hint></span>
             </div>
           </div>
           <div class="gd-side">
             <div class="gd-add" data-add>
               <span class="gd-side-label">Add layer</span>
-              ${PRIMITIVES.map((s) => `<button type="button" class="btn btn-secondary btn-sm" data-add-shape="${s}">${s}</button>`).join('')}
+              ${PRIMITIVES.map((s) => `<button type="button" class="ui-btn" data-size="sm" data-add-shape="${s}">${s}</button>`).join('')}
             </div>
             <div class="gd-layers" data-layers></div>
             <div class="gd-inspector" data-inspector></div>

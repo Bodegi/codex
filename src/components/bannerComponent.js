@@ -115,7 +115,7 @@ export function designerHtml(banner, field, editing) {
         <div class="banner-section">
           <div class="banner-section-head">Layers <span class="muted">(${banner.layers.length}/${MAX_LAYERS}, bottom → top)</span></div>
           <div class="banner-layers">${cards || '<p class="muted">No layers yet.</p>'}</div>
-          <button type="button" class="btn btn-secondary btn-sm banner-add" data-act="add"${atCap ? ' disabled' : ''}>＋ Add layer</button>
+          <button type="button" class="ui-btn banner-add" data-size="sm" data-act="add"${atCap ? ' disabled' : ''}>＋ Add layer</button>
         </div>
         <div class="banner-section">
           <div class="banner-section-head">Caption <span class="muted">(optional)</span></div>

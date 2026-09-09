@@ -841,19 +841,19 @@ export function renderSchemaEditor(
     <div class="schema-editor">
       <div class="se-toolbar">
         <div class="se-toolbar-start">
-          <button type="button" class="btn btn-secondary btn-sm" data-se="back">← Back</button>
+          <button type="button" class="ui-btn" data-size="sm" data-se="back">← Back</button>
         </div>
         <div class="se-toolbar-end">
-          <button type="button" class="btn btn-secondary btn-sm" data-se="preview" aria-pressed="${previewPressed}"${previewMode ? ' hidden' : ''}>Preview</button>
+          <button type="button" class="ui-btn" data-size="sm" data-se="preview" aria-pressed="${previewPressed}"${previewMode ? ' hidden' : ''}>Preview</button>
           <div class="se-menu">
-            <button type="button" class="btn btn-secondary btn-sm se-menu-trigger" data-se-menu="trigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯<span class="se-label-wide"> More</span></button>
+            <button type="button" class="ui-btn se-menu-trigger" data-size="sm" data-se-menu="trigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯<span class="se-label-wide"> More</span></button>
             <div class="se-menu-list hidden" data-se-menu="list" role="menu" aria-label="More type actions">
               <button type="button" class="se-menu-item se-menu-mono" role="menuitem" data-se="edit-json">&lt;/&gt; Edit JSON</button>
               ${historyItem}
               ${savedMenuItems}
             </div>
           </div>
-          <button type="button" class="btn btn-primary btn-sm" data-se="save">Save<span class="se-label-wide"> type</span></button>
+          <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-se="save">Save<span class="se-label-wide"> type</span></button>
         </div>
       </div>
       ${errorBlock}

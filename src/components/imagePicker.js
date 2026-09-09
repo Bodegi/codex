@@ -71,12 +71,12 @@ export function openImagePicker(images = [], { canManage = false, multiple = fal
       <div class="image-picker-modal" role="dialog" aria-modal="true" aria-label="${multiple ? 'Select images' : 'Select an image'}">
         <div class="image-picker-header">
           <strong>${multiple ? 'Select images' : 'Select an image'}</strong>
-          ${canManage && onUpload ? `<button type="button" class="btn btn-primary btn-sm image-picker-upload" data-upload title="Upload images — pick several, or drag them onto this window">＋ Upload</button>` : ''}
+          ${canManage && onUpload ? `<button type="button" class="ui-btn image-picker-upload" data-intent="primary" data-size="sm" data-upload title="Upload images — pick several, or drag them onto this window">＋ Upload</button>` : ''}
           <button type="button" class="image-picker-close" aria-label="Close" title="Close">×</button>
         </div>
         <div class="image-picker-status" data-status hidden></div>
         <div class="image-picker-grid">${gridHtml()}</div>
-        ${multiple ? `<div class="image-picker-footer"><button type="button" class="btn btn-primary image-picker-confirm" data-confirm disabled>Add images</button></div>` : ''}
+        ${multiple ? `<div class="image-picker-footer"><button type="button" class="ui-btn image-picker-confirm" data-intent="primary" data-confirm disabled>Add images</button></div>` : ''}
       </div>`;
 
     const grid = overlay.querySelector('.image-picker-grid');

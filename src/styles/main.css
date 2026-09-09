@@ -427,63 +427,8 @@ button.user-badge { cursor: pointer; }
 }
 .user-menu-item:hover { background: rgba(255, 255, 255, 0.06); }
 
-.btn {
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 600;
-  padding: 9px 16px;
-  border-radius: var(--radius-control);
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s ease;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  color: #000;
-  font-weight: 700;
-  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3);
-}
-
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
-}
-
-.btn-secondary {
-  background: var(--color-bg-elevated);
-  color: var(--color-text-main);
-  border: 1px solid var(--color-border-subtle);
-}
-
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--color-text-muted);
-}
-
-.btn-sm {
-  padding: 4px 10px;
-  font-size: 12px;
-}
-
-/* Disabled: dim out and drop the affordances. `.btn`'s transition makes toggling the
-   attribute fade in/out rather than snap. Higher specificity than the variant rules so it
-   also flattens the primary button's shadow. */
-.btn:disabled,
-.btn[disabled] {
-  opacity: 0.4;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.btn:disabled:hover,
-.btn[disabled]:hover {
-  transform: none;
-  box-shadow: none;
-}
+/* Buttons are the design-kit's `.ui-btn` (data-variant / data-intent / data-size);
+   base, variants, sizes, disabled and focus all come from the kit. */
 
 /* Dialog Modal */
 .gh-dialog-card {
@@ -2432,7 +2377,7 @@ mark.search-hit {
 .ee-menu-item.ee-danger:hover { color: var(--color-danger); }
 .se-menu-mono { font-family: var(--font-mono); letter-spacing: 0.02em; }
 
-/* Visible focus rings for the custom (non-.btn) toggles introduced here — the keyboard path. */
+/* Visible focus rings for the custom (non-.ui-btn) toggles introduced here — the keyboard path. */
 .se-card-toggle:focus-visible,
 .se-menu-item:focus-visible,
 .ee-menu-item:focus-visible,
@@ -2753,16 +2698,6 @@ mark.search-hit {
    Image store (Phase E): destructive button, lightbox, confirm modal, gallery
    ========================================================================== */
 
-/* Destructive action button (image archive, remove). */
-.btn-danger {
-  background: var(--color-bg-elevated);
-  color: var(--color-danger);
-  border: 1px solid var(--color-danger);
-}
-.btn-danger:hover {
-  background: var(--color-danger);
-  color: #fff;
-}
 
 /* Content images open full-size on click; edit-side thumbs/picker do not. */
 .reader-body .inline-img,
@@ -3162,10 +3097,10 @@ mark.search-hit {
   white-space: nowrap;
 }
 .icon-card.is-bundled .icon-card-key .admin-badge,
-.icon-card.is-bundled .icon-card-key .btn {
+.icon-card.is-bundled .icon-card-key .ui-btn {
   flex-shrink: 0;
 }
-.icon-card.is-bundled .icon-card-key .btn {
+.icon-card.is-bundled .icon-card-key .ui-btn {
   margin-left: auto;
 }
 .icon-subhead {
@@ -3609,7 +3544,7 @@ mark.search-hit {
   }
 
   /* Comfortable touch targets on the primary controls. */
-  .btn { min-height: 40px; }
+  .ui-btn { min-height: 40px; }
   .nav-item { min-height: 40px; }
 }
 

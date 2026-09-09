@@ -49,8 +49,8 @@ export function renderInviteRows(rows = [], query = '') {
       const expiry = r.expiresAt ? escapeHtml(new Date(r.expiresAt).toLocaleDateString()) : 'never';
       const toggle =
         r.status === 'revoked'
-          ? `<button class="btn btn-secondary btn-sm" data-invite-reactivate="${escapeHtml(r.token)}">Reactivate</button>`
-          : `<button class="btn btn-danger btn-sm" data-invite-revoke="${escapeHtml(r.token)}">Revoke</button>`;
+          ? `<button class="ui-btn" data-size="sm" data-invite-reactivate="${escapeHtml(r.token)}">Reactivate</button>`
+          : `<button class="ui-btn" data-intent="danger" data-size="sm" data-invite-revoke="${escapeHtml(r.token)}">Revoke</button>`;
       return `
       <tr class="invite-row is-${st}">
         <td>
@@ -60,7 +60,7 @@ export function renderInviteRows(rows = [], query = '') {
         <td><span class="admin-badge status-badge status-${st}">${st}</span></td>
         <td>${r.redeemedCount} &nbsp; ${redeemers}</td>
         <td class="invite-row-actions">
-          <button class="btn btn-secondary btn-sm" data-invite-copy="${escapeHtml(r.token)}">Copy link</button>
+          <button class="ui-btn" data-size="sm" data-invite-copy="${escapeHtml(r.token)}">Copy link</button>
           ${toggle}
         </td>
       </tr>`;
@@ -77,7 +77,7 @@ export function renderInvitesPanel({ rows = [], query = '' }) {
         after 7 days by default.</p>
       <div class="invite-create">
         <input class="admin-input" id="invite-label" placeholder="Label (optional) — e.g. Discord #recruiting" aria-label="Invite label">
-        <button class="btn btn-primary btn-sm" id="invite-generate-btn">Generate invite link</button>
+        <button class="ui-btn" data-intent="primary" data-size="sm" id="invite-generate-btn">Generate invite link</button>
       </div>
       ${filterInput('invites-filter', 'Filter invites by label or redeemer…', query)}
       <table class="admin-roster">
@@ -179,9 +179,9 @@ export function renderCodicesPanel({ active = [], archived = [], templateSources
         <code class="admin-muted">${escapeHtml(c.codexId)}</code>
         ${isCurrent ? '<span class="admin-badge">current</span>' : ''}
         <span class="codex-row-actions">
-          ${isCurrent ? `<button class="btn btn-secondary btn-sm" data-codex-export="${escapeHtml(c.codexId)}" title="Download this codex as a JSON file (schemas + entries; image files not included)">Export</button>` : ''}
-          <button class="btn btn-secondary btn-sm" data-codex-rename="${escapeHtml(c.codexId)}" disabled>Rename</button>
-          <button class="btn btn-secondary btn-sm" data-codex-archive="${escapeHtml(c.codexId)}"${isCurrent ? ' disabled' : ''}>Archive</button>
+          ${isCurrent ? `<button class="ui-btn" data-size="sm" data-codex-export="${escapeHtml(c.codexId)}" title="Download this codex as a JSON file (schemas + entries; image files not included)">Export</button>` : ''}
+          <button class="ui-btn" data-size="sm" data-codex-rename="${escapeHtml(c.codexId)}" disabled>Rename</button>
+          <button class="ui-btn" data-size="sm" data-codex-archive="${escapeHtml(c.codexId)}"${isCurrent ? ' disabled' : ''}>Archive</button>
         </span>
         ${isCurrent ? '<span class="codex-row-hint admin-muted">Switch to another codex to archive this one</span>' : ''}
       </div>`;
@@ -200,7 +200,7 @@ export function renderCodicesPanel({ active = [], archived = [], templateSources
         <span>${escapeHtml(c.name || c.codexId)}</span>
         <code class="admin-muted">${escapeHtml(c.codexId)}</code>
         <span class="codex-row-actions">
-          <button class="btn btn-secondary btn-sm" data-codex-restore="${escapeHtml(c.codexId)}">Restore</button>
+          <button class="ui-btn" data-size="sm" data-codex-restore="${escapeHtml(c.codexId)}">Restore</button>
         </span>
       </div>`
         )
@@ -216,7 +216,7 @@ export function renderCodicesPanel({ active = [], archived = [], templateSources
           <input class="admin-input" id="codex-create-name" placeholder="Codex name — e.g. My D&amp;D Campaign" aria-label="New codex name">
         </div>
         <select class="admin-input" id="codex-create-template" aria-label="Template">${templateOptions}</select>
-        <button class="btn btn-primary btn-sm" id="codex-create-btn">Create codex</button>
+        <button class="ui-btn" data-intent="primary" data-size="sm" id="codex-create-btn">Create codex</button>
       </div>
     </div>
     <div class="admin-section">
@@ -269,8 +269,8 @@ export function renderImageCards(rows = [], codices = [], query = '') {
       ? (img.codices || []).map((cx) => chip(img.id, cx)).join('')
       : '<span class="admin-muted gallery-card-orphan">In no codex</span>';
     const statusAction = isArchived
-      ? `<button type="button" class="btn btn-secondary btn-sm" data-image-restore="${escapeHtml(img.id)}">Restore</button>`
-      : `<button type="button" class="btn btn-danger btn-sm" data-image-archive="${escapeHtml(img.id)}">Archive</button>`;
+      ? `<button type="button" class="ui-btn" data-size="sm" data-image-restore="${escapeHtml(img.id)}">Restore</button>`
+      : `<button type="button" class="ui-btn" data-intent="danger" data-size="sm" data-image-archive="${escapeHtml(img.id)}">Archive</button>`;
 
     return `
       <div class="gallery-card${isArchived ? ' is-archived' : ''}" data-image-id="${escapeHtml(img.id)}">
@@ -320,8 +320,8 @@ export function renderIconsPanel({ overlayRows = [], bundledRows = [] }) {
   const overlayCard = (icon) => {
     const isArchived = icon.status === 'archived';
     const statusAction = isArchived
-      ? `<button type="button" class="btn btn-secondary btn-sm" data-icon-restore="${escapeHtml(icon.key)}">Restore</button>`
-      : `<button type="button" class="btn btn-danger btn-sm" data-icon-archive="${escapeHtml(icon.key)}">Archive</button>`;
+      ? `<button type="button" class="ui-btn" data-size="sm" data-icon-restore="${escapeHtml(icon.key)}">Restore</button>`
+      : `<button type="button" class="ui-btn" data-intent="danger" data-size="sm" data-icon-archive="${escapeHtml(icon.key)}">Archive</button>`;
     const overriding = icon.bundled
       ? '<span class="admin-badge" title="Overrides a bundled icon of the same key">overrides bundled</span>'
       : '';
@@ -333,8 +333,8 @@ export function renderIconsPanel({ overlayRows = [], bundledRows = [] }) {
         <textarea class="admin-input icon-card-svg" data-icon-svg="${escapeHtml(icon.key)}" rows="3" spellcheck="false" aria-label="SVG markup">${escapeHtml(icon.svg || '')}</textarea>
         <div class="icon-card-footer">
           <span class="admin-badge status-badge status-${isArchived ? 'archived' : 'active'}">${isArchived ? 'archived' : 'active'}</span>
-          ${icon.layers ? `<button type="button" class="btn btn-secondary btn-sm" data-icon-design="${escapeHtml(icon.key)}">Edit in designer</button>` : ''}
-          <button type="button" class="btn btn-primary btn-sm" data-icon-save="${escapeHtml(icon.key)}">Save</button>
+          ${icon.layers ? `<button type="button" class="ui-btn" data-size="sm" data-icon-design="${escapeHtml(icon.key)}">Edit in designer</button>` : ''}
+          <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-icon-save="${escapeHtml(icon.key)}">Save</button>
           ${statusAction}
         </div>
       </div>`;
@@ -346,7 +346,7 @@ export function renderIconsPanel({ overlayRows = [], bundledRows = [] }) {
       <div class="icon-card-key">
         <code title="${escapeHtml(icon.key)}">${escapeHtml(icon.key)}</code>
         <span class="admin-badge">bundled</span>
-        <button type="button" class="btn btn-secondary btn-sm" data-icon-override="${escapeHtml(icon.key)}">Override</button>
+        <button type="button" class="ui-btn" data-size="sm" data-icon-override="${escapeHtml(icon.key)}">Override</button>
       </div>
     </div>`;
 
@@ -371,10 +371,10 @@ export function renderIconsPanel({ overlayRows = [], bundledRows = [] }) {
         <textarea class="admin-input" id="icon-create-svg" rows="3" spellcheck="false" placeholder="&lt;svg viewBox=&quot;0 0 24 24&quot; fill=&quot;currentColor&quot;&gt;…&lt;/svg&gt;" aria-label="New icon SVG markup"></textarea>
         <div class="icon-create-actions">
           <div class="icon-card-preview" id="icon-create-preview" aria-hidden="true"></div>
-          <button type="button" class="btn btn-secondary" id="icon-draw-btn">Draw…</button>
-          <button type="button" class="btn btn-secondary" id="icon-library-btn">Browse library</button>
-          <button type="button" class="btn btn-secondary" id="icon-create-clear">Clear</button>
-          <button type="button" class="btn btn-primary" id="icon-create-btn" disabled>Add icon</button>
+          <button type="button" class="ui-btn" id="icon-draw-btn">Draw…</button>
+          <button type="button" class="ui-btn" id="icon-library-btn">Browse library</button>
+          <button type="button" class="ui-btn" id="icon-create-clear">Clear</button>
+          <button type="button" class="ui-btn" data-intent="primary" id="icon-create-btn" disabled>Add icon</button>
         </div>
       </div>
 
@@ -404,18 +404,18 @@ export function renderEmblemsPanel({ rows = [] }) {
     const isArchived = emblem.status === 'archived';
     const designed = !!emblem.layers;
     const statusAction = isArchived
-      ? `<button type="button" class="btn btn-secondary btn-sm" data-emblem-restore="${escapeHtml(emblem.key)}">Restore</button>`
-      : `<button type="button" class="btn btn-danger btn-sm" data-emblem-archive="${escapeHtml(emblem.key)}">Archive</button>`;
+      ? `<button type="button" class="ui-btn" data-size="sm" data-emblem-restore="${escapeHtml(emblem.key)}">Restore</button>`
+      : `<button type="button" class="ui-btn" data-intent="danger" data-size="sm" data-emblem-archive="${escapeHtml(emblem.key)}">Archive</button>`;
     const designedBadge = designed
       ? '<span class="admin-badge" title="Authored in the glyph designer">designed</span>'
       : '';
     // A designed emblem edits in the designer (raw markup is derived, so hand-editing it would
     // desync `layers`); a pasted emblem keeps the raw textarea + Save.
     const editControls = designed
-      ? `<button type="button" class="btn btn-secondary btn-sm" data-emblem-design="${escapeHtml(emblem.key)}">Edit in designer</button>
-         <button type="button" class="btn btn-primary btn-sm" data-emblem-save-label="${escapeHtml(emblem.key)}">Save label</button>`
+      ? `<button type="button" class="ui-btn" data-size="sm" data-emblem-design="${escapeHtml(emblem.key)}">Edit in designer</button>
+         <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-emblem-save-label="${escapeHtml(emblem.key)}">Save label</button>`
       : `<textarea class="admin-input icon-card-svg" data-emblem-svg="${escapeHtml(emblem.key)}" rows="3" spellcheck="false" aria-label="Emblem SVG markup">${escapeHtml(emblem.svg || '')}</textarea>
-         <button type="button" class="btn btn-primary btn-sm" data-emblem-save="${escapeHtml(emblem.key)}">Save</button>`;
+         <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-emblem-save="${escapeHtml(emblem.key)}">Save</button>`;
     return `
       <div class="icon-card${isArchived ? ' is-archived' : ''}" data-emblem-id="${escapeHtml(emblem.key)}">
         <div class="icon-card-media">${preview(emblem.svg)}</div>
@@ -446,9 +446,9 @@ export function renderEmblemsPanel({ rows = [] }) {
         <textarea class="admin-input" id="emblem-create-svg" rows="3" spellcheck="false" placeholder="Paste color &lt;svg&gt;…&lt;/svg&gt;, or use Draw…" aria-label="New emblem SVG markup"></textarea>
         <div class="icon-create-actions">
           <div class="icon-card-preview is-emblem" id="emblem-create-preview" aria-hidden="true"></div>
-          <button type="button" class="btn btn-secondary" id="emblem-draw-btn">Draw…</button>
-          <button type="button" class="btn btn-secondary" id="emblem-create-clear">Clear</button>
-          <button type="button" class="btn btn-primary" id="emblem-create-btn" disabled>Add emblem</button>
+          <button type="button" class="ui-btn" id="emblem-draw-btn">Draw…</button>
+          <button type="button" class="ui-btn" id="emblem-create-clear">Clear</button>
+          <button type="button" class="ui-btn" data-intent="primary" id="emblem-create-btn" disabled>Add emblem</button>
         </div>
       </div>
 

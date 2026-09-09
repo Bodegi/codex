@@ -275,23 +275,23 @@ export function renderMapInput(field, value, ctx) {
       <div class="map-toolbar">
         <div class="tool-group">
           <label ${lbl}>Tool</label>
-          <button type="button" class="btn btn-primary btn-sm" data-map-tool="select">Select</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-map-tool="waypoint">Pin</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-map-tool="road">Road</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-map-tool="territory">Area</button>
+          <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-map-tool="select">Select</button>
+          <button type="button" class="ui-btn" data-size="sm" data-map-tool="waypoint">Pin</button>
+          <button type="button" class="ui-btn" data-size="sm" data-map-tool="road">Road</button>
+          <button type="button" class="ui-btn" data-size="sm" data-map-tool="territory">Area</button>
         </div>
         <div class="tool-group">
           <label ${lbl}>Draw</label>
-          <button type="button" class="btn btn-secondary btn-sm" data-map-action="toggle-draw-mode">Freehand</button>
+          <button type="button" class="ui-btn" data-size="sm" data-map-action="toggle-draw-mode">Freehand</button>
         </div>
         <div class="tool-group" style="margin-left:auto;">
-          <button type="button" class="btn btn-secondary btn-sm" data-map-action="choose-image">Choose map image</button>
+          <button type="button" class="ui-btn" data-size="sm" data-map-action="choose-image">Choose map image</button>
         </div>
         <div class="tool-group">
           <label ${lbl}>Zoom</label>
-          <button type="button" class="btn btn-secondary btn-sm" data-map-action="zoom-in" aria-label="Zoom in" title="Zoom in">＋</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-map-action="zoom-out" aria-label="Zoom out" title="Zoom out">－</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-map-action="zoom-reset">Reset</button>
+          <button type="button" class="ui-btn" data-size="sm" data-map-action="zoom-in" aria-label="Zoom in" title="Zoom in">＋</button>
+          <button type="button" class="ui-btn" data-size="sm" data-map-action="zoom-out" aria-label="Zoom out" title="Zoom out">－</button>
+          <button type="button" class="ui-btn" data-size="sm" data-map-action="zoom-reset">Reset</button>
         </div>
       </div>
       <div class="map-wrapper">
@@ -303,7 +303,7 @@ export function renderMapInput(field, value, ctx) {
       <div class="map-inspector hidden" style="margin-top:12px; background:rgba(0,0,0,0.4);">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
           <strong class="map-inspector-title" style="color:var(--accent-gold); font-size:13px;">Selected</strong>
-          <button type="button" class="btn btn-secondary btn-sm" data-map-action="delete" style="color:var(--accent-crimson);">Delete</button>
+          <button type="button" class="ui-btn" data-size="sm" data-map-action="delete" style="color:var(--accent-crimson);">Delete</button>
         </div>
         <div class="form-grid">
           <div class="form-group map-inspector-name-group">
@@ -647,8 +647,8 @@ export function mountMap(el, { field, value, onChange, ctx }) {
       if (next !== activeTool && (activeTool === 'road' || activeTool === 'territory')) commitShape();
       activeTool = next;
       el.querySelectorAll('[data-map-tool]').forEach((b) => {
-        b.classList.toggle('btn-primary', b === btn);
-        b.classList.toggle('btn-secondary', b !== btn);
+        if (b === btn) b.setAttribute('data-intent', 'primary');
+        else b.removeAttribute('data-intent');
       });
     });
   });

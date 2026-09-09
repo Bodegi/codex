@@ -692,7 +692,7 @@ function showError(message) {
       <p style="font-size:14px; color:var(--text-muted); max-width:480px; margin-bottom:24px;">
         ${escapeHtml(message || 'The app hit an unexpected error. Reloading usually fixes it.')}
       </p>
-      <button id="error-reload-btn" class="btn btn-primary">Reload</button>
+      <button id="error-reload-btn" class="ui-btn" data-intent="primary">Reload</button>
     </div>
   `);
   document.getElementById('error-reload-btn')?.addEventListener('click', () => location.reload());
@@ -814,13 +814,13 @@ async function enterAdmin() {
 // Admin button. Authorization is not decided here — that's renderAppState via caps.
 function renderUserBadge() {
   if (!state.authManager) {
-    userProfileBadge.innerHTML = '<button id="local-admin-btn" class="btn btn-secondary btn-sm">Admin</button>';
+    userProfileBadge.innerHTML = '<button id="local-admin-btn" class="ui-btn" data-size="sm">Admin</button>';
     document.getElementById('local-admin-btn')?.addEventListener('click', enterAdmin);
     return;
   }
   const user = state.authManager.currentUser;
   if (!user) {
-    userProfileBadge.innerHTML = '<button id="btn-google-login" class="btn btn-secondary">Sign in with Google</button>';
+    userProfileBadge.innerHTML = '<button id="btn-google-login" class="ui-btn">Sign in with Google</button>';
     document.getElementById('btn-google-login')?.addEventListener('click', () => {
       state.authManager.login().catch((err) => showToast(err.message));
     });

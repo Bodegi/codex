@@ -121,7 +121,7 @@ export function mountGroup(el, { field, value, onChange, ctx }, { getKind }) {
   const paint = () => {
     const label = field.label ? `<label class="group-designer-label">${escapeHtml(field.label)}</label>` : '';
     const cards = records.map((rec, i) => recordCard(rec, i)).join('') || '<p class="muted group-empty">No items yet.</p>';
-    el.innerHTML = `${label}<div class="group-records">${cards}</div><button type="button" class="btn btn-secondary btn-sm group-add" data-group="add">＋ Add item</button>`;
+    el.innerHTML = `${label}<div class="group-records">${cards}</div><button type="button" class="ui-btn group-add" data-size="sm" data-group="add">＋ Add item</button>`;
     wireInner();
   };
 

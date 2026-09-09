@@ -20,7 +20,7 @@ export function renderAuthGateway() {
         maps, and manage world data.
       </p>
 
-      <button id="gateway-login-btn" class="btn btn-primary" style="font-size:15px; padding:12px 28px; background:linear-gradient(135deg, #4285F4, #1a73e8); color:#fff; box-shadow:0 4px 20px rgba(66,133,244,0.4);">
+      <button id="gateway-login-btn" class="ui-btn" data-intent="primary" style="font-size:15px; padding:12px 28px; background:linear-gradient(135deg, #4285F4, #1a73e8); color:#fff; box-shadow:0 4px 20px rgba(66,133,244,0.4);">
         Sign In with Google
       </button>
 

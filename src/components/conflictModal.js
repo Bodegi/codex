@@ -37,8 +37,8 @@ export function openConflictModal({
         <div class="confirm-header"><strong>${escapeHtml(title)}</strong></div>
         <div class="confirm-body">${escapeHtml(message)}</div>
         <div class="confirm-actions">
-          <button type="button" class="btn btn-secondary btn-sm" data-conflict-reload>${escapeHtml(reloadLabel)}</button>
-          <button type="button" class="btn btn-primary btn-sm" data-conflict-overwrite>${escapeHtml(overwriteLabel)}</button>
+          <button type="button" class="ui-btn" data-size="sm" data-conflict-reload>${escapeHtml(reloadLabel)}</button>
+          <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-conflict-overwrite>${escapeHtml(overwriteLabel)}</button>
         </div>
       </div>`;
 
