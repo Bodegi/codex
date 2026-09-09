@@ -3038,23 +3038,11 @@ mark.search-hit {
 /* ==========================================================================
    Glyph designer (icons + emblems)
    ========================================================================== */
-.glyph-designer-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-  padding: 24px;
-}
-.glyph-designer,
-.glyph-library {
-  background: var(--color-bg-surface);
-  border: 1px solid var(--border-glow);
-  border-radius: var(--radius-control);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  width: min(880px, 100%);
+/* The glyph designer is a bespoke tool with no kit component, so it rides the kit's `.ui-dialog`
+   surface only: this modifier widens the card and stacks its toolbar / status / scrolling body.
+   (The glyph library is a plain `.codex-picker` dialog.) */
+dialog.ui-dialog.glyph-dialog {
+  max-width: min(880px, 100%);
   max-height: 86vh;
   display: flex;
   flex-direction: column;
@@ -3116,6 +3104,11 @@ mark.search-hit {
   gap: 16px;
   padding: 16px;
   overflow: auto;
+  /* The scroll region under the pinned toolbar/status: `1 1 auto` (not `1`, whose 0 basis would
+     collapse the body in the auto-height dialog) sizes to content, then scrolls when the dialog
+     hits its 86vh cap. */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .gd-stage-col {
   flex: 0 0 auto;
@@ -3272,8 +3265,6 @@ mark.search-hit {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: 10px;
-  padding: 16px;
-  overflow: auto;
 }
 .glyph-library-item {
   display: flex;

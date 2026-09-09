@@ -48,10 +48,10 @@ export function openGlyphDesigner({ palette = 'mono', lockPalette = false, initi
     const keysFor = () => (state.palette === 'color' ? existingKeys.color : existingKeys.mono) || [];
     const isColor = () => state.palette === 'color';
 
-    const overlay = document.createElement('div');
-    overlay.className = 'glyph-designer-overlay';
-    overlay.innerHTML = `
-      <div class="glyph-designer" role="dialog" aria-modal="true" aria-label="Glyph designer">
+    const dialog = document.createElement('dialog');
+    dialog.className = 'ui-dialog glyph-dialog';
+    dialog.setAttribute('aria-label', 'Glyph designer');
+    dialog.innerHTML = `
         <div class="gd-header">
           <div class="gd-mode" role="group" aria-label="Glyph kind">
             <button type="button" class="gd-mode-btn" data-mode="mono"${lockPalette ? ' disabled' : ''}>Icon</button>
@@ -81,10 +81,9 @@ export function openGlyphDesigner({ palette = 'mono', lockPalette = false, initi
             <div class="gd-layers" data-layers></div>
             <div class="gd-inspector" data-inspector></div>
           </div>
-        </div>
-      </div>`;
+        </div>`;
 
-    const q = (sel) => overlay.querySelector(sel);
+    const q = (sel) => dialog.querySelector(sel);
     const stageEl = q('[data-stage]');
     const layersEl = q('[data-layers]');
     const inspectorEl = q('[data-inspector]');
@@ -107,7 +106,7 @@ export function openGlyphDesigner({ palette = 'mono', lockPalette = false, initi
     }
 
     function paintModeChrome() {
-      overlay.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('is-active', b.dataset.mode === state.palette));
+      dialog.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('is-active', b.dataset.mode === state.palette));
       q('[data-mode-hint]').textContent = isColor()
         ? 'Emblem — full color, does not theme.'
         : 'Icon — monochrome, tints with the app color.';
@@ -211,12 +210,12 @@ export function openGlyphDesigner({ palette = 'mono', lockPalette = false, initi
       repaint();
     };
 
-    // ── Events (delegated on the overlay) ──────────────────────────────────
+    // ── Events (delegated on the dialog) ───────────────────────────────────
     keyInput.addEventListener('input', () => { state.key = keyInput.value; });
     labelInput.addEventListener('input', () => { state.label = labelInput.value; });
 
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay || e.target.closest('[data-cancel]')) return close(false);
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog || e.target.closest('[data-cancel]')) return close(false); // backdrop or Cancel
       const mode = e.target.closest('[data-mode]');
       if (mode && !lockPalette) {
         if (mode.dataset.mode === 'mono' && state.layers.some((l) => l.fill && l.fill !== 'none' && l.fill !== 'currentColor')) {
@@ -315,15 +314,13 @@ export function openGlyphDesigner({ palette = 'mono', lockPalette = false, initi
       }
     }
 
-    const onKey = (e) => { if (e.key === 'Escape') close(false); };
-    function close(saved, record = null) {
-      overlay.remove();
-      document.removeEventListener('keydown', onKey);
-      resolve(saved ? record : null);
-    }
+    // Native <dialog>: showModal() handles Esc + focus trap; the saved record is read on `close`.
+    let savedRecord = null;
+    function close(saved, record = null) { savedRecord = saved ? record : null; dialog.close(); }
+    dialog.addEventListener('close', () => { dialog.remove(); resolve(savedRecord); });
 
-    document.addEventListener('keydown', onKey);
-    document.body.appendChild(overlay);
+    document.body.appendChild(dialog);
+    dialog.showModal();
     repaintAll();
     keyInput.focus();
   });
@@ -344,32 +341,31 @@ function parsePoints(text) {
  */
 export function openLibraryPicker(glyphs = []) {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'glyph-designer-overlay';
-    overlay.innerHTML = `
-      <div class="glyph-library" role="dialog" aria-modal="true" aria-label="Glyph library">
-        <div class="gd-header">
-          <strong>Start from a glyph</strong>
-          <button type="button" class="image-picker-close" data-cancel aria-label="Close" title="Close">×</button>
-        </div>
+    const dialog = document.createElement('dialog');
+    dialog.className = 'ui-dialog codex-picker';
+    dialog.setAttribute('aria-label', 'Glyph library');
+    dialog.innerHTML = `
+      <div class="ui-dialog-header">
+        <h2 class="ui-dialog-title">Start from a glyph</h2>
+        <button type="button" class="ui-btn" data-variant="ghost" data-size="icon-sm" data-cancel aria-label="Close" title="Close">×</button>
+      </div>
+      <div class="ui-dialog-body">
         <div class="glyph-library-grid">
           ${glyphs.length
             ? glyphs.map((g) => `<button type="button" class="glyph-library-item" data-pick="${esc(g.key)}" title="${esc(g.key)}"><span class="icon-card-preview">${g.svg || ''}</span><code>${esc(g.key)}</code></button>`).join('')
             : '<div class="admin-muted">No glyphs to start from.</div>'}
         </div>
       </div>`;
-    const onKey = (e) => { if (e.key === 'Escape') done(null); };
-    function done(key) {
-      overlay.remove();
-      document.removeEventListener('keydown', onKey);
-      resolve(key ? glyphs.find((g) => g.key === key) || null : null);
-    }
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay || e.target.closest('[data-cancel]')) return done(null);
+    // Native <dialog>: Esc/backdrop dismiss (null); the pick is read on `close`.
+    let pickedKey = null;
+    function done(key) { pickedKey = key; dialog.close(); }
+    dialog.addEventListener('close', () => { dialog.remove(); resolve(pickedKey ? glyphs.find((g) => g.key === pickedKey) || null : null); });
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog || e.target.closest('[data-cancel]')) return done(null); // backdrop or ✕
       const pick = e.target.closest('[data-pick]');
       if (pick) done(pick.dataset.pick);
     });
-    document.addEventListener('keydown', onKey);
-    document.body.appendChild(overlay);
+    document.body.appendChild(dialog);
+    dialog.showModal();
   });
 }
