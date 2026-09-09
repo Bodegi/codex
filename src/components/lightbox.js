@@ -1,9 +1,11 @@
 /**
  * Codex — Lightbox (read-side).
  *
- * A reusable overlay that shows one image full-size on a dimmed backdrop; Esc or a
- * click outside the image closes it. Reuses the overlay idiom `imagePicker.js`
- * established (fixed full-screen backdrop, click-target routing, keydown cleanup).
+ * A reusable full-viewport `<dialog>` that shows one image full-size on a dimmed
+ * backdrop; native `showModal()` gives the backdrop, focus trap and Esc, and a click
+ * outside the image closes it. It's a bespoke media viewer (edge-pinned ‹ › arrows) with
+ * no design-kit component, so it rides the native `<dialog>` for mechanics but keeps its
+ * own fullscreen styling rather than the kit's `.ui-dialog` card.
  *
  * Content images across the reader (inline prose, hero, carousel) and the admin
  * gallery become click-to-expand via `attachLightbox(root)`, which delegates on the
@@ -44,19 +46,20 @@ export function openLightbox(images, start = 0) {
 
   const caption = (it) => it.caption || '';
 
-  const overlay = document.createElement('div');
-  overlay.className = 'lightbox-overlay';
-  overlay.innerHTML = `
+  const dialog = document.createElement('dialog');
+  dialog.className = 'lightbox-overlay';
+  dialog.setAttribute('aria-label', escapeAttr(items[idx].alt) || 'Image');
+  dialog.innerHTML = `
     ${many ? `<button type="button" class="lightbox-arrow lightbox-prev" aria-label="Previous image" title="Previous">‹</button>` : ''}
-    <div class="lightbox-body" role="dialog" aria-modal="true" aria-label="${escapeAttr(items[idx].alt) || 'Image'}">
+    <div class="lightbox-body">
       <button type="button" class="lightbox-close" aria-label="Close" title="Close">×</button>
       <img class="lightbox-img" src="${escapeAttr(items[idx].src)}" alt="${escapeAttr(items[idx].alt)}">
       <figcaption class="lightbox-caption"${caption(items[idx]) ? '' : ' hidden'}>${escapeAttr(caption(items[idx]))}</figcaption>
     </div>
     ${many ? `<button type="button" class="lightbox-arrow lightbox-next" aria-label="Next image" title="Next">›</button>` : ''}`;
 
-  const imgEl = overlay.querySelector('.lightbox-img');
-  const capEl = overlay.querySelector('.lightbox-caption');
+  const imgEl = dialog.querySelector('.lightbox-img');
+  const capEl = dialog.querySelector('.lightbox-caption');
   const show = (i) => {
     idx = (i + items.length) % items.length; // wrap both ways
     imgEl.src = items[idx].src;
@@ -66,26 +69,24 @@ export function openLightbox(images, start = 0) {
     capEl.hidden = !cap;
   };
 
-  const close = () => {
-    overlay.remove();
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => {
-    if (e.key === 'Escape') return close();
+  // Native <dialog>: showModal() gives the backdrop, focus trap and Esc (its `cancel`→`close`);
+  // only the ←/→ gallery nav needs a key handler.
+  dialog.addEventListener('close', () => dialog.remove(), { once: true });
+  dialog.addEventListener('keydown', (e) => {
     if (!many) return;
     if (e.key === 'ArrowLeft') show(idx - 1);
     else if (e.key === 'ArrowRight') show(idx + 1);
-  };
+  });
 
-  overlay.addEventListener('click', (e) => {
+  dialog.addEventListener('click', (e) => {
     // Backdrop or the close button closes; the arrows navigate; a click on the image itself does not.
-    if (e.target === overlay || e.target.closest('.lightbox-close')) return close();
+    if (e.target === dialog || e.target.closest('.lightbox-close')) return dialog.close();
     if (e.target.closest('.lightbox-prev')) return show(idx - 1);
     if (e.target.closest('.lightbox-next')) return show(idx + 1);
   });
 
-  document.addEventListener('keydown', onKey);
-  document.body.appendChild(overlay);
+  document.body.appendChild(dialog);
+  dialog.showModal();
 }
 
 // The ordered image list for a carousel, plus the index of the clicked image. Loop clones

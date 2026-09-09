@@ -2608,15 +2608,29 @@ mark.search-hit {
 }
 
 /* Lightbox — one image full-size on a dimmed backdrop (read-side, everywhere). */
-.lightbox-overlay {
+/* The lightbox is a bespoke full-viewport media viewer on a native <dialog>: it fills the
+   screen (edge-pinned ‹ › arrows pin to these edges) with a transparent card and the dim on
+   the backdrop. No kit `.ui-dialog` card here. */
+dialog.lightbox-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.82);
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  margin: 0;
+  padding: 32px;
+  border: none;
+  background: transparent;
+  overflow: hidden;
+}
+dialog.lightbox-overlay[open] {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1100;
-  padding: 32px;
+}
+dialog.lightbox-overlay::backdrop {
+  background: rgba(0, 0, 0, 0.82);
 }
 .lightbox-body {
   position: relative;
