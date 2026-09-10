@@ -829,46 +829,35 @@ function renderUserBadge() {
   }
 
   const canAdmin = isAdminEmail(user.email, appConfig.auth.adminEmail);
-  const adminItem = canAdmin ? '<button class="user-menu-item" data-user-menu="admin">Admin</button>' : '';
+  const adminItem = canAdmin ? '<button class="ui-menu-item" role="menuitem" data-user-menu="admin">Admin</button>' : '';
+  // A native popover (`popovertarget` on the badge): the platform owns toggle, light-dismiss and
+  // Escape; we only sync aria-expanded and run the picked action (which also closes it).
   userProfileBadge.innerHTML = `
     <div class="user-menu">
-      <button id="user-menu-trigger" class="user-badge" aria-haspopup="true" aria-expanded="false" title="Signed in as ${escapeHtml(user.username)}">
+      <button id="user-menu-trigger" class="user-badge" popovertarget="user-menu-dropdown" aria-haspopup="menu" aria-expanded="false" title="Signed in as ${escapeHtml(user.username)}">
         <img src="${escapeHtml(user.avatar)}" class="user-avatar" alt="${escapeHtml(user.username)}">
         <span>${escapeHtml(user.globalName || user.username)}</span>
         <span class="caret" aria-hidden="true"></span>
       </button>
-      <div id="user-menu-dropdown" class="user-menu-dropdown hidden">
-        ${adminItem}
-        <button class="user-menu-item" data-user-menu="logout">Sign Out</button>
+      <div id="user-menu-dropdown" popover class="ui-popover overflow-menu-popover" role="menu" aria-label="Account menu">
+        <div class="ui-menu">
+          ${adminItem}
+          <button class="ui-menu-item" role="menuitem" data-user-menu="logout">Sign Out</button>
+        </div>
       </div>
     </div>
   `;
   const trigger = document.getElementById('user-menu-trigger');
   const dropdown = document.getElementById('user-menu-dropdown');
-  trigger?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const open = !dropdown.classList.toggle('hidden');
-    trigger.setAttribute('aria-expanded', String(open));
-  });
+  dropdown?.addEventListener('toggle', (e) => trigger?.setAttribute('aria-expanded', e.newState === 'open' ? 'true' : 'false'));
   dropdown?.querySelectorAll('[data-user-menu]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      dropdown.classList.add('hidden');
-      trigger.setAttribute('aria-expanded', 'false');
+      if (dropdown.matches(':popover-open')) dropdown.hidePopover();
       if (btn.dataset.userMenu === 'admin') enterAdmin();
       else state.authManager.logout().catch((err) => showToast(err.message));
     });
   });
 }
-
-// Close the user menu on any outside click (the trigger stops propagation, so it stays open on itself).
-document.addEventListener('click', (e) => {
-  const dropdown = document.getElementById('user-menu-dropdown');
-  const trigger = document.getElementById('user-menu-trigger');
-  if (dropdown && !dropdown.classList.contains('hidden') && !dropdown.contains(e.target) && !trigger?.contains(e.target)) {
-    dropdown.classList.add('hidden');
-    trigger?.setAttribute('aria-expanded', 'false');
-  }
-});
 
 // ── Codex switcher + registry ───────────────────────────────────────────────
 // The switcher lists the active codices the viewer can open (admin: all; others: the codices their
@@ -1641,28 +1630,17 @@ deleteEntryBtn.addEventListener('click', () => deleteCurrentEntry());
 previewEntryBtn.addEventListener('click', showEntryPreview);
 
 // The entry editor's "⋯ More" overflow (History / Archive / Delete), mirroring the Structure editor's
-// menu. The trigger toggles the list (focusing the first item on open); an item click runs its own
-// handler and closes the menu; a click anywhere else, or Escape, closes it.
+// menu. It's a native popover (`popovertarget` on the trigger), so the platform owns toggle,
+// light-dismiss and Escape; we only sync aria-expanded + focus the first item on open, and dismiss
+// the popover when an item is picked (a menuitem click runs its own handler, wired elsewhere).
 function closeEntryMenu() {
-  if (entryMenuList.classList.contains('hidden')) return;
-  entryMenuList.classList.add('hidden');
-  entryMenuTrigger.setAttribute('aria-expanded', 'false');
+  if (entryMenuList.matches(':popover-open')) entryMenuList.hidePopover();
 }
-entryMenuTrigger.addEventListener('click', (e) => {
-  e.preventDefault();
-  const open = entryMenuList.classList.toggle('hidden') === false;
-  entryMenuTrigger.setAttribute('aria-expanded', String(open));
-  if (open) entryMenuList.querySelector('[role="menuitem"]:not([hidden])')?.focus();
+entryMenuList.addEventListener('toggle', (e) => {
+  entryMenuTrigger.setAttribute('aria-expanded', e.newState === 'open' ? 'true' : 'false');
+  if (e.newState === 'open') entryMenuList.querySelector('[role="menuitem"]:not([hidden])')?.focus();
 });
 entryMenuList.addEventListener('click', () => closeEntryMenu()); // any item click dismisses the menu
-document.addEventListener('click', (e) => {
-  if (!entryMenuTrigger.contains(e.target) && !entryMenuList.contains(e.target)) closeEntryMenu();
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || entryMenuList.classList.contains('hidden')) return;
-  closeEntryMenu();
-  entryMenuTrigger.focus();
-});
 
 // ── Sidebar search box ───────────────────────────────────────────────────────
 // Debounced: the first non-empty keystroke transitions into the search view (full re-render for the

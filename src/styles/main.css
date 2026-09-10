@@ -317,36 +317,10 @@ body {
   object-fit: cover;
 }
 
-/* Header user menu — identity as a dropdown trigger; Admin + Sign Out inside. */
+/* Header user menu — the identity badge triggers a native popover (`.overflow-menu-popover`) holding
+   Admin + Sign Out as `.ui-menu-item`s. */
 .user-menu { position: relative; }
 button.user-badge { cursor: pointer; }
-.user-menu-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 40;
-  min-width: 160px;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-control);
-  box-shadow: var(--shadow-glass);
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.user-menu-dropdown.hidden { display: none; }
-.user-menu-item {
-  text-align: left;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-nav, 6px);
-  color: var(--color-text-main);
-  font-size: 13px;
-  padding: 8px 10px;
-  cursor: pointer;
-}
-.user-menu-item:hover { background: rgba(255, 255, 255, 0.06); }
 
 /* Buttons are the design-kit's `.ui-btn` (data-variant / data-intent / data-size);
    base, variants, sizes, disabled and focus all come from the kit. */
@@ -2094,50 +2068,48 @@ mark.search-hit {
   color: var(--color-text-muted);
 }
 
-/* Overflow "⋯ More" menu — the de-emphasised / destructive actions, mirroring the user menu. Shared
-   by the Structure editor (`.se-menu`) and the entry editor (`.ee-menu`); same idiom, two hosts. */
-.se-menu,
-.ee-menu { position: relative; }
-.se-menu-list,
-.ee-menu-list {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 40;
-  min-width: 168px;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-control);
-  box-shadow: var(--shadow-glass);
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+/* Overflow "⋯ More" menu — de-emphasised / destructive actions, shared by the entry editor, the
+   Structure editor and the header user menu. A native popover on the kit's `.ui-popover` surface
+   with a `.ui-menu` inside. The kit anchors a popover to its trigger's LEFT edge; these triggers sit
+   at the right of their toolbars, so where anchor positioning is supported (Chromium) re-anchor to
+   the trigger's right edge — other engines keep the kit's centered fallback. */
+.overflow-menu { position: relative; }
+.overflow-menu-popover { min-width: 168px; }
+
+/* The kit anchors a popover to its invoker via the *implicit* anchor a `popovertarget` button sets;
+   that association doesn't resolve in every Chromium build (the popover then drops to the top-left
+   corner), so wire an explicit anchor per menu — a name on each trigger, the match on each popover.
+   `top: anchor(bottom)` comes from the kit's `.ui-popover` rule; here we only re-anchor the inline
+   edge to the trigger's right (these triggers sit at the right of their toolbars). Other engines
+   keep the kit's centered fallback. */
+@supports (anchor-name: --a) {
+  #btn-entry-menu { anchor-name: --entry-more; }
+  #entry-menu-list { position-anchor: --entry-more; }
+  [data-se-menu="trigger"] { anchor-name: --se-more; }
+  #se-more-menu { position-anchor: --se-more; }
+  #user-menu-trigger { anchor-name: --user-more; }
+  #user-menu-dropdown { position-anchor: --user-more; }
+  [popover].overflow-menu-popover {
+    left: auto;
+    right: anchor(right);
+  }
 }
-.se-menu-list.hidden,
-.ee-menu-list.hidden { display: none; }
-.se-menu-item,
-.ee-menu-item {
-  text-align: left;
+/* The kit's `.ui-menu-item` is written for a link/div; our menu items are <button>s (they run
+   actions), so strip the native button chrome (grey fill, border, centered UA font) the kit leaves
+   in place. Font size + the rest of the look still come from the kit. */
+button.ui-menu-item {
+  appearance: none;
+  width: 100%;
   background: transparent;
   border: none;
-  border-radius: var(--radius-nav, 6px);
-  color: var(--color-text-main);
-  font-size: 13px;
-  padding: 8px 10px;
-  cursor: pointer;
-  white-space: nowrap;
+  font-family: inherit;
+  text-align: left;
 }
-.se-menu-item:hover,
-.ee-menu-item:hover { background: rgba(255, 255, 255, 0.06); }
-.se-menu-item.se-danger:hover,
-.ee-menu-item.ee-danger:hover { color: var(--color-danger); }
+.ui-menu-item.overflow-menu-danger:hover { color: var(--color-danger); }
 .se-menu-mono { font-family: var(--font-mono); letter-spacing: 0.02em; }
 
-/* Visible focus rings for the custom (non-.ui-btn) toggles introduced here — the keyboard path. */
+/* Visible focus rings for the custom (non-.ui-btn) card toggles — the keyboard path. */
 .se-card-toggle:focus-visible,
-.se-menu-item:focus-visible,
-.ee-menu-item:focus-visible,
 .field-card-head:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;

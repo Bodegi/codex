@@ -825,12 +825,12 @@ export function renderSchemaEditor(
   // Structure history is a cloud-only recovery surface (like entry history) and needs a saved type to
   // have a ring — so it's absent for a brand-new draft and in local-only mode.
   const historyItem = !isNewDraft && canHistory
-    ? `<button type="button" class="se-menu-item" role="menuitem" data-se="history">Structure history</button>`
+    ? `<button type="button" class="ui-menu-item" role="menuitem" data-se="history">Structure history</button>`
     : '';
   const savedMenuItems = isNewDraft
     ? ''
-    : `<button type="button" class="se-menu-item" role="menuitem" data-se="reset">Revert changes</button>
-            <button type="button" class="se-menu-item se-danger" role="menuitem" data-se="archive">Archive type</button>`;
+    : `<button type="button" class="ui-menu-item" role="menuitem" data-se="reset">Revert changes</button>
+            <button type="button" class="ui-menu-item overflow-menu-danger" role="menuitem" data-se="archive">Archive type</button>`;
   const previewPressed = previewMode === 'rendered' ? 'true' : 'false';
 
   // The action toolbar is sticky (see main.css) so every action stays reachable on a deep type. It
@@ -845,12 +845,14 @@ export function renderSchemaEditor(
         </div>
         <div class="se-toolbar-end">
           <button type="button" class="ui-btn" data-size="sm" data-se="preview" aria-pressed="${previewPressed}"${previewMode ? ' hidden' : ''}>Preview</button>
-          <div class="se-menu">
-            <button type="button" class="ui-btn se-menu-trigger" data-size="sm" data-se-menu="trigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯<span class="se-label-wide"> More</span></button>
-            <div class="se-menu-list hidden" data-se-menu="list" role="menu" aria-label="More type actions">
-              <button type="button" class="se-menu-item se-menu-mono" role="menuitem" data-se="edit-json">&lt;/&gt; Edit JSON</button>
-              ${historyItem}
-              ${savedMenuItems}
+          <div class="overflow-menu">
+            <button type="button" class="ui-btn" data-size="sm" popovertarget="se-more-menu" data-se-menu="trigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯<span class="se-label-wide"> More</span></button>
+            <div id="se-more-menu" popover class="ui-popover overflow-menu-popover" data-se-menu="list" role="menu" aria-label="More type actions">
+              <div class="ui-menu">
+                <button type="button" class="ui-menu-item se-menu-mono" role="menuitem" data-se="edit-json">&lt;/&gt; Edit JSON</button>
+                ${historyItem}
+                ${savedMenuItems}
+              </div>
             </div>
           </div>
           <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-se="save">Save<span class="se-label-wide"> type</span></button>
@@ -908,27 +910,16 @@ const CLICK_INTENTS = {
  */
 export function attachSchemaEditor(root, onIntent) {
   const menuList = () => root.querySelector('[data-se-menu="list"]');
-  const menuTrigger = () => root.querySelector('[data-se-menu="trigger"]');
-  const closeMenu = () => {
-    const list = menuList();
-    if (!list || list.classList.contains('hidden')) return;
-    list.classList.add('hidden');
-    menuTrigger()?.setAttribute('aria-expanded', 'false');
-  };
+
+  // Overflow "⋯ More" menu is a native popover (`popovertarget` on the trigger): the platform owns
+  // toggle, light-dismiss and Escape. We only sync the trigger's aria-expanded and focus the first
+  // item on open. A menu action still closes the popover below, before its rebuild lands.
+  menuList()?.addEventListener('toggle', (e) => {
+    root.querySelector('[data-se-menu="trigger"]')?.setAttribute('aria-expanded', e.newState === 'open' ? 'true' : 'false');
+    if (e.newState === 'open') menuList().querySelector('[role="menuitem"]')?.focus();
+  });
 
   root.addEventListener('click', (e) => {
-    // Overflow "⋯ More" menu: the trigger toggles the list (focus the first item on open); an item
-    // click flows through to its data-se intent below and closes the menu; a click anywhere else
-    // closes it. No document listener — the root is replaced each rebuild, so that would leak.
-    const trigger = e.target.closest('[data-se-menu="trigger"]');
-    if (trigger && root.contains(trigger)) {
-      e.preventDefault();
-      const list = menuList();
-      const open = list.classList.toggle('hidden') === false;
-      trigger.setAttribute('aria-expanded', String(open));
-      if (open) list.querySelector('[role="menuitem"]')?.focus();
-      return;
-    }
 
     // Collapse toggle: a card's disclosure button flips its body's `hidden` (so AT skips a shut
     // card) and reports the new state so the caller persists it across rebuilds.
@@ -948,25 +939,14 @@ export function attachSchemaEditor(root, onIntent) {
     }
 
     const btn = e.target.closest('[data-se]');
-    if (!btn || !root.contains(btn)) {
-      closeMenu(); // click outside any control dismisses an open menu
-      return;
-    }
+    if (!btn || !root.contains(btn)) return;
     const make = CLICK_INTENTS[btn.dataset.se];
     if (!make) return;
     e.preventDefault();
-    if (btn.closest('[data-se-menu="list"]')) closeMenu(); // a menu action dismisses the menu
-    onIntent(make(btn.dataset));
-  });
-
-  // Escape closes the overflow menu and returns focus to its trigger.
-  root.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
+    // A menu action dismisses the popover before its (usual) rebuild lands.
     const list = menuList();
-    if (list && !list.classList.contains('hidden')) {
-      closeMenu();
-      menuTrigger()?.focus();
-    }
+    if (list?.matches(':popover-open') && btn.closest('[data-se-menu="list"]')) list.hidePopover();
+    onIntent(make(btn.dataset));
   });
 
   // Live text edits — no structural change, so the caller should not rebuild the editor.
