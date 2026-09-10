@@ -977,9 +977,12 @@ button.user-badge { cursor: pointer; }
   max-width: var(--content-measure);
 }
 
+/* Reader heading scale rides the kit's type tokens (the --text- and --font- scales); the heading
+   colors stay literal — the parchment-gold h3 and bright-white h2 are deliberate, no kit equivalent. */
 .reader-body h1 {
   font-family: var(--font-sans);
-  font-size: 24px;
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
   color: var(--color-primary);
   border-bottom: 1px solid var(--color-border-subtle);
   padding-bottom: 8px;
@@ -988,18 +991,19 @@ button.user-badge { cursor: pointer; }
 
 .reader-body h2 {
   font-family: var(--font-sans);
-  font-size: 18px;
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
   color: #ffffff;
   margin-top: 24px;
   margin-bottom: 12px;
 }
 
 .reader-body h3 {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: #c2a878; /* quiet parchment-gold field label — was link-blue, which clashed and read as a link */
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  font-weight: 600;
+  font-weight: var(--font-semibold);
   margin-top: 16px;
   margin-bottom: 6px;
 }
