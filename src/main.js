@@ -1154,7 +1154,7 @@ function renderAdminNav() {
   // Redemption alert: count of non-admin users still awaiting a role (see inviteModel.countPendingGrants).
   const pending = state.fbManager?.isConfigured() ? countPendingGrants(buildRosterRows()) : 0;
   const accessLabel = pending > 0
-    ? `Users &amp; Access <span class="nav-badge">${pending}</span>`
+    ? `Users &amp; Access <span class="ui-badge" data-intent="primary">${pending}</span>`
     : 'Users &amp; Access';
   typeNav.innerHTML = `
     <button class="ui-nav-item nav-admin-back" data-admin-back>‹ Back to codex</button>

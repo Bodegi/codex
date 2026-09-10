@@ -16,6 +16,15 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
+// Status chips are the design-kit's `.ui-badge`; the state string maps to a kit intent (a live
+// state reads success, one awaiting action reads warning; ended states — archived/revoked/expired
+// — stay neutral). `statusBadge` renders the chip with the matching `data-intent`.
+const STATUS_INTENT = { active: 'success', pending: 'warning' };
+const statusBadge = (state, label = state) => {
+  const intent = STATUS_INTENT[state];
+  return `<span class="ui-badge"${intent ? ` data-intent="${intent}"` : ''}>${escapeHtml(label)}</span>`;
+};
+
 // Client-side filter box shared by the Images/Users/Invites panels. main.js holds the query per
 // panel, filters the rows through utils/filterRows before they reach the builder, and re-renders
 // only the results container below on input — so the box (and its focus) never rebuilds mid-type.
@@ -57,7 +66,7 @@ export function renderInviteRows(rows = [], query = '') {
           <strong>${escapeHtml(r.label || '(no label)')}</strong>
           <br><span class="admin-muted">expires ${expiry}</span>
         </td>
-        <td><span class="admin-badge status-badge status-${st}">${st}</span></td>
+        <td>${statusBadge(st)}</td>
         <td>${r.redeemedCount} &nbsp; ${redeemers}</td>
         <td class="invite-row-actions">
           <button class="ui-btn" data-size="sm" data-invite-copy="${escapeHtml(r.token)}">Copy link</button>
@@ -117,7 +126,7 @@ export function renderRosterRows(rows = [], query = '') {
       (r) => `
       <tr class="${!r.isAdmin && r.role === 'none' ? 'is-pending' : ''}">
         <td>
-          <strong>${escapeHtml(r.displayName || r.email || r.uid)}</strong>${r.isAdmin ? ' <span class="admin-badge">admin</span>' : ''}${!r.isAdmin && r.role === 'none' ? ' <span class="admin-badge status-badge status-pending">awaiting access</span>' : ''}
+          <strong>${escapeHtml(r.displayName || r.email || r.uid)}</strong>${r.isAdmin ? ' <span class="ui-badge" data-intent="primary">admin</span>' : ''}${!r.isAdmin && r.role === 'none' ? ` ${statusBadge('pending', 'awaiting access')}` : ''}
           <br><span class="admin-muted">${escapeHtml(r.email || '')}</span>
         </td>
         <td class="admin-muted">${r.lastSeenAt ? escapeHtml(new Date(r.lastSeenAt).toLocaleDateString()) : '—'}</td>
@@ -177,7 +186,7 @@ export function renderCodicesPanel({ active = [], archived = [], templateSources
       <div class="codex-row" data-codex-id="${escapeHtml(c.codexId)}">
         <input class="admin-input codex-name-input" data-codex-name="${escapeHtml(c.codexId)}" value="${escapeHtml(c.name || c.codexId)}" aria-label="Codex name">
         <code class="admin-muted">${escapeHtml(c.codexId)}</code>
-        ${isCurrent ? '<span class="admin-badge">current</span>' : ''}
+        ${isCurrent ? '<span class="ui-badge" data-intent="primary">current</span>' : ''}
         <span class="codex-row-actions">
           ${isCurrent ? `<button class="ui-btn" data-size="sm" data-codex-export="${escapeHtml(c.codexId)}" title="Download this codex as a JSON file (schemas + entries; image files not included)">Export</button>` : ''}
           <button class="ui-btn" data-size="sm" data-codex-rename="${escapeHtml(c.codexId)}" disabled>Rename</button>
@@ -242,9 +251,9 @@ export function renderImageCards(rows = [], codices = [], query = '') {
   };
 
   const chip = (imgId, codexId) => `
-    <span class="gallery-chip">
-      ${escapeHtml(nameOf(codexId))}
-      <button type="button" class="gallery-chip-remove" data-image-drop-codex="${escapeHtml(imgId)}" data-codex="${escapeHtml(codexId)}" aria-label="Remove from ${escapeHtml(nameOf(codexId))}" title="Remove from ${escapeHtml(nameOf(codexId))}">×</button>
+    <span class="ui-tag" data-size="sm">
+      <span class="ui-tag-label">${escapeHtml(nameOf(codexId))}</span>
+      <button type="button" class="ui-tag-remove" data-image-drop-codex="${escapeHtml(imgId)}" data-codex="${escapeHtml(codexId)}" aria-label="Remove from ${escapeHtml(nameOf(codexId))}" title="Remove from ${escapeHtml(nameOf(codexId))}"></button>
     </span>`;
 
   const addControl = (img) => {
@@ -278,7 +287,7 @@ export function renderImageCards(rows = [], codices = [], query = '') {
         <input class="admin-input gallery-card-label" data-image-label="${escapeHtml(img.id)}" value="${escapeHtml(img.label)}" aria-label="Image label">
         <div class="gallery-card-chips">${memberChips}${addControl(img)}</div>
         <div class="gallery-card-footer">
-          <span class="admin-badge status-badge status-${isArchived ? 'archived' : 'active'}">${isArchived ? 'archived' : 'active'}</span>
+          ${statusBadge(isArchived ? 'archived' : 'active')}
           ${statusAction}
         </div>
       </div>`;
@@ -323,7 +332,7 @@ export function renderIconsPanel({ overlayRows = [], bundledRows = [] }) {
       ? `<button type="button" class="ui-btn" data-size="sm" data-icon-restore="${escapeHtml(icon.key)}">Restore</button>`
       : `<button type="button" class="ui-btn" data-intent="danger" data-size="sm" data-icon-archive="${escapeHtml(icon.key)}">Archive</button>`;
     const overriding = icon.bundled
-      ? '<span class="admin-badge" title="Overrides a bundled icon of the same key">overrides bundled</span>'
+      ? '<span class="ui-badge" title="Overrides a bundled icon of the same key">overrides bundled</span>'
       : '';
     return `
       <div class="icon-card${isArchived ? ' is-archived' : ''}" data-icon-id="${escapeHtml(icon.key)}">
@@ -332,7 +341,7 @@ export function renderIconsPanel({ overlayRows = [], bundledRows = [] }) {
         <input class="admin-input icon-card-label" data-icon-label="${escapeHtml(icon.key)}" value="${escapeHtml(icon.label || '')}" placeholder="Label (optional)" aria-label="Icon label">
         <textarea class="admin-input icon-card-svg" data-icon-svg="${escapeHtml(icon.key)}" rows="3" spellcheck="false" aria-label="SVG markup">${escapeHtml(icon.svg || '')}</textarea>
         <div class="icon-card-footer">
-          <span class="admin-badge status-badge status-${isArchived ? 'archived' : 'active'}">${isArchived ? 'archived' : 'active'}</span>
+          ${statusBadge(isArchived ? 'archived' : 'active')}
           ${icon.layers ? `<button type="button" class="ui-btn" data-size="sm" data-icon-design="${escapeHtml(icon.key)}">Edit in designer</button>` : ''}
           <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-icon-save="${escapeHtml(icon.key)}">Save</button>
           ${statusAction}
@@ -345,7 +354,7 @@ export function renderIconsPanel({ overlayRows = [], bundledRows = [] }) {
       <div class="icon-card-media">${preview(icon.svg)}</div>
       <div class="icon-card-key">
         <code title="${escapeHtml(icon.key)}">${escapeHtml(icon.key)}</code>
-        <span class="admin-badge">bundled</span>
+        <span class="ui-badge">bundled</span>
         <button type="button" class="ui-btn" data-size="sm" data-icon-override="${escapeHtml(icon.key)}">Override</button>
       </div>
     </div>`;
@@ -407,7 +416,7 @@ export function renderEmblemsPanel({ rows = [] }) {
       ? `<button type="button" class="ui-btn" data-size="sm" data-emblem-restore="${escapeHtml(emblem.key)}">Restore</button>`
       : `<button type="button" class="ui-btn" data-intent="danger" data-size="sm" data-emblem-archive="${escapeHtml(emblem.key)}">Archive</button>`;
     const designedBadge = designed
-      ? '<span class="admin-badge" title="Authored in the glyph designer">designed</span>'
+      ? '<span class="ui-badge" title="Authored in the glyph designer">designed</span>'
       : '';
     // A designed emblem edits in the designer (raw markup is derived, so hand-editing it would
     // desync `layers`); a pasted emblem keeps the raw textarea + Save.
@@ -423,7 +432,7 @@ export function renderEmblemsPanel({ rows = [] }) {
         <input class="admin-input icon-card-label" data-emblem-label="${escapeHtml(emblem.key)}" value="${escapeHtml(emblem.label || '')}" placeholder="Label (optional)" aria-label="Emblem label">
         ${editControls}
         <div class="icon-card-footer">
-          <span class="admin-badge status-badge status-${isArchived ? 'archived' : 'active'}">${isArchived ? 'archived' : 'active'}</span>
+          ${statusBadge(isArchived ? 'archived' : 'active')}
           ${statusAction}
         </div>
       </div>`;

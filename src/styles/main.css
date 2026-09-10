@@ -492,14 +492,6 @@ button.user-badge { cursor: pointer; }
   color: var(--color-text-muted);
   font-size: 12px;
 }
-.admin-badge {
-  background: var(--color-primary);
-  color: #000;
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  text-transform: uppercase;
-}
 .role-group {
   display: inline-flex;
   gap: 4px;
@@ -2685,29 +2677,6 @@ dialog.lightbox-overlay::backdrop {
   gap: 6px;
   align-items: center;
 }
-.gallery-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 4px 2px 8px;
-  font-size: 11px;
-  color: var(--color-text-main);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 999px;
-}
-.gallery-chip-remove {
-  border: none;
-  background: none;
-  color: var(--color-text-muted);
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 2px;
-}
-.gallery-chip-remove:hover {
-  color: var(--color-danger);
-}
 .gallery-card-orphan {
   font-size: 11px;
   font-style: italic;
@@ -2723,26 +2692,6 @@ dialog.lightbox-overlay::backdrop {
   gap: 8px;
   margin-top: auto;
 }
-.status-badge {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.status-badge.status-archived,
-.status-badge.status-revoked,
-.status-badge.status-expired {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--color-text-muted);
-}
-.status-badge.status-active {
-  background: rgba(80, 200, 120, 0.18);
-  color: #7bd39a;
-}
-.status-badge.status-pending {
-  background: rgba(230, 180, 60, 0.18);
-  color: var(--color-primary);
-}
-
 /* Invites panel + pending-grant highlight (invite-access) */
 .invite-create {
   display: flex;
@@ -2761,17 +2710,10 @@ dialog.lightbox-overlay::backdrop {
 .admin-roster tr.is-pending {
   background: rgba(230, 180, 60, 0.06);
 }
-.nav-badge {
-  display: inline-block;
-  min-width: 16px;
-  padding: 0 5px;
+/* The pending-grants count on the admin nav is the kit's `.ui-badge` (data-intent primary); it
+   only needs the gap from the label the old bespoke pill set inline. */
+.nav-admin-item .ui-badge {
   margin-left: 6px;
-  border-radius: 9px;
-  background: var(--color-primary);
-  color: #000;
-  font-size: 11px;
-  font-weight: 600;
-  text-align: center;
 }
 .image-missing-card {
   display: flex;
@@ -2838,7 +2780,7 @@ dialog.lightbox-overlay::backdrop {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.icon-card.is-bundled .icon-card-key .admin-badge,
+.icon-card.is-bundled .icon-card-key .ui-badge,
 .icon-card.is-bundled .icon-card-key .ui-btn {
   flex-shrink: 0;
 }
@@ -2897,7 +2839,7 @@ dialog.lightbox-overlay::backdrop {
   gap: 8px;
   margin-top: auto;
 }
-.icon-card-footer .status-badge {
+.icon-card-footer .ui-badge {
   margin-right: auto;
 }
 
