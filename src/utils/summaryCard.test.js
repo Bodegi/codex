@@ -73,13 +73,13 @@ test('the subtitle renders the named field as plain text', () => {
 
 test('list badges become one chip per item', () => {
   const html = renderSummaryCard(SCHEMA, ENTRY, ctx);
-  assert.match(html, /<span class="summary-badge">solar<\/span>/);
-  assert.match(html, /<span class="summary-badge">flight<\/span>/);
+  assert.match(html, /<span class="ui-badge">solar<\/span>/);
+  assert.match(html, /<span class="ui-badge">flight<\/span>/);
 });
 
 test('reference badges resolve to the target label via ctx.resolveRef', () => {
   const html = renderSummaryCard(SCHEMA, ENTRY, ctx);
-  assert.match(html, /<span class="summary-badge">Boreal<\/span>/);
+  assert.match(html, /<span class="ui-badge">Boreal<\/span>/);
 });
 
 test('a multi-select badge renders one chip per chosen option (#39)', () => {
@@ -93,7 +93,7 @@ test('a multi-select badge renders one chip per chosen option (#39)', () => {
     ],
   };
   const html = renderSummaryCard(schema, { id: 'x', name: 'X', cats: ['Power', 'Magic'] }, {});
-  const chips = [...html.matchAll(/<span class="summary-badge">([^<]+)<\/span>/g)].map((m) => m[1]);
+  const chips = [...html.matchAll(/<span class="ui-badge">([^<]+)<\/span>/g)].map((m) => m[1]);
   assert.deepEqual(chips, ['Power', 'Magic']);
 });
 
@@ -118,7 +118,7 @@ test('a stale card.rows entry for a now-multi-select field is not drawn twice (#
     ],
   };
   const html = renderSummaryCard(schema, { id: 'x', name: 'X', cats: ['Power'] }, {});
-  assert.match(html, /<span class="summary-badge">Power<\/span>/); // drawn as a badge
+  assert.match(html, /<span class="ui-badge">Power<\/span>/); // drawn as a badge
   assert.doesNotMatch(html, /summary-card-row/); // and NOT also as a labelled row
 });
 
@@ -176,7 +176,7 @@ test('a type with no summaryCard still renders a title-only card', () => {
   const bare = { ...SCHEMA, summaryCard: undefined };
   const html = renderSummaryCard(bare, ENTRY, ctx);
   assert.match(html, /summary-card-title">Aurora</);
-  assert.doesNotMatch(html, /summary-card-subtitle|summary-badge|summary-card-row/);
+  assert.doesNotMatch(html, /summary-card-subtitle|ui-badge|summary-card-row/);
 });
 
 test('a summaryCard naming a since-removed field is ignored, not fatal', () => {
@@ -186,7 +186,7 @@ test('a summaryCard naming a since-removed field is ignored, not fatal', () => {
   };
   const html = renderSummaryCard(stale, ENTRY, ctx);
   assert.match(html, /summary-card-title">Aurora</);
-  assert.doesNotMatch(html, /summary-card-subtitle|summary-badge|summary-card-row/);
+  assert.doesNotMatch(html, /summary-card-subtitle|ui-badge|summary-card-row/);
 });
 
 test('renderTypeIndex titles by the type label and renders one card per entry', () => {

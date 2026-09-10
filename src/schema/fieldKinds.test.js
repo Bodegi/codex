@@ -76,7 +76,7 @@ test('list renderRead renders a <ul> of items; empty renders a muted placeholder
 test('list renderRead honors the display toggle (tags / inline), escaping items', () => {
   assert.equal(
     fieldKinds.list.renderRead({ key: 'e', display: 'tags' }, ['a', 'b']),
-    '<ul class="field-tags"><li class="field-tag">a</li><li class="field-tag">b</li></ul>'
+    '<ul class="field-tags"><li class="field-tag ui-badge">a</li><li class="field-tag ui-badge">b</li></ul>'
   );
   assert.equal(fieldKinds.list.renderRead({ key: 'e', display: 'inline' }, ['a', 'b']), '<p class="field-inline">a, b</p>');
   assert.match(fieldKinds.list.renderRead({ key: 'e', display: 'tags' }, ['<x>']), /&lt;x&gt;/);
@@ -224,7 +224,7 @@ test('multi reference renderRead honors display: inline (comma) and tags (pills)
     ctx
   );
   assert.match(tags, /class="field-tags"/);
-  assert.match(tags, /<li class="field-tag"><a/);
+  assert.match(tags, /<li class="field-tag ui-badge"><a/);
 });
 
 test('multi reference renderRead with no ids renders a muted None', () => {
@@ -322,7 +322,7 @@ test('multi select renderInput carries a stored value no longer in the options a
 test('multi select renderRead defaults to a bulleted list and honors display modes', () => {
   const field = { key: 'cats', kind: 'select', multi: true };
   assert.equal(fieldKinds.select.renderRead(field, ['Power', 'Magic']), '<ul><li>Power</li><li>Magic</li></ul>');
-  assert.match(fieldKinds.select.renderRead({ ...field, display: 'tags' }, ['Power']), /<li class="field-tag">Power<\/li>/);
+  assert.match(fieldKinds.select.renderRead({ ...field, display: 'tags' }, ['Power']), /<li class="field-tag ui-badge">Power<\/li>/);
   assert.match(fieldKinds.select.renderRead({ ...field, display: 'inline' }, ['Power', 'Magic']), /class="field-inline">Power, Magic</);
   assert.match(fieldKinds.select.renderRead(field, []), /class="muted"/);
 });

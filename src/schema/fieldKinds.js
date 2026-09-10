@@ -105,7 +105,7 @@ function displayMode(field) {
  */
 function renderMultiValues(cells, mode) {
   if (mode === 'tags') {
-    return `<ul class="field-tags">${cells.map((c) => `<li class="field-tag">${c}</li>`).join('')}</ul>`;
+    return `<ul class="field-tags">${cells.map((c) => `<li class="field-tag ui-badge">${c}</li>`).join('')}</ul>`;
   }
   if (mode === 'inline') {
     return `<p class="field-inline">${cells.join(', ')}</p>`;

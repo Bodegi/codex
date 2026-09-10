@@ -101,7 +101,7 @@ export function renderSummaryCard(schema, entry, ctx) {
   let badges = '';
   const chips = (card.badges || [])
     .flatMap((key) => (isBadgeField(fields.get(key)) ? badgeValues(fields.get(key), d[key], ctx) : []))
-    .map((v) => `<span class="summary-badge">${escapeHtml(v)}</span>`);
+    .map((v) => `<span class="ui-badge">${escapeHtml(v)}</span>`);
   if (chips.length) badges = `<div class="summary-card-badges">${chips.join('')}</div>`;
 
   let rows = '';
