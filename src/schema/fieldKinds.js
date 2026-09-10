@@ -122,7 +122,7 @@ function galleryInner(field, items, ctx) {
       (item, i) => `
         <div class="media-gallery-item" data-index="${i}">
           ${thumb(item.id, ctx?.resolveImage)}
-          <input type="text" class="form-control media-gallery-caption" data-gallery-caption data-index="${i}" value="${escapeHtml(item.caption)}" placeholder="Caption (optional)">
+          <input type="text" class="ui-input media-gallery-caption" data-gallery-caption data-index="${i}" value="${escapeHtml(item.caption)}" placeholder="Caption (optional)">
           <div class="media-gallery-actions">
             <button type="button" data-media="gallery-left" data-index="${i}" title="Move left" aria-label="Move left">◀</button>
             <button type="button" data-media="gallery-remove" data-index="${i}" title="Remove image" aria-label="Remove image">×</button>
@@ -169,7 +169,7 @@ export const fieldKinds = {
       // Always a plain text input — number/date/link/color are (becoming) first-class kinds, not a
       // polymorphic `type=` on text (issues #31 / #32). A stray `inputType` from legacy raw JSON is
       // ignored rather than echoed into `type="…"`.
-      return `<input type="text" class="form-control" data-field-key="${field.key}" data-field-kind="text" value="${escapeHtml(value)}" placeholder="${escapeHtml(field.placeholder || '')}">`;
+      return `<input type="text" class="ui-input" data-field-key="${field.key}" data-field-kind="text" value="${escapeHtml(value)}" placeholder="${escapeHtml(field.placeholder || '')}">`;
     },
     renderRead(_field, value, _ctx) {
       if (value == null || String(value).trim() === '') return MUTED_EMPTY;
@@ -184,7 +184,7 @@ export const fieldKinds = {
     icon: ICONS.prose,
     layout: 'full',
     renderInput(field, value, _ctx) {
-      return `<textarea class="form-control" data-field-key="${field.key}" data-field-kind="prose" rows="3">${escapeHtml(value)}</textarea>`;
+      return `<textarea class="ui-textarea" data-field-key="${field.key}" data-field-kind="prose" rows="3">${escapeHtml(value)}</textarea>`;
     },
     renderRead(_field, value, ctx) {
       return formatInline(value, ctx?.resolveImage) || MUTED_EMPTY;
@@ -213,7 +213,7 @@ export const fieldKinds = {
     description: 'A numeric value — a count, a rating, a year.',
     icon: ICONS.number,
     renderInput(field, value, _ctx) {
-      return `<input type="number" class="form-control" data-field-key="${field.key}" data-field-kind="number" value="${escapeHtml(value)}" placeholder="${escapeHtml(field.placeholder || '')}">`;
+      return `<input type="number" class="ui-input" data-field-key="${field.key}" data-field-kind="number" value="${escapeHtml(value)}" placeholder="${escapeHtml(field.placeholder || '')}">`;
     },
     renderRead(_field, value, _ctx) {
       if (value == null || String(value).trim() === '') return MUTED_EMPTY;
@@ -227,7 +227,7 @@ export const fieldKinds = {
     description: 'A calendar date, picked from a date control.',
     icon: ICONS.date,
     renderInput(field, value, _ctx) {
-      return `<input type="date" class="form-control" data-field-key="${field.key}" data-field-kind="date" value="${escapeHtml(value)}">`;
+      return `<input type="date" class="ui-input" data-field-key="${field.key}" data-field-kind="date" value="${escapeHtml(value)}">`;
     },
     renderRead(_field, value, _ctx) {
       if (value == null || String(value).trim() === '') return MUTED_EMPTY;
@@ -256,7 +256,7 @@ export const fieldKinds = {
       options.push(
         ...opts.map((o) => `<option value="${escapeHtml(o)}"${o === current ? ' selected' : ''}>${escapeHtml(o)}</option>`)
       );
-      return `<select class="form-control" data-field-key="${field.key}" data-field-kind="select">${options.join('')}</select>`;
+      return `<div class="ui-control"><select class="ui-select" data-field-key="${field.key}" data-field-kind="select">${options.join('')}</select></div>`;
     },
     renderRead(field, value, _ctx) {
       if (field.multi) {
@@ -281,7 +281,7 @@ export const fieldKinds = {
     icon: ICONS.boolean,
     renderInput(field, value, _ctx) {
       const checked = value === true || value === 'true' ? ' checked' : '';
-      return `<input type="checkbox" class="form-check" data-field-key="${field.key}" data-field-kind="boolean"${checked}>`;
+      return `<input type="checkbox" class="ui-checkbox" data-field-key="${field.key}" data-field-kind="boolean"${checked}>`;
     },
     renderRead(_field, value, _ctx) {
       return `<p>${value === true || value === 'true' ? 'Yes' : 'No'}</p>`;
@@ -297,7 +297,7 @@ export const fieldKinds = {
     // One item per line. Kept deliberately simple: the value reader splits on
     // newlines, so there is no per-row DOM to wire.
     renderInput(field, value, _ctx) {
-      return `<textarea class="form-control" data-field-key="${field.key}" data-field-kind="list" rows="3" placeholder="One per line">${escapeHtml(toList(value).join('\n'))}</textarea>`;
+      return `<textarea class="ui-textarea" data-field-key="${field.key}" data-field-kind="list" rows="3" placeholder="One per line">${escapeHtml(toList(value).join('\n'))}</textarea>`;
     },
     renderRead(field, value, _ctx) {
       const items = toList(value);
@@ -316,7 +316,7 @@ export const fieldKinds = {
       const entries = ctx?.listEntries ? ctx.listEntries(field.targetType) : null;
       if (!entries) {
         // No entry index available — keep the id editable rather than lose it.
-        return `<input type="text" class="form-control" data-field-key="${field.key}" data-field-kind="reference" value="${escapeHtml(value)}">`;
+        return `<input type="text" class="ui-input" data-field-key="${field.key}" data-field-kind="reference" value="${escapeHtml(value)}">`;
       }
       const current = value == null ? '' : String(value);
       const options = [`<option value="">— none —</option>`];
@@ -335,7 +335,7 @@ export const fieldKinds = {
           (e) => `<option value="${escapeHtml(e.id)}"${e.id === current ? ' selected' : ''}>${escapeHtml(e.label)}</option>`
         )
       );
-      return `<select class="form-control" data-field-key="${field.key}" data-field-kind="reference" data-ref-target="${escapeHtml(field.targetType || '')}">${options.join('')}</select>`;
+      return `<div class="ui-control"><select class="ui-select" data-field-key="${field.key}" data-field-kind="reference" data-ref-target="${escapeHtml(field.targetType || '')}">${options.join('')}</select></div>`;
     },
     renderRead(field, value, ctx) {
       if (field.multi) return referenceMultiRead(field, value, ctx);
@@ -613,7 +613,7 @@ function referenceMultiInput(field, value, ctx) {
   if (!list) {
     // No entry index available — keep the ids editable in a plain text input (never lost). This
     // scrape-read fallback keeps its data-field-kind so main.js reads it via readFieldValue.
-    return `<input type="text" class="form-control" data-field-key="${field.key}" data-field-kind="reference" data-multi="true" value="${escapeHtml(current.join(', '))}" placeholder="comma-separated ids">`;
+    return `<input type="text" class="ui-input" data-field-key="${field.key}" data-field-kind="reference" data-multi="true" value="${escapeHtml(current.join(', '))}" placeholder="comma-separated ids">`;
   }
   const known = new Set(list.map((e) => e.id));
   const selected = new Set(current);

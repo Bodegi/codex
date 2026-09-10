@@ -119,7 +119,7 @@ export function designerHtml(banner, field, editing) {
         </div>
         <div class="banner-section">
           <div class="banner-section-head">Caption <span class="muted">(optional)</span></div>
-          <input type="text" class="form-control banner-caption-input" data-banner-caption value="${escapeHtml(banner.caption || '')}" placeholder="Describe this heraldry">
+          <input type="text" class="ui-input banner-caption-input" data-banner-caption value="${escapeHtml(banner.caption || '')}" placeholder="Describe this heraldry">
         </div>
       </div>
     </div>`;

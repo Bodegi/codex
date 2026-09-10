@@ -306,18 +306,18 @@ export function renderMapInput(field, value, ctx) {
           <button type="button" class="ui-btn" data-size="sm" data-map-action="delete" style="color:var(--accent-crimson);">Delete</button>
         </div>
         <div class="form-grid">
-          <div class="form-group map-inspector-name-group">
-            <label>Name / Label</label>
-            <input type="text" class="form-control map-inspector-name" placeholder="Label">
+          <div class="ui-field map-inspector-name-group">
+            <label class="ui-label">Name / Label</label>
+            <input type="text" class="ui-input map-inspector-name" placeholder="Label">
           </div>
-          <div class="form-group map-inspector-assoc-group hidden">
-            <label>Linked entry</label>
-            <select class="form-control map-inspector-assoc"></select>
+          <div class="ui-field map-inspector-assoc-group hidden">
+            <label class="ui-label">Linked entry</label>
+            <div class="ui-control"><select class="ui-select map-inspector-assoc"></select></div>
           </div>
-          <div class="form-group map-inspector-glyph-group">
-            <label>Glyph</label>
+          <div class="ui-field map-inspector-glyph-group">
+            <label class="ui-label">Glyph</label>
             <div class="map-glyph-row">
-              <select class="form-control map-inspector-glyph"></select>
+              <div class="ui-control"><select class="ui-select map-inspector-glyph"></select></div>
               <span class="map-inspector-glyph-preview" aria-hidden="true"></span>
             </div>
           </div>

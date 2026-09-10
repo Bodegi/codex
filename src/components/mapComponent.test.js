@@ -226,13 +226,13 @@ test('renderMapInput exposes the name + association inspector slots', () => {
   );
   assert.match(html, /map-inspector-name-group/);
   assert.match(html, /map-inspector-assoc-group/);
-  assert.match(html, /class="form-control map-inspector-assoc"/);
+  assert.match(html, /class="ui-select map-inspector-assoc"/);
 });
 
 test('renderMapInput exposes the glyph picker slot (Phase 4)', () => {
   const html = renderMapInput({ key: 'map', kind: 'map' }, undefined, null);
   assert.match(html, /map-inspector-glyph-group/);
-  assert.match(html, /class="form-control map-inspector-glyph"/);
+  assert.match(html, /class="ui-select map-inspector-glyph"/);
   assert.match(html, /map-inspector-glyph-preview/);
 });
 
