@@ -733,11 +733,15 @@ button.user-badge { cursor: pointer; }
   text-align: left;
 }
 
+/* One chevron icon that rotates to point down when the card opens (no glyph swap in JS). */
 .field-card-caret {
+  display: inline-flex;
   color: var(--color-text-dim);
-  font-size: 11px;
   flex: 0 0 auto;
+  transition: rotate var(--transition-fast, 0.15s);
 }
+.field-card-caret .ui-icon { width: 14px; height: 14px; }
+.field-card.is-open .field-card-caret { rotate: 90deg; }
 
 .field-card-label {
   font-size: 13px;
@@ -2156,11 +2160,15 @@ button.ui-menu-item {
   text-align: left;
 }
 
+/* One chevron icon that rotates to point down when the card opens (no glyph swap in JS). */
 .se-card-caret {
+  display: inline-flex;
   color: var(--color-text-dim);
-  font-size: 11px;
   flex: 0 0 auto;
+  transition: rotate var(--transition-fast, 0.15s);
 }
+.se-card-caret .ui-icon { width: 14px; height: 14px; }
+.se-field.is-open .se-card-caret { rotate: 90deg; }
 
 .se-card-toggle .se-kind-icon .palette-icon {
   width: 15px;

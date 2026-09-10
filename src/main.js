@@ -31,6 +31,7 @@ import { blankEntry } from './schema/entryDraft.js';
 import { validateSchema } from './schema/schemaValidate.js';
 import { summarizeSchemaChange, changePhrase } from './schema/schemaDiff.js';
 import { escapeHtml } from './schema/inlineText.js';
+import { icon } from './utils/uiIcon.js';
 import { getIcon, findIcon, activeIcons, setOverlayIcons, bundledIcons, validateIcon } from './schema/iconRegistry.js';
 import { sanitizeSvg } from './schema/sanitizeSvg.js';
 import { buildNavModel } from './schema/navModel.js';
@@ -1024,7 +1025,7 @@ function renderCodexSwitcher() {
   // Admins get shortcuts straight to codex management: create, plus a signpost that rename/archive
   // live on the same panel — otherwise they're buried behind Admin › Codices with no entry point (#20).
   const adminActions = state.caps.canAdmin
-    ? '<button class="codex-switcher-option codex-switcher-new" data-codex-new>＋ New codex</button>' +
+    ? `<button class="codex-switcher-option codex-switcher-new" data-codex-new>${icon('plus', { size: 'sm' })} New codex</button>` +
       '<button class="codex-switcher-option codex-switcher-manage" data-codex-manage>⚙ Manage codices</button>'
     : '';
   menu.innerHTML = optionsHtml + adminActions;
@@ -1146,7 +1147,7 @@ function renderAdminNav() {
     ? `Users &amp; Access <span class="ui-badge" data-intent="primary">${pending}</span>`
     : 'Users &amp; Access';
   typeNav.innerHTML = `
-    <button class="ui-nav-item nav-admin-back" data-admin-back>‹ Back to codex</button>
+    <button class="ui-nav-item nav-admin-back" data-admin-back>${icon('chevron-left', { size: 'sm' })} Back to codex</button>
     <div class="nav-admin-group">
       <span class="nav-section-label">Admin</span>
       ${item('access', accessLabel)}
@@ -1202,7 +1203,7 @@ function renderTypeNav() {
               )}">${escapeHtml(e.title)}</button>`
           )
           .join('')}
-        ${canEdit ? `<button class="ui-nav-item nav-new-entry" data-new-entry="${escapeHtml(node.type)}">＋ New entry</button>` : ''}
+        ${canEdit ? `<button class="ui-nav-item nav-new-entry" data-new-entry="${escapeHtml(node.type)}">${icon('plus', { size: 'sm' })} New entry</button>` : ''}
         ${canEdit ? renderArchivedEntries(node.type) : ''}
       </div>
     </div>`
@@ -1217,7 +1218,7 @@ function renderTypeNav() {
 function renderNewTypeRow() {
   return `
     <div class="nav-new-type">
-      <button class="ui-nav-item nav-new-type-btn" id="new-type-btn">＋ New type</button>
+      <button class="ui-nav-item nav-new-type-btn" id="new-type-btn">${icon('plus', { size: 'sm' })} New type</button>
     </div>`;
 }
 
@@ -1402,8 +1403,7 @@ formContainer.addEventListener('click', (e) => {
   bodyEl.hidden = !open;
   card.classList.toggle('is-open', open);
   toggle.setAttribute('aria-expanded', String(open));
-  const caret = toggle.querySelector('.field-card-caret');
-  if (caret) caret.textContent = open ? '▾' : '▸';
+  // The caret is one chevron rotated by CSS off aria-expanded — no glyph swap here.
   const key = bodyEl.id.replace(/^fc-/, ''); // body id is `fc-<field.key>`
   if (open) state.expandedContentFields.add(key);
   else state.expandedContentFields.delete(key);

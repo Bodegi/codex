@@ -18,6 +18,7 @@
  */
 
 import { escapeHtml } from '../schema/inlineText.js';
+import { icon } from '../utils/uiIcon.js';
 import { fieldKinds, emblemKinds } from '../schema/fieldKinds.js';
 import { isBadgeField, isRowField } from '../utils/summaryCard.js';
 import { isAllowedInnerKind } from '../schema/groupModel.js';
@@ -654,7 +655,7 @@ function fieldRow(field, fi, types, expanded, groups = [], titleField = '') {
       <div class="se-field-head">
         <span class="se-drag" ${at} draggable="true" data-drag="field" title="Drag to reorder" aria-hidden="true">⠿</span>
         <button type="button" class="se-card-toggle" data-se-toggle aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="${bodyId}">
-          <span class="se-card-caret" aria-hidden="true">${expanded ? '▾' : '▸'}</span>
+          <span class="se-card-caret" aria-hidden="true">${icon('chevron-right', { size: 'sm' })}</span>
           <span class="se-kind-icon" aria-hidden="true">${def.icon || ''}</span>
           <span class="se-card-title">${titlePreview}</span>
         </button>
@@ -846,7 +847,7 @@ export function renderSchemaEditor(
         <div class="se-toolbar-end">
           <button type="button" class="ui-btn" data-size="sm" data-se="preview" aria-pressed="${previewPressed}"${previewMode ? ' hidden' : ''}>Preview</button>
           <div class="overflow-menu">
-            <button type="button" class="ui-btn" data-size="sm" popovertarget="se-more-menu" data-se-menu="trigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">⋯<span class="se-label-wide"> More</span></button>
+            <button type="button" class="ui-btn" data-size="sm" popovertarget="se-more-menu" data-se-menu="trigger" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">${icon('more-horizontal', { size: 'sm' })}<span class="se-label-wide"> More</span></button>
             <div id="se-more-menu" popover class="ui-popover overflow-menu-popover" data-se-menu="list" role="menu" aria-label="More type actions">
               <div class="ui-menu">
                 <button type="button" class="ui-menu-item se-menu-mono" role="menuitem" data-se="edit-json">&lt;/&gt; Edit JSON</button>
@@ -932,8 +933,7 @@ export function attachSchemaEditor(root, onIntent) {
       body.hidden = !open;
       card.classList.toggle('is-open', open);
       toggle.setAttribute('aria-expanded', String(open));
-      const caret = card.querySelector('.se-card-caret');
-      if (caret) caret.textContent = open ? '▾' : '▸';
+      // The caret is one chevron rotated by CSS off aria-expanded — no glyph swap here.
       onIntent({ action: 'toggle-field', key: card.dataset.key, expanded: open });
       return;
     }
