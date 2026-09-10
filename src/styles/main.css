@@ -1985,36 +1985,7 @@ mark.search-hit {
   gap: 6px;
 }
 
-/* Toast Notifications */
-.toast-container {
-  position: fixed;
-  top: 76px; /* below the header, not flush to the top */
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  z-index: 1000;
-}
-
-.toast {
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-primary);
-  color: #fff;
-  padding: 12px 20px;
-  border-radius: var(--radius-control);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-  from { transform: translateY(-12px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
+/* Toasts are the design-kit's `.ui-toast` in a `.ui-toast-region` (see index.html + showToast). */
 
 .hidden {
   display: none !important;

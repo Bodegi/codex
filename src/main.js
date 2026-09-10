@@ -3562,14 +3562,32 @@ function renderSyncStatus() {
   }
 }
 
-function showToast(message) {
+// A transient notification on the design-kit's `.ui-toast` (stacked in the `.ui-toast-region`).
+// `intent` is optional — passed only where a message is unambiguously one kind (the global error
+// boundary uses 'danger'); most call sites stay neutral, as the single-style toast always was. The
+// exit plays the kit's `data-state="closing"` animation, with a timer fallback for reduced-motion
+// (where the animation — and its `animationend` — never fires).
+function showToast(message, intent) {
   const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.textContent = message;
+  toast.className = 'ui-toast';
+  toast.setAttribute('role', 'status');
+  if (intent) toast.dataset.intent = intent;
+  toast.innerHTML =
+    '<div class="ui-toast-content"><p class="ui-toast-message"></p></div>' +
+    '<button type="button" class="ui-toast-close" aria-label="Dismiss">' +
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></button>';
+  toast.querySelector('.ui-toast-message').textContent = message;
+  let removed = false;
+  const remove = () => { if (!removed) { removed = true; toast.remove(); } };
+  const dismiss = () => {
+    if (!toast.isConnected) return;
+    toast.dataset.state = 'closing';
+    toast.addEventListener('animationend', remove, { once: true });
+    setTimeout(remove, 400); // reduced-motion / no animationend fallback
+  };
+  toast.querySelector('.ui-toast-close').addEventListener('click', dismiss);
   toastContainer.appendChild(toast);
-  setTimeout(() => {
-    toast.remove();
-  }, 3000);
+  setTimeout(dismiss, 3000);
 }
 
 // Global error boundary. Last-resort catches so a failure surfaces instead of
@@ -3578,7 +3596,7 @@ function showToast(message) {
 // escalates to the full error screen. Registered before boot so a throw during init is still caught.
 window.addEventListener('unhandledrejection', (e) => {
   console.error('Unhandled promise rejection', e.reason);
-  showToast('Something went wrong. If it persists, reload the page.');
+  showToast('Something went wrong. If it persists, reload the page.', 'danger');
 });
 window.addEventListener('error', (e) => {
   console.error('Uncaught error', e.error || e.message);
