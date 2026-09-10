@@ -18,6 +18,8 @@
  * Standalone images (inline, hero) open as a single frame with no navigation.
  */
 
+import { icon } from '../utils/uiIcon.js';
+
 function escapeAttr(text) {
   return String(text ?? '')
     .replace(/&/g, '&amp;')
@@ -50,13 +52,13 @@ export function openLightbox(images, start = 0) {
   dialog.className = 'lightbox-overlay';
   dialog.setAttribute('aria-label', escapeAttr(items[idx].alt) || 'Image');
   dialog.innerHTML = `
-    ${many ? `<button type="button" class="lightbox-arrow lightbox-prev" aria-label="Previous image" title="Previous">‹</button>` : ''}
+    ${many ? `<button type="button" class="lightbox-arrow lightbox-prev" aria-label="Previous image" title="Previous">${icon('chevron-left', { size: 'lg' })}</button>` : ''}
     <div class="lightbox-body">
-      <button type="button" class="lightbox-close" aria-label="Close" title="Close">×</button>
+      <button type="button" class="lightbox-close" aria-label="Close" title="Close">${icon('close', { size: 'md' })}</button>
       <img class="lightbox-img" src="${escapeAttr(items[idx].src)}" alt="${escapeAttr(items[idx].alt)}">
       <figcaption class="lightbox-caption"${caption(items[idx]) ? '' : ' hidden'}>${escapeAttr(caption(items[idx]))}</figcaption>
     </div>
-    ${many ? `<button type="button" class="lightbox-arrow lightbox-next" aria-label="Next image" title="Next">›</button>` : ''}`;
+    ${many ? `<button type="button" class="lightbox-arrow lightbox-next" aria-label="Next image" title="Next">${icon('chevron-right', { size: 'lg' })}</button>` : ''}`;
 
   const imgEl = dialog.querySelector('.lightbox-img');
   const capEl = dialog.querySelector('.lightbox-caption');

@@ -1189,6 +1189,9 @@ button.user-badge { cursor: pointer; }
 }
 
 .media-gallery-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border-subtle);
   color: var(--color-text-muted);
@@ -1438,8 +1441,9 @@ dialog.ui-dialog.codex-picker .ui-dialog-body {
   border: 1px solid var(--color-border-subtle);
   background: rgba(0, 0, 0, 0.6);
   color: var(--color-text-main);
-  font-size: 14px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.15s, border-color 0.15s, color 0.15s;
@@ -2466,8 +2470,9 @@ dialog.lightbox-overlay::backdrop {
   border: 1px solid var(--color-border-subtle);
   background: var(--color-bg-surface);
   color: var(--color-text-main);
-  font-size: 18px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 .lightbox-close:hover {
@@ -2486,8 +2491,9 @@ dialog.lightbox-overlay::backdrop {
   border: 1px solid var(--color-border-subtle);
   background: rgba(0, 0, 0, 0.55);
   color: var(--color-text-main);
-  font-size: 24px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   z-index: 1;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -3210,9 +3216,11 @@ dialog.ui-dialog.glyph-dialog {
 .banner-layer-thumb svg { width: 20px; height: 40px; display: block; }
 .banner-layer-name { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--color-text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .banner-layer-dot { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--color-border-subtle); }
-.banner-layer-caret { flex: 0 0 auto; font-size: 11px; color: var(--color-text-muted); }
+.banner-layer-caret { flex: 0 0 auto; display: inline-flex; color: var(--color-text-muted); transition: rotate var(--transition-fast, 0.15s); }
+.banner-layer-caret .ui-icon { width: 14px; height: 14px; }
+.banner-layer.is-editing .banner-layer-caret { rotate: 90deg; }
 .banner-layer-actions { display: flex; flex-direction: column; gap: 2px; }
-.banner-layer-actions button { min-width: 26px; height: 20px; border: 1px solid var(--color-border-subtle); border-radius: 4px; background: var(--color-bg-elevated); color: var(--color-text-main); cursor: pointer; font-size: 11px; line-height: 1; padding: 0; }
+.banner-layer-actions button { display: flex; align-items: center; justify-content: center; min-width: 26px; height: 20px; border: 1px solid var(--color-border-subtle); border-radius: 4px; background: var(--color-bg-elevated); color: var(--color-text-main); cursor: pointer; font-size: 11px; line-height: 1; padding: 0; }
 .banner-layer-actions button:disabled { opacity: 0.4; cursor: default; }
 .banner-layer-edit { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .banner-mini-head { font-size: 12px; color: var(--color-text-muted); }
@@ -3275,6 +3283,9 @@ dialog.ui-dialog.glyph-dialog {
 .group-record-title { flex: 1; font-weight: 600; color: var(--color-text-main); }
 .group-record-actions { display: inline-flex; gap: 4px; }
 .group-record-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-nav);

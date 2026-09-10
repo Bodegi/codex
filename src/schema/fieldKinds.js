@@ -46,6 +46,7 @@
  */
 
 import { escapeHtml, formatInline } from './inlineText.js';
+import { icon } from '../utils/uiIcon.js';
 import { notFoundImage } from './notFoundImage.js';
 import { normalizeGroup, groupSubFields, recordLabel } from './groupModel.js';
 import { normalizeGallery } from './galleryModel.js';
@@ -125,7 +126,7 @@ function galleryInner(field, items, ctx) {
           <input type="text" class="ui-input media-gallery-caption" data-gallery-caption data-index="${i}" value="${escapeHtml(item.caption)}" placeholder="Caption (optional)">
           <div class="media-gallery-actions">
             <button type="button" data-media="gallery-left" data-index="${i}" title="Move left" aria-label="Move left">◀</button>
-            <button type="button" data-media="gallery-remove" data-index="${i}" title="Remove image" aria-label="Remove image">×</button>
+            <button type="button" data-media="gallery-remove" data-index="${i}" title="Remove image" aria-label="Remove image">${icon('close', { size: 'xs' })}</button>
             <button type="button" data-media="gallery-right" data-index="${i}" title="Move right" aria-label="Move right">▶</button>
           </div>
         </div>`

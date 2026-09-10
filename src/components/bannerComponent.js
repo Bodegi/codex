@@ -20,6 +20,7 @@
  */
 
 import { escapeHtml } from '../schema/inlineText.js';
+import { icon } from '../utils/uiIcon.js';
 import {
   DYE_COLORS,
   PATTERNS,
@@ -83,12 +84,12 @@ function layerCard(layer, i, count, editing) {
           <span class="banner-layer-thumb">${patternThumb(layer.pattern)}</span>
           <span class="banner-layer-name">${escapeHtml(name)}</span>
           <span class="banner-layer-dot" style="background:${dyeHex(layer.color)}" aria-hidden="true"></span>
-          <span class="banner-layer-caret" aria-hidden="true">${isEditing ? '▾' : '▸'}</span>
+          <span class="banner-layer-caret" aria-hidden="true">${icon('chevron-right', { size: 'sm' })}</span>
         </button>
         <div class="banner-layer-actions">
           <button type="button" data-act="up"${i === 0 ? ' disabled' : ''} title="Move up" aria-label="Move layer up">▲</button>
           <button type="button" data-act="down"${i === count - 1 ? ' disabled' : ''} title="Move down" aria-label="Move layer down">▼</button>
-          <button type="button" data-act="remove" title="Remove layer" aria-label="Remove layer">×</button>
+          <button type="button" data-act="remove" title="Remove layer" aria-label="Remove layer">${icon('close', { size: 'xs' })}</button>
         </div>
       </div>
       ${edit}
@@ -175,7 +176,7 @@ function openBannerRecipeModal(innerHtml) {
   dialog.innerHTML = `
     <div class="ui-dialog-header">
       <h2 class="ui-dialog-title">Build recipe</h2>
-      <button type="button" class="ui-btn" data-variant="ghost" data-size="icon-sm" data-recipe-close aria-label="Close" title="Close">×</button>
+      <button type="button" class="ui-btn" data-variant="ghost" data-size="icon-sm" data-recipe-close aria-label="Close" title="Close">${icon('close', { size: 'sm' })}</button>
     </div>
     <div class="ui-dialog-body banner-recipe-modal-body">${innerHtml}</div>`;
   dialog.addEventListener('close', () => dialog.remove(), { once: true });

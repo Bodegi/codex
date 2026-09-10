@@ -27,6 +27,7 @@
 
 import { notFoundImage } from '../schema/notFoundImage.js';
 import { validateImageFile } from '../schema/imageUpload.js';
+import { icon } from '../utils/uiIcon.js';
 
 function escapeAttr(text) {
   return String(text ?? '')
@@ -44,7 +45,7 @@ function itemHtml(img, canManage, multiple) {
         <span>${escapeAttr(img.label)}</span>
         ${multiple ? '<span class="image-picker-check" aria-hidden="true">✓</span>' : ''}
       </button>
-      ${canManage ? `<button type="button" class="image-picker-remove" data-remove aria-label="Remove from this codex" title="Remove from this codex">×</button>` : ''}
+      ${canManage ? `<button type="button" class="image-picker-remove" data-remove aria-label="Remove from this codex" title="Remove from this codex">${icon('close', { size: 'xs' })}</button>` : ''}
     </div>`;
 }
 
@@ -74,7 +75,7 @@ export function openImagePicker(images = [], { canManage = false, multiple = fal
         <h2 class="ui-dialog-title">${heading}</h2>
         <div class="ui-dialog-header-actions">
           ${canManage && onUpload ? `<button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-upload title="Upload images — pick several, or drag them onto this window">＋ Upload</button>` : ''}
-          <button type="button" class="ui-btn" data-variant="ghost" data-size="icon-sm" data-picker-close aria-label="Close" title="Close">×</button>
+          <button type="button" class="ui-btn" data-variant="ghost" data-size="icon-sm" data-picker-close aria-label="Close" title="Close">${icon('close', { size: 'sm' })}</button>
         </div>
       </div>
       <div class="ui-dialog-body">

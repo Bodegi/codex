@@ -16,6 +16,7 @@
  */
 
 import { escapeHtml } from '../schema/inlineText.js';
+import { icon } from '../utils/uiIcon.js';
 import { normalizeGroup, groupSubFields, recordLabel } from '../schema/groupModel.js';
 
 /** An empty value of the right shape for a fresh record's sub-field (mirrors entryDraft.blankEntry). */
@@ -62,7 +63,7 @@ export function mountGroup(el, { field, value, onChange, ctx }, { getKind }) {
           <span class="group-record-actions">
             <button type="button" data-group="up"${i === 0 ? ' disabled' : ''} title="Move up" aria-label="Move item up">▲</button>
             <button type="button" data-group="down"${i === records.length - 1 ? ' disabled' : ''} title="Move down" aria-label="Move item down">▼</button>
-            <button type="button" data-group="remove" title="Remove item" aria-label="Remove item">×</button>
+            <button type="button" data-group="remove" title="Remove item" aria-label="Remove item">${icon('close', { size: 'xs' })}</button>
           </span>
         </div>
         <div class="group-record-body">${body}</div>

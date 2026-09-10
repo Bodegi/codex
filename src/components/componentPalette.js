@@ -16,6 +16,7 @@
  */
 
 import { paletteComponents } from '../schema/fieldKinds.js';
+import { icon } from '../utils/uiIcon.js';
 
 function escapeAttr(text) {
   return String(text ?? '')
@@ -55,7 +56,7 @@ export function openComponentPalette({ current = '', allow = null } = {}) {
     dialog.innerHTML = `
       <div class="ui-dialog-header">
         <h2 class="ui-dialog-title">${heading}</h2>
-        <button type="button" class="ui-btn" data-variant="ghost" data-size="icon-sm" data-palette-close aria-label="Close" title="Close">×</button>
+        <button type="button" class="ui-btn" data-variant="ghost" data-size="icon-sm" data-palette-close aria-label="Close" title="Close">${icon('close', { size: 'sm' })}</button>
       </div>
       <div class="ui-dialog-body"><div class="palette-grid">${cards}</div></div>`;
 

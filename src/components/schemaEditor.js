@@ -523,7 +523,7 @@ function subFieldRow(field, fi, sub, si, subCount, types) {
         <button type="button" class="se-nudge" data-se="sub-up" ${at}${si === 0 ? ' disabled' : ''} title="Move up" aria-label="Move up">▲</button>
         <button type="button" class="se-nudge" data-se="sub-down" ${at}${si === subCount - 1 ? ' disabled' : ''} title="Move down" aria-label="Move down">▼</button>
         <button type="button" class="se-nudge" data-se="sub-out" ${at} title="Move out to top level" aria-label="Move out of group">⤴</button>
-        <button type="button" class="se-nudge se-danger" data-se="sub-remove" ${at} title="Remove field" aria-label="Remove field">×</button>
+        <button type="button" class="se-nudge se-danger" data-se="sub-remove" ${at} title="Remove field" aria-label="Remove field">${icon('close', { size: 'xs' })}</button>
       </div>
       <div class="se-subfield-extras">${extras.join('')}</div>
     </div>`;
@@ -663,7 +663,7 @@ function fieldRow(field, fi, types, expanded, groups = [], titleField = '') {
           ${keyChip}
           <button type="button" class="se-nudge" data-se="field-up" ${at} title="Move up" aria-label="Move up">▲</button>
           <button type="button" class="se-nudge" data-se="field-down" ${at} title="Move down" aria-label="Move down">▼</button>
-          <button type="button" class="se-nudge se-danger se-remove" data-se="field-remove" ${at} title="Remove field" aria-label="Remove field">×</button>
+          <button type="button" class="se-nudge se-danger se-remove" data-se="field-remove" ${at} title="Remove field" aria-label="Remove field">${icon('close', { size: 'xs' })}</button>
         </span>
       </div>
       <div class="se-field-body" id="${bodyId}"${expanded ? '' : ' hidden'}>

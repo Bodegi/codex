@@ -20,6 +20,7 @@
  */
 
 import { newLayer, layersToSvg, validateGlyph, SHAPES } from '../schema/glyphModel.js';
+import { icon } from '../utils/uiIcon.js';
 
 const PRIMITIVES = ['circle', 'rect', 'ellipse', 'line', 'polygon']; // add-layer palette (path is grid-tool only)
 
@@ -130,7 +131,7 @@ export function openGlyphDesigner({ palette = 'mono', lockPalette = false, initi
               ${swatch}
               <span class="gd-layer-name">${esc(layer.shape)}</span>
               <button type="button" class="gd-icon-btn" data-dup="${i}" title="Duplicate" aria-label="Duplicate">⎘</button>
-              <button type="button" class="gd-icon-btn" data-del="${i}" title="Delete" aria-label="Delete">✕</button>
+              <button type="button" class="gd-icon-btn" data-del="${i}" title="Delete" aria-label="Delete">${icon('close', { size: 'xs' })}</button>
             </div>`;
         })
         .reverse()
@@ -347,7 +348,7 @@ export function openLibraryPicker(glyphs = []) {
     dialog.innerHTML = `
       <div class="ui-dialog-header">
         <h2 class="ui-dialog-title">Start from a glyph</h2>
-        <button type="button" class="ui-btn" data-variant="ghost" data-size="icon-sm" data-cancel aria-label="Close" title="Close">×</button>
+        <button type="button" class="ui-btn" data-variant="ghost" data-size="icon-sm" data-cancel aria-label="Close" title="Close">${icon('close', { size: 'sm' })}</button>
       </div>
       <div class="ui-dialog-body">
         <div class="glyph-library-grid">
