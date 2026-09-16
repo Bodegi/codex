@@ -56,7 +56,7 @@ import {
   normalize,
 } from './schema/viewState.js';
 import { buildSearchDocs, searchEntries } from './schema/searchIndex.js';
-import { referencesTo, dependentsWarning } from './schema/referenceIndex.js';
+import { referencesTo, groupReferencesByType, dependentsWarning } from './schema/referenceIndex.js';
 import {
   renderSchemaEditor,
   attachSchemaEditor,
@@ -3177,10 +3177,37 @@ function entryHasContent() {
   );
 }
 
+// The reader's "Referenced by" block — the visible inverse of a reference (a Category showing the
+// Civilizations that link to it). Reuses the archive-warning back-index (referencesTo), grouped by
+// referrer type; each link carries data-ref-type/-id, so previewRendered's delegated click navigates
+// it like any in-body reference. '' for an unsaved draft (no id) or when nothing links here.
+function backrefsHTML() {
+  const type = curType();
+  const id = state.formData && state.formData.id;
+  if (!type || !id) return '';
+  const groups = groupReferencesByType(referencesTo(state.entryIndex, getSchema, type, id), getSchema);
+  if (!groups.length) return '';
+  const section = groups
+    .map((g) => {
+      const links = g.entries
+        .map(
+          (e) =>
+            `<li><a href="#" data-ref-type="${escapeHtml(e.type)}" data-ref-id="${escapeHtml(
+              e.id
+            )}">${escapeHtml(e.title)}</a></li>`
+        )
+        .join('');
+      return `<div class="backrefs-group"><h3>${escapeHtml(g.typeLabel)}</h3><ul class="backrefs-list">${links}</ul></div>`;
+    })
+    .join('');
+  return `<section class="entry-backrefs"><h2>Referenced by</h2>${section}</section>`;
+}
+
 // The rendered entry. Media (hero at top, the gallery carousel in its section) is now part of
-// the entry HTML via the registered components — no separately-appended carousel.
+// the entry HTML via the registered components — no separately-appended carousel. The back-index
+// "Referenced by" block trails the schema-driven body (see backrefsHTML).
 function currentPreviewHTML() {
-  return renderEntryHTML(curType(), state.formData, renderCtx);
+  return renderEntryHTML(curType(), state.formData, renderCtx) + backrefsHTML();
 }
 
 // Re-render the current builder entry & refresh both preview panels

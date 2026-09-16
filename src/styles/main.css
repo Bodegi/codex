@@ -1051,6 +1051,35 @@ button.user-badge { cursor: pointer; }
   cursor: help;
 }
 
+/* "Referenced by" — the reader-side inverse of a reference (backrefsHTML in main.js). A quiet
+   appendix below the entry body: a rule sets it apart, then one titled list per referrer type. */
+.reader-body .entry-backrefs {
+  margin-top: 32px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+.reader-body .entry-backrefs > h2 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+.reader-body .backrefs-group + .backrefs-group {
+  margin-top: 12px;
+}
+.reader-body .backrefs-group > h3 {
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+.reader-body .backrefs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
 /* Hero image (read-side). Height is reserved up-front so the banner never pops in and shoves the
    body down on load (layout shift). Until the raster paints, the box shows a dimmed emblem
    watermark as a placeholder; object-fit:cover then paints the loaded image over every background

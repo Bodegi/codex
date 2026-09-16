@@ -90,6 +90,32 @@ export function referencesTo(byType, getSchema, targetType, targetId) {
 }
 
 /**
+ * Group `referencesTo` rows by referrer type for a reader-side "Referenced by" block — the visible
+ * inverse of a reference. Same rows, reshaped: one group per type, ordered by the type's human label,
+ * entries within a group ordered by title (the opaque-id rule — order by human keys, never ids).
+ * Each entry keeps `type`/`id` so the caller can emit the shared `data-ref-type`/`data-ref-id` link.
+ *
+ * @param {Array<{type,id,title}>} refs  rows from `referencesTo`
+ * @param {(type:string)=>object|null} getSchema  schema lookup for a type's label
+ * @returns {Array<{type,typeLabel,entries:Array<{type,id,title}>}>}
+ */
+export function groupReferencesByType(refs, getSchema) {
+  const byType = new Map();
+  for (const ref of refs || []) {
+    if (!byType.has(ref.type)) byType.set(ref.type, []);
+    byType.get(ref.type).push({ type: ref.type, id: ref.id, title: ref.title });
+  }
+  const groups = [];
+  for (const [type, entries] of byType) {
+    const schema = getSchema(type);
+    entries.sort((a, b) => a.title.localeCompare(b.title));
+    groups.push({ type, typeLabel: (schema && schema.label) || type, entries });
+  }
+  groups.sort((a, b) => a.typeLabel.localeCompare(b.typeLabel));
+  return groups;
+}
+
+/**
  * A one-sentence warning naming who links to an entry being archived, for the confirm copy.
  * Empty string when nothing references it. Lists up to `max` titles, then "and N more".
  */

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { indexEntries } from './entryIndex.js';
-import { referencesTo, dependentsWarning } from './referenceIndex.js';
+import { referencesTo, groupReferencesByType, dependentsWarning } from './referenceIndex.js';
 
 // Two types: `person` entries reference a `place` (home, single) and `place` entries
 // reference other `place`s (neighbors, multi). Enough to exercise single, multi, self,
@@ -112,6 +112,30 @@ test('finds a reference nested one level inside a group, naming the group in the
   const dev = refs.find((r) => r.id === 'dev');
   assert.ok(dev, 'the nested reference should be found');
   assert.deepEqual(dev.fields, ['Crests']); // names the group once, not each record's sub-field
+});
+
+test('groupReferencesByType groups by type, ordered by type label then title', () => {
+  // rivertown is referenced by ada + cyd (person) and hilldale (place). Labels default to the type
+  // key here, so groups order person < place, and each group's entries sort by title.
+  const refs = referencesTo(byType, getSchema, 'place', 'rivertown');
+  const groups = groupReferencesByType(refs, getSchema);
+  assert.deepEqual(
+    groups.map((g) => [g.typeLabel, g.entries.map((e) => e.title)]),
+    [['person', ['Ada', 'Cyd']], ['place', ['Hilldale']]]
+  );
+});
+
+test('groupReferencesByType prefers the schema label over the type key, and carries type/id', () => {
+  const labeled = (type) => (type === 'person' ? { label: 'People' } : { label: 'Places' });
+  const refs = referencesTo(byType, getSchema, 'place', 'rivertown');
+  const groups = groupReferencesByType(refs, labeled);
+  assert.deepEqual(groups.map((g) => g.typeLabel), ['People', 'Places']); // People < Places
+  const ada = groups[0].entries[0];
+  assert.deepEqual({ type: ada.type, id: ada.id }, { type: 'person', id: 'ada' });
+});
+
+test('groupReferencesByType returns [] when nothing references the entry', () => {
+  assert.deepEqual(groupReferencesByType([], getSchema), []);
 });
 
 test('dependentsWarning is empty when nothing references the entry', () => {
