@@ -36,6 +36,7 @@ import {
   inviteDocPath,
   imagesCollectionPath,
   imageDocPath,
+  secretDocPath,
   iconsCollectionPath,
   iconDocPath,
   emblemsCollectionPath,
@@ -233,6 +234,21 @@ export class FirebaseManager {
     if (!this.db) return null;
     const snap = await getDoc(doc(this.db, ...imageDocPath(id)));
     return snap.exists() ? snap.data() : null;
+  }
+
+  /**
+   * Read a third-party service secret (the Cloudinary `api_secret` — see cloudinaryStore.js). The
+   * `secrets` doc is readable only by signed-in users per firestore.rules; a signed-out or denied read
+   * returns null so the caller degrades gracefully (upload errors, never throws on boot).
+   */
+  async getSecret(name) {
+    if (!this.db) return null;
+    try {
+      const snap = await getDoc(doc(this.db, ...secretDocPath(name)));
+      return snap.exists() ? snap.data() : null;
+    } catch {
+      return null;
+    }
   }
 
   /** Create a new image record (the coordinator's "no record" branch). Stamps createdAt + updatedAt. */

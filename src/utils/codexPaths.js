@@ -44,6 +44,9 @@ export const codexMetaPath = (codexId) => ['codices', codexId];
 
 export const imagesCollectionPath = () => ['images'];
 export const imageDocPath = (id) => ['images', id];
+// Third-party service secrets, keyed by service name (e.g. 'cloudinary'). Read gated to signed-in
+// users by firestore.rules — see the `secrets` block there.
+export const secretDocPath = (name) => ['secrets', name];
 
 // App-global icon overlay: SVG-as-text records keyed by icon key (the doc id).
 export const iconsCollectionPath = () => ['icons'];

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { resolveFirebaseConfig, resolveSupabaseConfig } from './appConfig.js';
+import { resolveFirebaseConfig, resolveSupabaseConfig, resolveCloudinaryConfig } from './appConfig.js';
 
 const baked = { apiKey: 'baked-key', authDomain: 'baked.firebaseapp.com', projectId: 'baked' };
 
@@ -65,4 +65,35 @@ test('incomplete or missing baked supabase config → null', () => {
   assert.equal(resolveSupabaseConfig(null, null), null);
   assert.equal(resolveSupabaseConfig({ url: 'u', bucket: 'pool' }, null), null); // no anonKey
   assert.equal(resolveSupabaseConfig({ anonKey: 'a', bucket: 'pool' }, null), null); // no url
+});
+
+// --- resolveCloudinaryConfig ----------------------------------------------
+
+const bakedCloud = { cloudName: 'demo', apiKey: '123456789' };
+
+test('no override → baked cloudinary config', () => {
+  assert.deepEqual(resolveCloudinaryConfig(bakedCloud, null), bakedCloud);
+  assert.deepEqual(resolveCloudinaryConfig(bakedCloud, ''), bakedCloud);
+  assert.deepEqual(resolveCloudinaryConfig(bakedCloud, '   '), bakedCloud);
+});
+
+test('override "local" (bare or JSON-quoted) → null (byte store off in local-only)', () => {
+  assert.equal(resolveCloudinaryConfig(bakedCloud, 'local'), null);
+  assert.equal(resolveCloudinaryConfig(bakedCloud, '  local  '), null);
+  assert.equal(resolveCloudinaryConfig(bakedCloud, '"local"'), null);
+});
+
+test('a JSON firebase override (dev firestore) still yields the baked cloudinary config', () => {
+  const devFb = JSON.stringify({ apiKey: 'dev', projectId: 'dev' });
+  assert.deepEqual(resolveCloudinaryConfig(bakedCloud, devFb), bakedCloud);
+});
+
+test('a malformed override → ignored, falls back to baked cloudinary config', () => {
+  assert.deepEqual(resolveCloudinaryConfig(bakedCloud, '{ not json'), bakedCloud);
+});
+
+test('incomplete or missing baked cloudinary config → null', () => {
+  assert.equal(resolveCloudinaryConfig(null, null), null);
+  assert.equal(resolveCloudinaryConfig({ cloudName: 'demo' }, null), null); // no apiKey
+  assert.equal(resolveCloudinaryConfig({ apiKey: '123' }, null), null); // no cloudName
 });

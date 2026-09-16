@@ -7,7 +7,7 @@ import { renderEntryHTML } from './utils/entryRenderer.js';
 import { renderTypeIndex, renderSummaryCard } from './utils/summaryCard.js';
 import { FirebaseManager } from './utils/firebase.js';
 import { AuthManager } from './utils/authManager.js';
-import { appConfig, resolveFirebaseConfig, resolveSupabaseConfig } from './config/appConfig.js';
+import { appConfig, resolveFirebaseConfig, resolveCloudinaryConfig } from './config/appConfig.js';
 
 import { renderForm as renderSchemaForm } from './schema/formRenderer.js';
 import {
@@ -112,7 +112,7 @@ import { getKind, previewSample } from './schema/fieldKinds.js';
 import { initCarousel } from './components/carousel.js';
 import { initMapReadCanvases } from './components/mapComponent.js';
 import { createImageIndex, publicUrl } from './schema/imageIndex.js';
-import { createImageStore } from './utils/imageStore.js';
+import { createCloudinaryStore } from './utils/cloudinaryStore.js';
 import { uploadImage, labelFromFilename, validateImageFile } from './schema/imageUpload.js';
 import { optimizeImage } from './utils/imageOptimize.js';
 import { attachLightbox } from './components/lightbox.js';
@@ -130,9 +130,9 @@ const CURRENT_CODEX_KEY = 'codex_current_id';
 // disabled-storage contexts — see safeStorage.js.
 const firebaseConfig = resolveFirebaseConfig(appConfig.firebase, safeStorage.getItem('codex_firebase_override'));
 
-// Supabase (image bytes) resolved once, off the same override sentinel. null in local-only mode, so the
+// Cloudinary (image bytes) resolved once, off the same override sentinel. null in local-only mode, so the
 // image index stays empty and every id resolves to the not-found SVG (images need Firebase).
-const supabaseConfig = resolveSupabaseConfig(appConfig.supabase, safeStorage.getItem('codex_firebase_override'));
+const cloudinaryConfig = resolveCloudinaryConfig(appConfig.cloudinary, safeStorage.getItem('codex_firebase_override'));
 
 // The codex shown first: a configured build uses the baked default if the deployer set one, else
 // starts with no codex (null) and adopts the first one the registry returns — never a hardcoded
@@ -163,7 +163,7 @@ const state = {
   entryIndex: {},
   // The current codex's live image index (id → URL), rebuilt from subscribeImagesForCodex. Empty until
   // the first snapshot (and always empty in local-only mode). resolve(id) → URL or null (not-found SVG).
-  imageIndex: createImageIndex([], supabaseConfig),
+  imageIndex: createImageIndex([], cloudinaryConfig),
   // Codex registry: the meta docs the viewer may switch between, and (non-admin) their own grants.
   codices: [],
   ownPermissions: [],
@@ -291,13 +291,19 @@ function codexScope() {
 }
 
 // ── Image byte store + upload/remove (editor path) ───────────────────────────
-// The Supabase byte adapter. Its token port yields the current Firebase ID token so Supabase trusts
-// our project's JWTs — `authManager.auth.currentUser` is the raw Firebase user (getIdToken),
-// distinct from `authManager.currentUser` (the mapped profile). Null store in local-only mode → the
-// upload UI stays hidden, so the coordinator never sees a null store.
-const imageStore = createImageStore(supabaseConfig, () =>
-  state.authManager?.auth?.currentUser?.getIdToken() ?? Promise.resolve(null)
-);
+// The Cloudinary byte adapter. Its secret port reads the api_secret once from the firestore.rules-gated
+// `secrets/cloudinary` doc (a signed-in editor can read it; anyone else is denied) and caches it for the
+// session, so uploads sign in the browser without a backend. Null store in local-only mode → the upload
+// UI stays hidden, so the coordinator never sees a null store.
+let cloudinarySecret; // memoized promise for the session's api_secret
+const imageStore = createCloudinaryStore(cloudinaryConfig, () => {
+  if (!cloudinarySecret) {
+    cloudinarySecret = Promise.resolve(state.fbManager?.getSecret('cloudinary') ?? null)
+      .then((doc) => doc?.apiSecret ?? null)
+      .catch(() => null);
+  }
+  return cloudinarySecret;
+});
 
 // Firestore image-metadata port for the upload coordinator (bytes-first, then metadata — see imageUpload.js).
 const imageMetaPort = state.fbManager
@@ -333,7 +339,7 @@ async function uploadImageToCurrentCodex(file) {
     // the raw bytes when that isn't a win. The id above is already hashed from the source bytes.
     { storage: imageStore, meta: imageMetaPort, compress: () => optimizeImage(file) }
   );
-  return { id, label: labelFromFilename(file.name), url: publicUrl(supabaseConfig, id) };
+  return { id, label: labelFromFilename(file.name), url: publicUrl(cloudinaryConfig, id) };
 }
 
 // Editor remove-from-codex: confirm (destructive), then drop the current codex from the image's
@@ -381,7 +387,7 @@ function subscribeCodexContent() {
   // ones fall back to the not-found SVG. subscribeImagesForCodex already filters to active records.
   if (imagesUnsubscribe) { imagesUnsubscribe(); imagesUnsubscribe = null; }
   imagesUnsubscribe = state.fbManager.subscribeImagesForCodex(state.currentCodexId, (records) => {
-    state.imageIndex = createImageIndex(records, supabaseConfig);
+    state.imageIndex = createImageIndex(records, cloudinaryConfig);
     onImagesChanged();
   }, handleContentSubscriptionError);
 }
@@ -411,7 +417,7 @@ function loadCodexContent() {
     state.entryIndex = { ...demoEntriesByType };
   }
   // Reset the image index on boot + every codex switch; the subscription refills it in configured mode.
-  state.imageIndex = createImageIndex([], supabaseConfig);
+  state.imageIndex = createImageIndex([], cloudinaryConfig);
 }
 loadCodexContent();
 
@@ -1886,7 +1892,7 @@ function imagesPanelModel() {
       label: img.label || img.id,
       status: img.status || 'active',
       codices: img.codices || [],
-      url: publicUrl(supabaseConfig, img.id),
+      url: publicUrl(cloudinaryConfig, img.id),
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
   const query = state.adminFilters.images;

@@ -139,11 +139,11 @@ service cloud.firestore {
       }
     }
 
-    // Shared image library. Bytes live in Supabase (gated by Storage RLS); this collection is the
-    // metadata source of truth for what exists and where it belongs. Framing that keeps the rules
-    // enforceable: editors only ever touch codex membership and their own uploads' label —
-    // everything global (status, cross-assigning to a codex you can't edit, relabeling others'
-    // images) is admin. `id` == content hash == doc id == Supabase object key.
+    // Shared image library. Bytes live in Cloudinary (gated by a signed upload — see the `secrets`
+    // block below); this collection is the metadata source of truth for what exists and where it
+    // belongs. Framing that keeps the rules enforceable: editors only ever touch codex membership and
+    // their own uploads' label — everything global (status, cross-assigning to a codex you can't edit,
+    // relabeling others' images) is admin. `id` == content hash == doc id == Cloudinary public_id.
     match /images/{imageId} {
       // Keys changed by this write (added / removed / value-changed). updatedAt is always present.
       function changedKeys() {
@@ -189,6 +189,21 @@ service cloud.firestore {
 
       // Soft-delete is a status flag, not a document delete. Hard delete is an admin break-glass.
       allow delete: if isAdmin();
+    }
+
+    // Third-party service secrets, read at runtime by the client that needs them (currently only the
+    // Cloudinary api_secret, used to sign uploads in the browser — see src/utils/cloudinaryStore.js).
+    // The read gate deliberately mirrors the byte-upload privilege the Supabase Storage RLS granted
+    // before it: any signed-in user of THIS Firebase project could write bytes, with editor/admin
+    // enforced separately at images/create — so "any signed-in user may hold the upload credential,
+    // only an editor may LINK an image into a codex" is unchanged. The Cloudinary key is Master Admin
+    // (the free plan gives API keys no upload-capable lesser role), so the credential is powerful —
+    // but it's read only by authenticated editors here, the account has no card (no charge is ever
+    // possible), and codex integrity is enforced at images/create regardless. Writes are admin-only
+    // (the secret is seeded out-of-band); nobody rewrites it from the client.
+    match /secrets/{name} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // App-global icon overlay. SVG-as-text records concatenated onto the bundled baseline

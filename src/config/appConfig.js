@@ -36,6 +36,15 @@ export const appConfig = {
     // only, NOT authorization. Renaming here alone 403s every write. See src/utils/imageStore.js.
     bucket: 'codex-images',
   },
+  // Cloudinary hosts uploaded image bytes (Firestore keeps the metadata), replacing Supabase Storage.
+  // `cloudName` + `apiKey` are public locators, safe to ship: they appear in delivery/upload URLs by
+  // design. The sensitive `api_secret` is NOT here — it lives in a firestore.rules-gated `secrets`
+  // doc, read at runtime and used to sign uploads in the browser (see cloudinaryStore.js). Empty →
+  // resolveCloudinaryConfig returns null and the byte store stays off (local-only for images).
+  cloudinary: {
+    cloudName: 'izjbtl82',
+    apiKey: '876162768617657',
+  },
 };
 
 /**
@@ -76,4 +85,22 @@ export function resolveSupabaseConfig(baked, overrideRaw) {
     // non-JSON override (e.g. a Firebase config object) → not the local sentinel; ignore
   }
   return baked && baked.url && baked.anonKey ? baked : null;
+}
+
+/**
+ * Resolve the effective Cloudinary config from the baked default and the same optional override string.
+ * Pure and Node-testable. Sibling of resolveSupabaseConfig: the byte store is coupled to Firebase (the
+ * upload signature's secret lives in Firestore), so the `local` sentinel turns Cloudinary off too. Any
+ * other override leaves the baked config in place. Returns the config, or `null` (byte store off) when
+ * local-only or the baked config lacks a cloudName/apiKey.
+ */
+export function resolveCloudinaryConfig(baked, overrideRaw) {
+  const raw = typeof overrideRaw === 'string' ? overrideRaw.trim() : '';
+  if (raw === 'local') return null;
+  try {
+    if (raw && JSON.parse(raw) === 'local') return null;
+  } catch {
+    // non-JSON override (e.g. a Firebase config object) → not the local sentinel; ignore
+  }
+  return baked && baked.cloudName && baked.apiKey ? baked : null;
 }

@@ -3,22 +3,22 @@ import assert from 'node:assert/strict';
 
 import { createImageIndex, publicUrl } from './imageIndex.js';
 
-const config = { url: 'https://proj.supabase.co', anonKey: 'k', bucket: 'pool' };
+const config = { cloudName: 'izjbtl82', apiKey: '123' };
 const rec = (id, over = {}) => ({ id, label: id, status: 'active', codices: ['atm10'], ...over });
 
 // --- publicUrl -------------------------------------------------------------
 
-test('publicUrl builds the deterministic public storage URL', () => {
+test('publicUrl builds the deterministic Cloudinary delivery URL', () => {
   assert.equal(
     publicUrl(config, 'abc123'),
-    'https://proj.supabase.co/storage/v1/object/public/pool/abc123'
+    'https://res.cloudinary.com/izjbtl82/image/upload/abc123'
   );
 });
 
 test('publicUrl returns null without a usable config or id', () => {
   assert.equal(publicUrl(null, 'abc'), null);
   assert.equal(publicUrl(config, ''), null);
-  assert.equal(publicUrl({ url: 'u' }, 'abc'), null); // no bucket
+  assert.equal(publicUrl({ apiKey: 'k' }, 'abc'), null); // no cloudName
 });
 
 // --- createImageIndex.resolve ----------------------------------------------

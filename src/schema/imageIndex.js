@@ -8,24 +8,30 @@
  * it on codex-open and whenever the subscription fires — the same lifecycle
  * entries and schemas already use.
  *
- * `resolve(id)` stays synchronous: the Supabase public URL is deterministic from
- * the id, so nothing in the render path needs to await. An id not in the index
- * (removed, archived, or never existed) resolves to null → the not-found SVG.
+ * `resolve(id)` stays synchronous: the Cloudinary delivery URL is deterministic
+ * from the id (the id IS the asset's public_id), so nothing in the render path
+ * needs to await. An id not in the index (removed, archived, or never existed)
+ * resolves to null → the not-found SVG.
  *
- * Pure: the Supabase config is passed in, so this module imports no SDK and is
+ * Pure: the Cloudinary config is passed in, so this module imports no SDK and is
  * unit-testable under plain Node.
  */
 
-/** Deterministic public URL for an image id, or null if config/id is unusable. */
+/**
+ * Deterministic Cloudinary delivery URL for an image id, or null if config/id is unusable. The id is
+ * the asset's `public_id` (its content hash — see cloudinaryStore.js), so the URL resolves the bytes
+ * with no lookup, keeping `resolve()` synchronous. No format extension: Cloudinary serves the stored
+ * asset (already a WebP) as-is.
+ */
 export function publicUrl(config, id) {
-  if (!config || !config.url || !config.bucket || !id) return null;
-  return `${config.url}/storage/v1/object/public/${config.bucket}/${id}`;
+  if (!config || !config.cloudName || !id) return null;
+  return `https://res.cloudinary.com/${config.cloudName}/image/upload/${id}`;
 }
 
 /**
  * Build an index over image records for the current codex.
  *   records — [{ id, label, status, codices, ... }] (archived entries are dropped)
- *   config  — the resolved Supabase config (or null in local-only mode)
+ *   config  — the resolved Cloudinary config (or null in local-only mode)
  * Returns { listImages(), resolve(id) }.
  */
 export function createImageIndex(records, config) {
