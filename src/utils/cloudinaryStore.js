@@ -45,13 +45,18 @@ export function createCloudinaryStore(config, getSecret) {
       const secret = await getSecret();
       if (!secret) throw new Error('Cloudinary upload key unavailable — sign in as an editor.');
       const timestamp = Math.floor(Date.now() / 1000);
-      // Only public_id + timestamp are signed; api_key/file travel unsigned (see cloudinarySign.js).
-      const signature = await signUpload({ public_id: hash, timestamp }, secret);
+      // Signed params: public_id, timestamp, and (when set) the organizing asset_folder. api_key/file
+      // travel unsigned (see cloudinarySign.js). asset_folder is Media Library metadata only — it keeps
+      // uploads out of the account root without changing the public_id, so the delivery URL is unaffected.
+      const params = { public_id: hash, timestamp };
+      if (config.folder) params.asset_folder = config.folder;
+      const signature = await signUpload(params, secret);
 
       const form = new FormData();
       form.append('file', new Blob([bytes], { type: contentType || 'application/octet-stream' }));
       form.append('public_id', hash);
       form.append('timestamp', String(timestamp));
+      if (config.folder) form.append('asset_folder', config.folder);
       form.append('api_key', config.apiKey);
       form.append('signature', signature);
 

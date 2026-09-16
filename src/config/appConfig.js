@@ -44,6 +44,9 @@ export const appConfig = {
   cloudinary: {
     cloudName: 'izjbtl82',
     apiKey: '876162768617657',
+    // Cloudinary asset folder new uploads land in — Media Library organization only (dynamic-folder
+    // metadata), NOT part of the public_id, so it never affects the delivery URL or authorization.
+    folder: 'codex-images',
   },
 };
 
