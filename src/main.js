@@ -1878,7 +1878,15 @@ function renderImagesPanelHtml() {
     return '<div class="admin-section"><div class="admin-muted">The image library needs cloud mode (Firebase).</div></div>';
   }
   const m = imagesPanelModel();
-  return renderImagesPanel({ rows: m.rows, codices: m.codices, query: m.query });
+  // Upload needs a byte store + metadata port + a target codex (the create rule names exactly one).
+  const canUpload = !!(imageStore && imageMetaPort && state.currentCodexId);
+  return renderImagesPanel({
+    rows: m.rows,
+    codices: m.codices,
+    query: m.query,
+    canUpload,
+    uploadCodexName: canUpload ? currentCodexName() : '',
+  });
 }
 
 // Shape + filter the Images gallery rows. Shared by the first render and the filter re-render so both
@@ -1910,6 +1918,36 @@ function rerenderImageRows() {
 function wireImagesPanel() {
   wireAdminFilter('images-filter', 'images', rerenderImageRows);
   wireImageRows();
+  wireImagesUpload();
+}
+
+// Library upload from the admin panel: the same coordinator the entry-authoring picker uses, into the
+// current codex. On success the subscribeAllImages snapshot re-renders the panel with the new rows, so
+// there's nothing to append here. Each file's own validation error (type/size) surfaces as a toast.
+function wireImagesUpload() {
+  const btn = formContainer.querySelector('[data-images-upload]');
+  const input = formContainer.querySelector('[data-images-file]');
+  if (!btn || !input) return;
+  btn.addEventListener('click', () => input.click());
+  input.addEventListener('change', async () => {
+    const files = [...(input.files || [])];
+    input.value = ''; // let the same file re-trigger change if picked again
+    if (!files.length) return;
+    btn.disabled = true;
+    let ok = 0;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      showToast(files.length > 1 ? `Uploading ${i + 1} of ${files.length}: ${file.name}…` : `Uploading ${file.name}…`);
+      try {
+        await uploadImageToCurrentCodex(file);
+        ok++;
+      } catch (err) {
+        showToast(`${file.name}: ${err.message}`);
+      }
+    }
+    btn.disabled = false;
+    if (ok) showToast(`Uploaded ${ok} image${ok > 1 ? 's' : ''}`);
+  });
 }
 
 function wireImageRows() {

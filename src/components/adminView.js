@@ -296,17 +296,27 @@ export function renderImageCards(rows = [], codices = [], query = '') {
   if (!rows.length) {
     const msg = query.trim()
       ? `No images match “${escapeHtml(query.trim())}”.`
-      : 'No images yet. Editors add images from the picker while authoring an entry.';
+      : 'No images yet. Use ＋ Upload above, or add them from the picker while authoring an entry.';
     return `<div class="admin-muted">${msg}</div>`;
   }
   return `<div class="gallery-grid">${rows.map(card).join('')}</div>`;
 }
 
-export function renderImagesPanel({ rows = [], codices = [], query = '' }) {
+export function renderImagesPanel({ rows = [], codices = [], query = '', canUpload = false, uploadCodexName = '' }) {
+  // Upload adds to the current codex (the only codex a create can name; admins cross-assign after).
+  const uploadControl = canUpload
+    ? `<div class="admin-actions">
+         <button type="button" class="ui-btn" data-intent="primary" data-size="sm" data-images-upload
+                 title="Upload images to the library — pick several at once">＋ Upload</button>
+         <input type="file" accept="image/*" multiple data-images-file hidden>
+         ${uploadCodexName ? `<span class="admin-muted">New uploads are added to ${escapeHtml(uploadCodexName)}.</span>` : ''}
+       </div>`
+    : '';
   return `
     <div class="admin-section">
       <h3>Images</h3>
       <p class="admin-muted">Every image across all codices. Archiving hides an image everywhere; its bytes are retained.</p>
+      ${uploadControl}
       ${filterInput('images-filter', 'Filter images by label…', query)}
       <div id="images-results">${renderImageCards(rows, codices, query)}</div>
     </div>`;
