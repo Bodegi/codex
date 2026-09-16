@@ -15,7 +15,6 @@
     "vite": "^5.4.11"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.111.0",
     "design-kit": "github:Bodegi/design-kit#v1.2.1",
     "firebase": "^12.17.0"
   }

@@ -7,7 +7,7 @@ changing it — they carry the real design rationale; this file is the map, not 
 
 Codex Studio — a browser worldbuilding codex. Admins define content **types** (a schema
 builder in the app), authors write **entries** against them, and the reader view is generated
-from the schema. Cloud backend is Firebase (Auth + Firestore, entries) + Supabase Storage
+from the schema. Cloud backend is Firebase (Auth + Firestore, entries) + Cloudinary
 (image bytes). It also runs fully **local-only** off a bundled demo fixture. Vanilla JS ES
 modules, no framework; Vite for dev/build; Node's built-in runner for tests.
 
@@ -19,7 +19,7 @@ for the end-user flows.
 The architecture is a deliberate split, and it's the thing to preserve:
 
 - **`src/schema/**` and much of `src/utils/**` are pure and Node-testable.** No DOM, no
-  Firebase/Supabase SDK, no `window`. Every dependency is passed in. Each has a `*.test.js`
+  Firebase/Cloudinary SDK, no `window`. Every dependency is passed in. Each has a `*.test.js`
   beside it that runs under plain `node --test`. Examples: `fieldKinds.js`, `viewState.js`,
   `capabilities.js`, `schemaValidate.js`, `slug.js`, `navModel.js`, `imageIndex.js`,
   `summaryCard.js`, `searchIndex.js`, `entryHistory.js`, `referenceIndex.js`, `exportCodex.js`.
@@ -69,14 +69,45 @@ Mode is resolved once at boot in [`src/config/appConfig.js`](src/config/appConfi
 baked config + a `localStorage` override (`codex_firebase_override`):
 
 - **Configured (cloud)** — baked Firebase config (or a dev JSON override) present → Firestore +
-  Supabase, Google sign-in, roles.
+  Cloudinary, Google sign-in, roles.
 - **Local-only** — override = `'local'` → bundled `demoFixture.js` codex, in-memory, no login.
   Edits reflect immediately but are **not persisted** (reset on reload).
 
-The Firebase config and Supabase key in `appConfig.js` are **public locators, not secrets** —
-do not treat them as leaked. Real authorization is [`firestore.rules`](firestore.rules) (the
-SSOT) + Supabase Storage RLS. `resolveFirebaseConfig` / `resolveSupabaseConfig` are pure and
-tested.
+The Firebase config and the Cloudinary `cloudName`/`apiKey` in `appConfig.js` are **public
+locators, not secrets** — do not treat them as leaked. Real authorization is
+[`firestore.rules`](firestore.rules) (the SSOT). `resolveFirebaseConfig` /
+`resolveCloudinaryConfig` are pure and tested.
+
+## Image hosting (Cloudinary)
+
+Image **bytes** live in Cloudinary; Firestore's `images` collection owns the **metadata** (id,
+label, status, codices). A record's id is a content hash — the same string is the Firestore doc
+id **and** the Cloudinary `public_id`, so the delivery URL is deterministic
+(`imageIndex.publicUrl` → `res.cloudinary.com/{cloudName}/image/upload/{id}`) and `resolve()`
+stays synchronous. The whole coupling is three seams: the read URL (`imageIndex.publicUrl`), the
+write adapter (`utils/cloudinaryStore.js`), and the config.
+
+Uploads are **signed in the browser** — no backend. The account `api_secret` lives in a
+`firestore.rules`-gated `secrets/cloudinary` doc (`{ apiSecret }`), read at runtime by an
+authenticated editor via `fbManager.getSecret('cloudinary')`, then used to sign the upload params
+(`schema/cloudinarySign.js`, a plain salted SHA-1/256 digest — **not** HMAC — verified against
+Cloudinary's documented test vector). The read gate is any signed-in user by design: holding the
+credential only lets you push bytes; the real gate on making an image *appear* in a codex is
+`images/create` (editor/admin). The key is **Master Admin**: Cloudinary's free plan offers API keys only Master
+Admin or Media Library User, and Media Library User can't upload via the API (403 on `create`).
+The residual risk is a full-account key exposed to a trusted editor's browser — accepted because
+the account has **no card on file**, so no charge is ever possible, and codex integrity is
+enforced separately at `images/create`. New uploads carry `asset_folder: 'codex-images'` (dynamic-
+folder metadata — organizes the Media Library without touching the `public_id` or delivery URL).
+
+**Operating Cloudinary out-of-band** (mirrors the Firestore admin-REST pattern — see the memory of
+the same name): read the secret from `secrets/cloudinary` with the service-account key
+(`.secrets/firebase-deploy.json`, `datastore` scope), then call the Admin API with
+`Authorization: Basic base64(apiKey:apiSecret)`. Notes learned migrating (2026-09-16): a signed
+**upload** with `asset_folder` places a *new* asset in that folder, but re-uploading with
+`overwrite` does **not** relocate an existing one — move existing assets with
+`POST /resources/image/upload/{public_id}` `asset_folder=…` (URL unaffected). This account is in
+dynamic-folder mode.
 
 ## Authorization
 

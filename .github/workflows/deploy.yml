@@ -1,7 +1,7 @@
 # Build the Vite bundle and publish it to GitHub Pages on every push to main.
 # Pairs with `base: '/codex/'` in vite.config.js (project site at https://bodegi.github.io/codex/).
-# No secrets needed — the Firebase/Supabase config baked into the bundle are public locators;
-# Firestore rules + Supabase Storage RLS are the real gate.
+# No secrets needed — the Firebase/Cloudinary config baked into the bundle are public locators;
+# Firestore rules are the real gate (the Cloudinary api_secret is not baked — see CLAUDE.md).
 name: Deploy to GitHub Pages
 
 on:

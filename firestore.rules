@@ -193,14 +193,13 @@ service cloud.firestore {
 
     // Third-party service secrets, read at runtime by the client that needs them (currently only the
     // Cloudinary api_secret, used to sign uploads in the browser — see src/utils/cloudinaryStore.js).
-    // The read gate deliberately mirrors the byte-upload privilege the Supabase Storage RLS granted
-    // before it: any signed-in user of THIS Firebase project could write bytes, with editor/admin
-    // enforced separately at images/create — so "any signed-in user may hold the upload credential,
-    // only an editor may LINK an image into a codex" is unchanged. The Cloudinary key is Master Admin
-    // (the free plan gives API keys no upload-capable lesser role), so the credential is powerful —
-    // but it's read only by authenticated editors here, the account has no card (no charge is ever
-    // possible), and codex integrity is enforced at images/create regardless. Writes are admin-only
-    // (the secret is seeded out-of-band); nobody rewrites it from the client.
+    // Read is any signed-in user by design: the credential only lets you push bytes to Cloudinary, and
+    // the real gate on making an image APPEAR in a codex is images/create (editor/admin) — so "anyone
+    // signed in may hold the upload credential, only an editor may LINK an image into a codex". The
+    // Cloudinary key is Master Admin (the free plan gives API keys no upload-capable lesser role), so
+    // the credential is powerful — but it's read only by authenticated users here, the account has no
+    // card (no charge is ever possible), and codex integrity is enforced at images/create regardless.
+    // Writes are admin-only (the secret is seeded out-of-band); nobody rewrites it from the client.
     match /secrets/{name} {
       allow read:  if isSignedIn();
       allow write: if isAdmin();

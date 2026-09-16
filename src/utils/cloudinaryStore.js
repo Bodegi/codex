@@ -1,7 +1,7 @@
 /**
  * Codex — Cloudinary byte store (the image byte adapter).
  *
- * Drop-in replacement for the Supabase `imageStore` behind the same `uploadImage()` port: returns
+ * The byte adapter behind the `uploadImage()` port (imageUpload.js): returns
  * `{ uploadBytes(hash, bytes, contentType) }`, or `null` in local-only mode (no config → upload UI
  * hidden, so the coordinator never sees a null store). URL construction stays OUT of here — it is
  * pure (`imageIndex.publicUrl`) so the render path's synchronous `resolve()` needs no await.
@@ -18,13 +18,13 @@
  * re-upload, never a bill.
  *
  * The `public_id` IS the content hash, so the deterministic delivery URL (`publicUrl`) resolves the
- * asset without a lookup — the same immutable content-hash identity the Supabase key had.
+ * asset without a lookup — the immutable content-hash identity is the storage key.
  */
 
 import { signUpload } from '../schema/cloudinarySign.js';
 
 /**
- * Build the byte store, or `null` when config is absent/incomplete (local-only), matching imageStore.
+ * Build the byte store, or `null` when config is absent/incomplete (local-only).
  *
  *   config     — resolved Cloudinary config `{ cloudName, apiKey }` (or null)
  *   getSecret  — async () => the Cloudinary api_secret (or null when unavailable)

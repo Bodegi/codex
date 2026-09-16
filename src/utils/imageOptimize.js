@@ -2,7 +2,7 @@
  * Codex — Image optimize (browser-only edge).
  *
  * The canvas half of issue #10: downscale-then-WebP an upload before it is stored,
- * so a 9 MB hero or a 5000px map doesn't ship full-size to Supabase and load
+ * so a 9 MB hero or a 5000px map doesn't ship full-size to Cloudinary and load
  * full-size in every reader view. The *policy* (dims, quality, skip rules) is the
  * pure `schema/imageCompress.js`; this module only does the DOM-bound decode/encode
  * and hands back the winning bytes.

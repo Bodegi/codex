@@ -5,7 +5,7 @@
  * envelope a reader can download as an off-platform copy (issue #2). Pure: `main.js` gathers the
  * three pieces from live state and hands them in, so this stays SDK/DOM-free and Node-tested.
  *
- * Scope is deliberate: image *bytes* live in Supabase and their records are app-global (shared
+ * Scope is deliberate: image *bytes* live in Cloudinary and their records are app-global (shared
  * across codices), so they are NOT bundled — entries keep their content-hash references, which is
  * all that's needed to re-resolve them against the same deployment. Entry docs and schemas are
  * emitted verbatim (whatever shape they carry), including archived ones, so the file is a faithful

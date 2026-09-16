@@ -2,7 +2,7 @@
 
 A browser-based **worldbuilding codex**: define your own content types (a schema builder,
 no code), author entries against them, and read them back as richly-rendered pages. Content
-lives in the cloud (Firestore for entries, Supabase Storage for images) so a small team can
+lives in the cloud (Firestore for entries, Cloudinary for images) so a small team can
 edit the same codex live, but the app also runs fully **local-only** with a bundled demo — no
 account, no backend — for a quick look or offline hacking.
 
@@ -32,7 +32,7 @@ generated from the schema.
 - **Live multi-user editing.** Explicit-save with optimistic-concurrency conflict handling;
   edits from other editors stream in. Every save snapshots a per-entry **version history** you
   can review and non-destructively restore.
-- **Runtime image upload.** Multi-file drag-and-drop into Supabase Storage, downscaled to WebP
+- **Runtime image upload.** Multi-file drag-and-drop into Cloudinary, downscaled to WebP
   client-side before upload; reference images inline in prose with `![](img:<id>)`.
 - **Export.** Any reader can download the whole codex — schemas plus active and archived entries
   — as a versioned JSON file.
@@ -85,12 +85,13 @@ The app resolves its mode once at boot from the baked config in
 
 | Mode | Firebase config present | Data | Auth |
 | --- | --- | --- | --- |
-| **Configured (cloud)** | yes (baked, or a dev JSON override) | Firestore + Supabase | Google sign-in; roles enforced by security rules |
+| **Configured (cloud)** | yes (baked, or a dev JSON override) | Firestore + Cloudinary | Google sign-in; roles enforced by security rules |
 | **Local-only** | no (override = `local`) | bundled demo, in-memory | none — no login wall |
 
-The Firebase web config and Supabase publishable key in `appConfig.js` are project **locators,
+The Firebase web config and Cloudinary `cloudName`/`apiKey` in `appConfig.js` are project **locators,
 not secrets** — real access control lives in the Firestore security rules
-([`firestore.rules`](firestore.rules)) and Supabase Storage RLS. See the file's header comment
+([`firestore.rules`](firestore.rules)); the Cloudinary upload `api_secret` is **not** baked, it
+lives in a rules-gated `secrets/cloudinary` doc (see CLAUDE.md → Image hosting). See the file's header comment
 for the dev-override recipe (point a local build at a throwaway dev Firestore project so local
 work never touches deployed content).
 
@@ -109,8 +110,8 @@ builds, and publishes `dist/` — no manual step.
 
 Pages serves from a repo subpath, so `vite.config.js` sets `base: '/codex/'`; built asset URLs
 (and `npm run dev` / `npm run preview`) are prefixed accordingly. There are **no deploy
-secrets** — the baked Firebase/Supabase config are public locators, and the Firestore rules +
-Storage RLS are the real gate.
+secrets** — the baked Firebase/Cloudinary config are public locators, and the Firestore rules
+are the real gate.
 
 Two one-time setups live outside the repo (already done for this project):
 
@@ -125,13 +126,13 @@ Two one-time setups live outside the repo (already done for this project):
 index.html              app shell (header, sidebar, editor + reader panels)
 src/
   main.js               bootstrap + wiring — the one impure orchestrator
-  config/appConfig.js   baked Firebase/Supabase locators + mode resolution
+  config/appConfig.js   baked Firebase/Cloudinary locators + mode resolution
   data/demoFixture.js   the local-only demo codex (also the test fixture)
   schema/               pure, Node-testable domain modules (field kinds, view
                         state, validation, slugs, nav model, image index, …)
   components/           DOM components (schema editor, map, image picker, admin
                         panels, modals, carousel/lightbox)
-  utils/                edge adapters (firebase, imageStore, auth, capabilities,
+  utils/                edge adapters (firebase, cloudinaryStore, auth, capabilities,
                         renderers)
   styles/main.css       all styling
 firestore.rules         the authorization source of truth
@@ -144,5 +145,5 @@ Most of `src/schema/**` and several `src/utils/**` modules are **pure and unit-t
 ## Tech
 
 Vanilla JS (ES modules, no framework), [Vite](https://vitejs.dev) for dev/build, Firebase
-(Auth + Firestore) and Supabase Storage for the cloud backend, and Node's built-in test runner.
+(Auth + Firestore) and Cloudinary for the cloud backend, and Node's built-in test runner.
 No TypeScript, no bundled UI library.

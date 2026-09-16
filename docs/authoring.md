@@ -131,8 +131,9 @@ Prose fields accept lightweight markup:
   converted to WebP in the browser before upload to keep files small.
 - **Reuse** — every uploaded image lives in the codex's image library and can be used by any
   entry (hero, gallery, or inline in prose).
-- **Where they live** — image bytes go to Supabase Storage; the metadata (id, label) to
-  Firestore. Admins manage labels and archiving from the **Images** admin panel.
+- **Where they live** — image bytes go to Cloudinary; the metadata (id, label) to
+  Firestore. Admins manage labels and archiving — and can upload directly — from the **Images**
+  admin panel.
 
 Images require cloud mode — in local-only mode there's no upload and image ids resolve to a
 "not found" placeholder.

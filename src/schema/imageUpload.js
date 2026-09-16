@@ -3,7 +3,7 @@
  *
  * Pure orchestration over two injected ports, so the dedup / resurrect / add-codex
  * branching is unit-testable under Node with fakes and touches no network:
- *   storage.uploadBytes(hash, bytes, contentType)  — the Supabase byte adapter
+ *   storage.uploadBytes(hash, bytes, contentType)  — the Cloudinary byte adapter
  *   meta.getImage(hash) / createImage / addImageToCodex / setImageStatus — Firestore
  *
  * Dedup is not a feature we build; it is a consequence of content-hash identity:
@@ -20,7 +20,8 @@ import { hashBytes } from './contentHash.js';
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 /**
- * Client-side upload gate. NOT the security boundary — Supabase Storage RLS is — just a friendly guard
+ * Client-side upload gate. NOT the security boundary — the signed Cloudinary upload + the images/create
+ * rule are — just a friendly guard
  * that keeps junk out and gives the user a reason instead of a cryptic downstream failure.
  * Policy: any raster image, but no SVG (the app has a dedicated vector system in
  * icons/emblems, and excluding it is defense-in-depth against any future inline-render path), capped at

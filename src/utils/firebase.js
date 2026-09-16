@@ -224,10 +224,10 @@ export class FirebaseManager {
     }, onError);
   }
 
-  // ── Image library (shared `images` collection; bytes live in Supabase) ──────
+  // ── Image library (shared `images` collection; bytes live in Cloudinary) ──────
   // Metadata is the source of truth for what exists and where it belongs; a record's id is the
-  // content hash, so it is also the Supabase object key and the doc id. Byte upload is the
-  // separate `imageStore` adapter — the upload coordinator drives both (see imageUpload.js).
+  // content hash, so it is also the Cloudinary public_id and the doc id. Byte upload is the
+  // separate cloudinaryStore adapter — the upload coordinator drives both (see imageUpload.js).
 
   /** Read one image record, or null if absent. The coordinator's dedup/resurrect branch pivots on this. */
   async getImage(id) {

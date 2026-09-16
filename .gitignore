@@ -14,12 +14,6 @@ token.txt
 *firebase-adminsdk*.json
 serviceAccount*.json
 
-# Supabase CLI local artifacts — the linked-project ref, local stack, temp files. The tracked
-# Supabase config is supabase/config.toml + supabase/migrations/ only; the access token is a
-# gitignored PAT under .secrets/ (see supabase/config.toml for the deploy recipe).
-supabase/.temp/
-supabase/.branches/
-
 # Claude Code personal/local config (shared config in .claude/ is committed)
 .claude/settings.local.json
 
